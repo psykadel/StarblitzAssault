@@ -3,13 +3,11 @@
 import pygame
 import random
 import os # Import os
-from typing import TYPE_CHECKING, List, Optional, Tuple
+from typing import TYPE_CHECKING, List
 
 # Import the sprite loading utility
 from src.utils.sprite_loader import load_sprite_sheet, DEFAULT_CROP_BORDER_PIXELS
-
-# Import the enemy projectile
-from src.projectile import EnemyProjectile
+from src.enemy_bullet import EnemyBullet
 
 # Import config variables and constants
 from src.config import (
@@ -24,8 +22,6 @@ from src.config import (
 ENEMY1_SCALE_FACTOR = 0.20 # Adjust scale as needed
 ENEMY1_ANIMATION_SPEED_MS = 100 # Animation speed
 ENEMY1_SPEED_X = -3 # Pixels per frame (moving left)
-ENEMY1_SHOOT_DELAY = 2000  # Milliseconds between shots
-ENEMY1_SHOOT_CHANCE = 0.02  # 2% chance per frame to shoot when able
 
 # Avoid circular imports for type checking
 # if TYPE_CHECKING:
@@ -47,16 +43,9 @@ class Enemy(pygame.sprite.Sprite):
         # Movement speed - subclasses should override
         self.speed_x: float = 0
         self.speed_y: float = 0
-        
-        # Shooting properties
-        self.can_shoot: bool = True
-        self.last_shot_time: int = pygame.time.get_ticks()
-        self.shoot_delay: int = ENEMY1_SHOOT_DELAY  # Default delay
-        self.shoot_chance: float = ENEMY1_SHOOT_CHANCE  # Default chance
-        
-        # Reference to sprite groups for adding projectiles
-        self.all_sprites: Optional[pygame.sprite.Group] = None
-        self.enemy_projectiles: Optional[pygame.sprite.Group] = None
+
+        # Default starting position removed - will be set externally after init
+        # self.rect.topleft = (SCREEN_WIDTH + 50, random.randrange(0, SCREEN_HEIGHT))
 
     def _animate(self) -> None:
         """Cycles through the animation frames."""
@@ -87,46 +76,11 @@ class Enemy(pygame.sprite.Sprite):
         # Remove if it moves completely off the left side of the screen
         if self.rect.right < 0:
             self.kill() # Remove sprite from all groups
-            
-        # Check if should shoot
-        if self.can_shoot and self.all_sprites and self.enemy_projectiles:
-            self._try_shoot()
-
-    def _try_shoot(self) -> None:
-        """Try to shoot a projectile based on chance and cooldown."""
-        now = pygame.time.get_ticks()
-        
-        # Check if enough time has passed since the last shot
-        if now - self.last_shot_time > self.shoot_delay:
-            # Random chance to fire
-            if random.random() < self.shoot_chance:
-                self.shoot()
-                self.last_shot_time = now
 
     def shoot(self) -> None:
-        """Shoot a projectile towards the player."""
-        if not self.all_sprites or not self.enemy_projectiles:
-            return
-            
-        # Create projectile at the left edge of the enemy
-        projectile = EnemyProjectile(self.rect.left, self.rect.centery)
-        
-        # Add to sprite groups
-        self.all_sprites.add(projectile)
-        self.enemy_projectiles.add(projectile)
-        
-        # Sound effect will be handled in the game loop
-        # We'll use an event to notify the game loop that an enemy has shot
-        pygame.event.post(pygame.event.Event(
-            pygame.USEREVENT, 
-            {"type": "enemy_shoot", "position": self.rect.center}
-        ))
-
-    def set_projectile_groups(self, all_sprites: pygame.sprite.Group, 
-                            enemy_projectiles: pygame.sprite.Group) -> None:
-        """Set the sprite groups for adding projectiles."""
-        self.all_sprites = all_sprites
-        self.enemy_projectiles = enemy_projectiles
+        """Allows enemy to shoot projectiles."""
+        # Placeholder for enemy shooting logic - implement later if needed
+        pass
 
     # No common load_sprites needed in base if each enemy type loads differently
     # def load_sprites(self) -> None:
@@ -171,5 +125,50 @@ class EnemyType1(Enemy):
         # Set movement speed
         self.speed_x = ENEMY1_SPEED_X
         self.speed_y = 0 # No vertical movement for now
+
+# New enemy class that shoots bullets towards the player
+class EnemyShooter(Enemy):
+    ENEMY_SHOOT_COOLDOWN_MS = 1500  # milliseconds throttle between shots
+
+    def __init__(self, player_ref, bullet_group, *groups) -> None:
+        super().__init__(*groups)
+        self.player_ref = player_ref
+        self.bullet_group = bullet_group
+        self.frames = load_sprite_sheet(
+            filename="enemy2.png",
+            sprite_dir=SPRITES_DIR,
+            scale_factor=ENEMY1_SCALE_FACTOR,
+            crop_border=DEFAULT_CROP_BORDER_PIXELS,
+            flip_horizontal=True
+        )
+        if not self.frames:
+            print("Error: EnemyShooter frames list is empty after loading!")
+            self.kill()
+            return
+        self.image = self.frames[self.frame_index]
+        self.rect = self.image.get_rect()
+        self.mask = pygame.mask.from_surface(self.image)
+        self.speed_x = ENEMY1_SPEED_X
+        self.speed_y = 0
+        self.last_shot_time = pygame.time.get_ticks()
+
+    def update(self) -> None:
+        # Animate and move the shooter enemy
+        self._animate()
+        new_x = self.rect.x + self.speed_x
+        new_y = self.rect.y + self.speed_y
+        self.rect.x = int(new_x)
+        self.rect.y = int(new_y)
+        
+        # Shooting logic: fire a bullet toward the player's current position
+        now = pygame.time.get_ticks()
+        if now - self.last_shot_time > self.ENEMY_SHOOT_COOLDOWN_MS:
+            self.last_shot_time = now
+            target_pos = self.player_ref.rect.center
+            EnemyBullet(self.rect.center, target_pos, self.bullet_group)
+        
+        # Remove the enemy if it moves completely off screen
+        if self.rect.right < 0:
+            self.kill()
 
 # Add more enemy classes as needed (e.g., Charger, Shooter, Boss)
