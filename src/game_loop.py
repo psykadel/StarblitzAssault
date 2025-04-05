@@ -26,6 +26,9 @@ from src.config import (
 # from src.debug import draw_debug_info
 # from src.hud import HUD
 
+# Import sound manager
+from src.sound_manager import SoundManager
+
 # Define background speeds
 BG_LAYER_SPEEDS = [0.5, 1.0, 1.5] # Slowest to fastest
 
@@ -108,6 +111,9 @@ class Game:
         self.all_sprites.add(self.player)
         # self.level_manager = LevelManager() # Not used yet
 
+        # Initialize sound manager
+        self.sound_manager = SoundManager()
+
         # Simple wave management state
         self.wave_active = False
         pygame.time.set_timer(WAVE_TIMER_EVENT, WAVE_DELAY_MS) # Timer for next wave
@@ -141,6 +147,8 @@ class Game:
                     self.is_running = False
                 elif event.key == pygame.K_SPACE and not self.player.is_firing:
                     self.player.start_firing()
+                    # Play laser sound when shooting starts
+                    self.sound_manager.play("laser1", "player")
             elif event.type == pygame.KEYUP:
                 if event.key == pygame.K_SPACE:
                     self.player.stop_firing()
@@ -153,6 +161,9 @@ class Game:
                 
                 print(f"Spawning wave of {count} enemies with pattern {pattern_type}")
                 self.spawn_enemy_wave(count, pattern_type=pattern_type)
+                
+                # Play wave spawn sound
+                self.sound_manager.play("powerup1", "enemy")
                 
                 # Reset the timer for the next wave
                 pygame.time.set_timer(WAVE_TIMER_EVENT, random.randint(3000, 5000))
@@ -320,6 +331,9 @@ class Game:
         # Count hits for feedback, but no need to loop
         if hits:
             print(f"Enemies hit: {len(hits)}")
+            # Play explosion sound
+            explosion_type = random.choice(["explosion_small", "explosion_medium", "explosion_large"])
+            self.sound_manager.play(explosion_type, "explosion")
             # Optional: Add explosion effect, score increase, etc.
             # Future: play explosion sound or spawn explosion animation
 

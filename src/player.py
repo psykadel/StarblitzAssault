@@ -2,6 +2,7 @@
 
 import pygame
 import os
+import random
 from typing import TYPE_CHECKING, Tuple, List
 
 # Import the Bullet class
@@ -163,8 +164,8 @@ class Player(pygame.sprite.Sprite):
             bullet = Bullet(self.rect.right, self.rect.centery)
             self.all_sprites.add(bullet)
             self.bullets.add(bullet)
-            # Optional: Play shooting sound
-            # print("Player shoots!") # Keep for debugging if needed
+            
+            # The sound is now played in the game_loop when firing starts
 
     def _handle_continuous_shooting(self) -> None:
         """Checks if the shoot key is held and calls shoot() if allowed."""
