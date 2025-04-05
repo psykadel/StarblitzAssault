@@ -11,14 +11,8 @@ from src.utils.sprite_loader import load_sprite_sheet, DEFAULT_CROP_BORDER_PIXEL
 
 # Import config variables
 from src.config import (
-    SPRITES_DIR,
-    PLAYER_SPEED,
-    PLAYER_SHOOT_DELAY,
-    SCREEN_WIDTH,
-    SCREEN_HEIGHT,
-    PLAYFIELD_TOP_Y,    # Import playfield boundaries
-    PLAYFIELD_BOTTOM_Y,
-    # WHITE, # Not needed for convert_alpha()
+    SPRITES_DIR, PLAYER_SPEED, PLAYER_SHOOT_DELAY, SCREEN_WIDTH,
+    SCREEN_HEIGHT, PLAYFIELD_TOP_Y, PLAYFIELD_BOTTOM_Y
 )
 
 # Constants for animation
@@ -64,6 +58,9 @@ class Player(pygame.sprite.Sprite):
 
         # Shooting cooldown timer
         self.last_shot_time: int = pygame.time.get_ticks()
+        
+        # Flag to track continuous firing state
+        self.is_firing: bool = False
 
     def load_sprites(self) -> None:
         """Loads animation frames using the utility function."""
@@ -71,8 +68,7 @@ class Player(pygame.sprite.Sprite):
             filename="main-character.png",
             sprite_dir=SPRITES_DIR,
             scale_factor=PLAYER_SCALE_FACTOR,
-            crop_border=3 # Increase crop specifically for player
-            # grid_dimensions=(3, 3) # This is the default in the utility
+            crop_border=5 # Try a larger crop (was 4)
         )
         # Error handling is done within load_sprite_sheet, which raises SystemExit
 
@@ -92,9 +88,20 @@ class Player(pygame.sprite.Sprite):
         """Updates the player's position, animation, and handles continuous shooting."""
         self._animate()
 
-        # Update position
-        self.rect.x += self.speed_x
-        self.rect.y += self.speed_y
+        # Update position - Apply diagonal movement normalization for consistent speed
+        if self.speed_x != 0 and self.speed_y != 0:
+            # Normalize diagonal movement to maintain consistent speed
+            # Using approximately 0.7071 (1/sqrt(2)) for normalization
+            self.speed_x *= 0.7071
+            self.speed_y *= 0.7071
+
+        # Apply movement with slight smoothing for better feel
+        new_x = self.rect.x + self.speed_x
+        new_y = self.rect.y + self.speed_y
+        
+        # Round to nearest pixel for smoother movement
+        self.rect.x = round(new_x)
+        self.rect.y = round(new_y)
 
         # Keep player on screen (Adjust boundaries for side-scroller)
         if self.rect.left < 0:
@@ -108,13 +115,16 @@ class Player(pygame.sprite.Sprite):
             self.rect.bottom = PLAYFIELD_BOTTOM_Y
 
         # Check for continuous shooting
-        self._handle_continuous_shooting()
-
-    def _handle_continuous_shooting(self) -> None:
-        """Checks if the shoot key is held and calls shoot() if allowed."""
-        keys = pygame.key.get_pressed() # Get state of all keys
-        if keys[pygame.K_SPACE]:
+        if self.is_firing:
             self.shoot() # shoot() already handles the cooldown
+
+    def start_firing(self) -> None:
+        """Begins continuous firing."""
+        self.is_firing = True
+        
+    def stop_firing(self) -> None:
+        """Stops continuous firing."""
+        self.is_firing = False
 
     def handle_input(self, event: pygame.event.Event) -> None:
         """Handles player input for movement (KEYDOWN/KEYUP). Shooting handled in update."""
@@ -155,3 +165,12 @@ class Player(pygame.sprite.Sprite):
             self.bullets.add(bullet)
             # Optional: Play shooting sound
             # print("Player shoots!") # Keep for debugging if needed
+
+    def _handle_continuous_shooting(self) -> None:
+        """Checks if the shoot key is held and calls shoot() if allowed."""
+        keys = pygame.key.get_pressed() # Get state of all keys
+        if keys[pygame.K_SPACE]:
+            self.is_firing = True
+            self.shoot() # shoot() already handles the cooldown
+        else:
+            self.is_firing = False

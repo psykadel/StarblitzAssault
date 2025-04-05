@@ -2,6 +2,8 @@
 
 import pygame
 import os # Import os
+import random # Import random for random range
+import math # Import math for trig functions
 # from pygame._sdl2 import Window # Removed - No longer using maximize
 
 # Import game components and config
@@ -16,11 +18,23 @@ from src.config import (
     BACKGROUNDS_DIR, # Import background directory path
     ENEMY_SPAWN_RATE, # Import spawn rate from config
     PLAYFIELD_TOP_Y,    # Add missing playfield boundary import
-    PLAYFIELD_BOTTOM_Y  # Add missing playfield boundary import
+    PLAYFIELD_BOTTOM_Y,  # Add missing playfield boundary import
+    PLAYER_SPEED  # Added PLAYER_SPEED from config
 )
+# Remove the non-existent imports
+# from src.utils.constants import *
+# from src.debug import draw_debug_info
+# from src.hud import HUD
 
 # Define background speeds
 BG_LAYER_SPEEDS = [0.5, 1.0, 1.5] # Slowest to fastest
+
+# Enemy pattern types
+PATTERN_VERTICAL = 0   # Enemies in a straight vertical line
+PATTERN_HORIZONTAL = 1 # Enemies in a straight horizontal line
+PATTERN_DIAGONAL = 2   # Enemies in a diagonal line
+PATTERN_V_SHAPE = 3    # Enemies in a V formation
+PATTERN_COUNT = 4      # Total number of patterns
 
 # Custom Pygame Events
 # ENEMY_SPAWN_EVENT = pygame.USEREVENT + 1 # Removed - using wave logic
@@ -39,6 +53,19 @@ class Game:
         self.current_screen_width = SCREEN_WIDTH
         self.current_screen_height = SCREEN_HEIGHT
 
+        # Remove maximize logic
+        # try:
+        #     Window.from_display_module().maximize()
+        #     # After maximizing, get the *actual* screen size for background scaling
+        #     self.current_screen_width, self.current_screen_height = self.screen.get_size()
+        # except ImportError:
+        #     print("Warning: pygame._sdl2 not available. Cannot maximize window.")
+        #     self.current_screen_width, self.current_screen_height = SCREEN_WIDTH, SCREEN_HEIGHT
+        #     # Fallback or alternative fullscreen method could go here if desired
+        # except (pygame.error, AttributeError, TypeError) as e: # More specific exceptions
+        #      print(f"Warning: Error maximizing window: {e}")
+        #      self.current_screen_width, self.current_screen_height = SCREEN_WIDTH, SCREEN_HEIGHT
+
         pygame.display.set_caption("Starblitz Assault") # From game.mdc
 
         self.clock = pygame.time.Clock()
@@ -47,18 +74,22 @@ class Game:
         # Initialize background layers
         self.background_layers = []
         bg_image_path = os.path.join(BACKGROUNDS_DIR, "starfield.png")
+        initial_offsets = [0, 100, 200] # Default fallback offsets
+        bg_image_width = 0 # Default fallback width
         if os.path.exists(bg_image_path):
             # Calculate approximate initial offsets based on screen width
             # Get image width *after* scaling to screen height for better offsets
             try:
-                temp_layer_for_width = BackgroundLayer(bg_image_path, 0, self.current_screen_height)
-                bg_image_width = temp_layer_for_width.image_width
-                # Use more distinct offsets (e.g., 0, 1/4, 3/4)
-                initial_offsets = [0, bg_image_width / 4, bg_image_width * 3 / 4]
-                del temp_layer_for_width # Clean up temporary layer
-            except Exception:
-                print("Warning: Could not get background width for offsets. Using defaults.")
-                initial_offsets = [0, 100, 200] # Fallback offsets
+                # Use a variable to hold the temporary layer
+                _temp_layer = BackgroundLayer(bg_image_path, 0, self.current_screen_height)
+                bg_image_width = _temp_layer.image_width
+                # Use more distinct offsets (e.g., 0, 1/4, 3/4) only if width is valid
+                if bg_image_width > 0:
+                    initial_offsets = [0, bg_image_width / 4, bg_image_width * 3 / 4]
+                del _temp_layer # Clean up temporary layer
+            except (pygame.error, FileNotFoundError, ZeroDivisionError, AttributeError) as e: # Specific exceptions
+                print(f"Warning: Could not get background width for offsets: {e}. Using defaults.")
+                # Defaults already set above
 
             for i, speed in enumerate(BG_LAYER_SPEEDS):
                 offset = initial_offsets[i % len(initial_offsets)] # Cycle through offsets
@@ -101,59 +132,170 @@ class Game:
     #         # Optionally recreate/rescale background layers if needed
 
     def _handle_events(self):
-        """Processes user input and game events."""
-        # No need to filter resize events anymore
-        events = pygame.event.get() # Get all events
-        # Or: events = pygame.event.get(exclude=pygame.VIDEORESIZE)
-
-        for event in events:
+        """Process all game events."""
+        for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.is_running = False
-            # Handle wave timer event
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    self.is_running = False
+                elif event.key == pygame.K_SPACE and not self.player.is_firing:
+                    self.player.start_firing()
+            elif event.type == pygame.KEYUP:
+                if event.key == pygame.K_SPACE:
+                    self.player.stop_firing()
             elif event.type == WAVE_TIMER_EVENT:
-                self.spawn_enemy_wave(count=5, spacing_y=80) # Example wave
+                # Select a random pattern type
+                pattern_type = random.randint(0, 3)  # 0-3 for our four pattern types
+                
+                # Random count of enemies between 4 and 7
+                count = random.randint(4, 7)
+                
+                print(f"Spawning wave of {count} enemies with pattern {pattern_type}")
+                self.spawn_enemy_wave(count, pattern_type=pattern_type)
+                
+                # Reset the timer for the next wave
+                pygame.time.set_timer(WAVE_TIMER_EVENT, random.randint(3000, 5000))
 
-            # Pass other events to the player for input handling
-            self.player.handle_input(event)
-
-    def spawn_enemy_wave(self, count: int, spacing_y: int):
-        """Spawns a simple wave of enemies.
-
-        Args:
-            count: Number of enemies in the wave.
-            spacing_y: Vertical spacing between enemies.
+    def spawn_enemy_wave(self, count: int, pattern_type: int = PATTERN_VERTICAL):
         """
-        # Basic example: Spawn enemies in a vertical line entering from right
-        # Calculate starting Y to center the wave approximately
-        # Need enemy height - get it from a temporary instance
-        # Note: This assumes all EnemyType1 are the same height
-        try:
-            temp_enemy = EnemyType1()
-            enemy_height = temp_enemy.rect.height
-            temp_enemy.kill()
-            total_wave_height = (count - 1) * spacing_y + enemy_height
-            start_y = max(PLAYFIELD_TOP_Y, (self.current_screen_height - total_wave_height) // 2)
-        except Exception as e:
-            print(f"Warning: Could not get enemy height for wave positioning: {e}. Using default Y.")
-            start_y = PLAYFIELD_TOP_Y + 50 # Fallback start position
-            enemy_height = 50 # Fallback height
+        Spawns a wave of enemies in a specific pattern.
+        
+        Args:
+            count: Number of enemies to spawn
+            pattern_type: The formation pattern to use
+        """
+        # Choose the pattern function based on pattern_type
+        if pattern_type == PATTERN_VERTICAL:
+            spacing_y = 60  # Vertical spacing between enemies
+            self._spawn_vertical_pattern(count, spacing_y)
+        elif pattern_type == PATTERN_HORIZONTAL:
+            self._spawn_horizontal_pattern(count)
+        elif pattern_type == PATTERN_DIAGONAL:
+            self._spawn_diagonal_pattern(count)
+        elif pattern_type == PATTERN_V_SHAPE:
+            self._spawn_v_pattern(count)
+        else:
+            # Default to vertical pattern if invalid pattern type
+            spacing_y = 60
+            self._spawn_vertical_pattern(count, spacing_y)
 
+    def _spawn_vertical_pattern(self, count: int, spacing_y: int):
+        """Creates a vertical line of enemies entering from right."""
+        # Calculate the playfield height for spacing
+        playfield_height = PLAYFIELD_BOTTOM_Y - PLAYFIELD_TOP_Y
+        
+        # Fixed enemy height estimate
+        enemy_height = 40
+        
+        # Total pattern height
+        total_height = (count - 1) * spacing_y + enemy_height
+        
+        # Center the pattern vertically
+        start_y = PLAYFIELD_TOP_Y + (playfield_height - total_height) // 2
+        
+        # Fixed horizontal offset past right edge
+        x_pos = SCREEN_WIDTH + 50
+        
+        # Create the enemies
         for i in range(count):
             y_pos = start_y + i * spacing_y
-            # Ensure the calculated position is within bounds
-            y_pos = max(PLAYFIELD_TOP_Y, min(y_pos, PLAYFIELD_BOTTOM_Y - enemy_height))
-            # Create enemy instance, no need to manually set position here
-            # as __init__ now handles random Y within playfield
-            # Instead, we could modify __init__ or add a method to set specific pos
-            # For now, let's stick to the random Y pos within __init__
-            # but trigger multiple spawns for a 'wave'
-            EnemyType1(self.all_sprites, self.enemies)
+            enemy = EnemyType1(self.all_sprites, self.enemies)
+            enemy.rect.topleft = (int(x_pos), int(y_pos))
 
-        # Optionally, restart the wave timer here or base it on enemies cleared
-        # pygame.time.set_timer(WAVE_TIMER_EVENT, WAVE_DELAY_MS) # Simple restart
+    def _spawn_horizontal_pattern(self, count: int):
+        """Creates a horizontal line of enemies entering from right."""
+        # Spacing between enemies horizontally
+        spacing_x = 60
+        
+        # Center the pattern vertically in the playfield
+        y_pos = (PLAYFIELD_TOP_Y + PLAYFIELD_BOTTOM_Y) // 2
+        
+        # Base horizontal position
+        base_x = SCREEN_WIDTH + 50
+        
+        # Create the enemies
+        for i in range(count):
+            x_pos = base_x + i * spacing_x
+            enemy = EnemyType1(self.all_sprites, self.enemies)
+            enemy.rect.topleft = (int(x_pos), int(y_pos))
+
+    def _spawn_diagonal_pattern(self, count: int):
+        """Creates a diagonal line of enemies entering from right."""
+        # Spacing between enemies
+        spacing_x = 50
+        spacing_y = 50
+        
+        # Start position (top of playfield)
+        start_x = SCREEN_WIDTH + 50
+        
+        # Adjust start_y based on count to keep the pattern within the playfield
+        available_height = PLAYFIELD_BOTTOM_Y - PLAYFIELD_TOP_Y - 40 # 40 is enemy height estimate
+        max_drop = (count - 1) * spacing_y
+        
+        if max_drop > available_height:
+            # Scale down spacing to fit
+            spacing_y = available_height / (count - 1) if count > 1 else 0
+        
+        start_y = PLAYFIELD_TOP_Y + 20 # Start near top with a small margin
+        
+        # Create the enemies
+        for i in range(count):
+            x_pos = start_x + i * spacing_x
+            y_pos = start_y + i * spacing_y
+            enemy = EnemyType1(self.all_sprites, self.enemies)
+            enemy.rect.topleft = (int(x_pos), int(y_pos))
+
+    def _spawn_v_pattern(self, count: int):
+        """Creates a V-shaped formation of enemies entering from right."""
+        # Need an odd number for the V-pattern to look symmetrical
+        if count % 2 == 0:
+            count += 1
+        
+        # Center enemy is at the front of the V
+        center_index = count // 2
+        
+        # Spacing between enemies
+        spacing_x = 40
+        spacing_y = 40
+        
+        # Center position
+        center_x = SCREEN_WIDTH + 50
+        center_y = (PLAYFIELD_TOP_Y + PLAYFIELD_BOTTOM_Y) // 2
+        
+        # Create the enemies
+        for i in range(count):
+            # Calculate position relative to center
+            index_from_center = i - center_index
+            
+            # X increases as we go away from center in either direction
+            x_pos = center_x + abs(index_from_center) * spacing_x
+            
+            # Y increases as we go away from center
+            y_pos = center_y + index_from_center * spacing_y
+            
+            enemy = EnemyType1(self.all_sprites, self.enemies)
+            enemy.rect.topleft = (int(x_pos), int(y_pos))
 
     def _update(self):
         """Updates the state of all game objects and handles collisions."""
+        # Process keyboard input for player movement
+        keys = pygame.key.get_pressed()
+        
+        # Reset movement speeds
+        self.player.speed_x = 0
+        self.player.speed_y = 0
+        
+        # Set movement based on keys
+        if keys[pygame.K_UP]:
+            self.player.speed_y = -PLAYER_SPEED
+        if keys[pygame.K_DOWN]:
+            self.player.speed_y = PLAYER_SPEED
+        if keys[pygame.K_LEFT]:
+            self.player.speed_x = -PLAYER_SPEED
+        if keys[pygame.K_RIGHT]:
+            self.player.speed_x = PLAYER_SPEED
+            
         # Update background layers
         for layer in self.background_layers:
             layer.update()
@@ -174,10 +316,12 @@ class Game:
         # The two True arguments mean both the bullet and the enemy are killed upon collision
         hits = pygame.sprite.groupcollide(self.enemies, self.bullets, True, True)
         # hits is a dictionary where keys are enemies hit, values are lists of bullets that hit them
-        for enemy_hit in hits:
+        
+        # Count hits for feedback, but no need to loop
+        if hits:
+            print(f"Enemies hit: {len(hits)}")
             # Optional: Add explosion effect, score increase, etc.
-            print(f"Enemy hit!")
-            pass
+            # Future: play explosion sound or spawn explosion animation
 
         # Check for player hitting enemies (optional: game over?)
         # player_hits = pygame.sprite.spritecollide(self.player, self.enemies, False) # False: player doesn't die instantly
