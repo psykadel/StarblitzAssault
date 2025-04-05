@@ -19,7 +19,8 @@ from src.config import (
     ENEMY_SPAWN_RATE, # Import spawn rate from config
     PLAYFIELD_TOP_Y,    # Add missing playfield boundary import
     PLAYFIELD_BOTTOM_Y,  # Add missing playfield boundary import
-    PLAYER_SPEED  # Added PLAYER_SPEED from config
+    PLAYER_SPEED,  # Added PLAYER_SPEED from config
+    PLAYER_SHOOT_DELAY  # Added for laser sound timing
 )
 # Remove the non-existent imports
 # from src.utils.constants import *
@@ -113,6 +114,12 @@ class Game:
 
         # Initialize sound manager
         self.sound_manager = SoundManager()
+        
+        # Start background music
+        self.sound_manager.play_music("background-music-level-1.mp3", loops=-1)
+        
+        # Laser sound timer - for continuous fire sound
+        self.last_laser_sound_time = 0
 
         # Simple wave management state
         self.wave_active = False
@@ -147,8 +154,28 @@ class Game:
                     self.is_running = False
                 elif event.key == pygame.K_SPACE and not self.player.is_firing:
                     self.player.start_firing()
-                    # Play laser sound when shooting starts
-                    self.sound_manager.play("laser1", "player")
+                    # Initial laser sound will be handled in _update
+                
+                # Volume control keys
+                elif event.key == pygame.K_MINUS or event.key == pygame.K_KP_MINUS:
+                    current_volume = pygame.mixer.music.get_volume()
+                    self.sound_manager.set_music_volume(max(0.0, current_volume - 0.1))
+                    print(f"Music volume: {pygame.mixer.music.get_volume():.1f}")
+                    
+                elif event.key == pygame.K_PLUS or event.key == pygame.K_KP_PLUS or event.key == pygame.K_EQUALS:
+                    current_volume = pygame.mixer.music.get_volume()
+                    self.sound_manager.set_music_volume(min(1.0, current_volume + 0.1))
+                    print(f"Music volume: {pygame.mixer.music.get_volume():.1f}")
+                    
+                # Music toggle (M key)
+                elif event.key == pygame.K_m:
+                    if pygame.mixer.music.get_busy():
+                        self.sound_manager.pause_music()
+                        print("Music paused")
+                    else:
+                        self.sound_manager.unpause_music()
+                        print("Music resumed")
+                        
             elif event.type == pygame.KEYUP:
                 if event.key == pygame.K_SPACE:
                     self.player.stop_firing()
@@ -306,6 +333,14 @@ class Game:
             self.player.speed_x = -PLAYER_SPEED
         if keys[pygame.K_RIGHT]:
             self.player.speed_x = PLAYER_SPEED
+        
+        # Handle continuous laser sounds
+        current_time = pygame.time.get_ticks()
+        if self.player.is_firing and current_time - self.last_laser_sound_time > PLAYER_SHOOT_DELAY:
+            # Play laser sound when the player fires
+            laser_variant = random.choice(["laser1", "laser2", "laser3"])
+            self.sound_manager.play(laser_variant, "player")
+            self.last_laser_sound_time = current_time
             
         # Update background layers
         for layer in self.background_layers:

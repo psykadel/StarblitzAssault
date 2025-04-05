@@ -4,10 +4,10 @@ import os
 import pygame
 import random
 from typing import Dict, Optional
-from src.config import SOUNDS_DIR
+from src.config import SOUNDS_DIR, MUSIC_DIR
 
 class SoundManager:
-    """Manages loading, caching, and playing game sound effects."""
+    """Manages loading, caching, and playing game sound effects and music."""
     
     def __init__(self):
         """Initialize the sound manager and load sounds."""
@@ -29,6 +29,10 @@ class SoundManager:
         # Set volume levels for channels
         for channel in self.channels.values():
             channel.set_volume(0.7)
+        
+        # Current music track
+        self.current_music: Optional[str] = None
+        self.music_volume: float = 0.5  # Default music volume
         
         # Load sounds if they exist
         self._load_sounds()
@@ -100,4 +104,72 @@ class SoundManager:
         elif channel_name in self.channels:
             self.channels[channel_name].set_volume(volume)
         else:
-            print(f"Warning: Channel '{channel_name}' not found") 
+            print(f"Warning: Channel '{channel_name}' not found")
+    
+    def play_music(self, music_name: str, loops: int = -1, fade_ms: int = 1000) -> bool:
+        """
+        Play background music.
+        
+        Args:
+            music_name: Filename (with extension) of the music file in the music directory
+            loops: Number of times to repeat (-1 = infinite loop)
+            fade_ms: Fade-in time in milliseconds
+            
+        Returns:
+            bool: True if music started successfully, False otherwise
+        """
+        if not music_name:
+            return False
+            
+        # Build the full path to the music file
+        music_path = os.path.join(MUSIC_DIR, music_name)
+        
+        if not os.path.exists(music_path):
+            print(f"Warning: Music file not found: {music_path}")
+            return False
+            
+        try:
+            # Stop any currently playing music with a fade-out
+            if pygame.mixer.music.get_busy():
+                pygame.mixer.music.fadeout(fade_ms)
+                
+            pygame.mixer.music.load(music_path)
+            pygame.mixer.music.set_volume(self.music_volume)
+            pygame.mixer.music.play(loops=loops, fade_ms=fade_ms)
+            
+            self.current_music = music_name
+            print(f"Playing music: {music_name}")
+            return True
+        except pygame.error as e:
+            print(f"Error playing music {music_name}: {e}")
+            return False
+    
+    def stop_music(self, fade_ms: int = 1000):
+        """
+        Stop the currently playing music with a fade-out.
+        
+        Args:
+            fade_ms: Fade-out time in milliseconds
+        """
+        if pygame.mixer.music.get_busy():
+            pygame.mixer.music.fadeout(fade_ms)
+            self.current_music = None
+    
+    def set_music_volume(self, volume: float):
+        """
+        Set the volume level for music.
+        
+        Args:
+            volume: Volume level (0.0 to 1.0)
+        """
+        self.music_volume = max(0.0, min(1.0, volume))  # Clamp between 0 and 1
+        pygame.mixer.music.set_volume(self.music_volume)
+    
+    def pause_music(self):
+        """Pause the currently playing music."""
+        if pygame.mixer.music.get_busy():
+            pygame.mixer.music.pause()
+    
+    def unpause_music(self):
+        """Unpause the currently paused music."""
+        pygame.mixer.music.unpause() 

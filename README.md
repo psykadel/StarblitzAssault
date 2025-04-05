@@ -7,16 +7,25 @@ Blast into a relentless, side-scrolling dogfight across galaxies teeming with ho
 - Fast-paced side-scrolling space shooter gameplay
 - Multiple enemy formation patterns
 - Procedurally generated sound effects
+- Dynamic background music
 - Smooth player controls with responsive movement
 
-## Sound Effects System
+## Controls
 
-Starblitz Assault features a built-in procedural sound generator that creates arcade-style sound effects for the game. The sound system includes:
+- **Arrow Keys**: Move the ship
+- **Space**: Fire weapons
+- **M**: Toggle music pause/play
+- **+/-**: Increase/decrease music volume
+- **ESC**: Quit the game
 
-- Laser sounds for player weapons
-- Explosion sounds for enemy destruction
-- Powerup sounds for game events
-- Clean sound channel management
+## Sound Effects & Music System
+
+Starblitz Assault features a built-in procedural sound generator and a dynamic sound system:
+
+- Procedurally generated laser, explosion, and powerup sounds
+- Background music with fade-in/out and volume controls
+- Multi-channel audio for different game elements
+- Randomized laser sound variations during continuous fire
 
 ### Sound Generation
 
@@ -27,6 +36,14 @@ python assets/simple_sound_gen.py
 ```
 
 This will create WAV files in the `assets/sounds` directory that are automatically loaded by the game.
+
+### Adding Music
+
+Place MP3 or OGG files in the `assets/music` directory. You can play them using:
+
+```python
+sound_manager.play_music("your-music-file.mp3")
+```
 
 ---
 *(Scaffolding based on provided rules)*
