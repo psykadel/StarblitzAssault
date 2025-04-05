@@ -33,17 +33,18 @@ class Enemy(pygame.sprite.Sprite):
         super().__init__(*groups) # Pass groups to Sprite initializer
         self.frames: List[pygame.Surface] = []
         self.frame_index: int = 0
-        self.image: pygame.Surface = None # Will be set by subclass or load_sprites
-        self.rect: pygame.Rect = None    # Will be set by subclass or load_sprites
-        self.mask: pygame.Mask = None
+        # Initialize with placeholder surface/rect/mask before specific type loads
+        self.image = pygame.Surface((1, 1), pygame.SRCALPHA) # 1x1 transparent placeholder
+        self.rect = self.image.get_rect()
+        self.mask = pygame.mask.from_surface(self.image)
         self.last_frame_update: int = pygame.time.get_ticks()
 
         # Movement speed - subclasses should override
         self.speed_x: float = 0
         self.speed_y: float = 0
 
-        # Default starting position - subclasses should override
-        self.rect = pygame.Rect(SCREEN_WIDTH, random.randrange(0, SCREEN_HEIGHT), 1, 1) # Start off-screen right
+        # Default starting position removed - will be set externally after init
+        # self.rect.topleft = (SCREEN_WIDTH + 50, random.randrange(0, SCREEN_HEIGHT))
 
     def _animate(self) -> None:
         """Cycles through the animation frames."""
@@ -54,16 +55,22 @@ class Enemy(pygame.sprite.Sprite):
             self.last_frame_update = now
             self.frame_index = (self.frame_index + 1) % len(self.frames)
             # Update image and rect
-            old_center = self.rect.center
-            self.image = self.frames[self.frame_index]
-            self.rect = self.image.get_rect(center=old_center)
-            self.mask = pygame.mask.from_surface(self.image)
+            # Check if frames exist before accessing index
+            if self.frames and 0 <= self.frame_index < len(self.frames):
+                old_center = self.rect.center
+                self.image = self.frames[self.frame_index]
+                self.rect = self.image.get_rect(center=old_center)
+                self.mask = pygame.mask.from_surface(self.image)
+            # else: print(f"Warning: Invalid frame index {self.frame_index} in Enemy._animate" )
 
     def update(self) -> None:
         """Updates the enemy's position and animation."""
         self._animate()
-        self.rect.x += self.speed_x
-        self.rect.y += self.speed_y
+        # Convert float position changes to int before updating rect
+        new_x = self.rect.x + self.speed_x
+        new_y = self.rect.y + self.speed_y
+        self.rect.x = int(new_x)
+        self.rect.y = int(new_y)
 
         # Remove if it moves completely off the left side of the screen
         if self.rect.right < 0:
@@ -85,6 +92,7 @@ class EnemyType1(Enemy):
         super().__init__(*groups)
 
         # Load frames using the utility function
+        # Break long function call
         self.frames = load_sprite_sheet(
             filename="enemy1.png",
             sprite_dir=SPRITES_DIR,
@@ -104,14 +112,14 @@ class EnemyType1(Enemy):
         self.rect = self.image.get_rect()
         self.mask = pygame.mask.from_surface(self.image)
 
-        # Set initial position (within playfield Y, off-screen right)
-        self.rect.left = SCREEN_WIDTH + random.randrange(50, 200) # Start further off screen
-        # Ensure spawn is within playfield boundaries, adjusting for enemy height
-        max_top_y = PLAYFIELD_BOTTOM_Y - self.rect.height
-        min_top_y = PLAYFIELD_TOP_Y
-        if max_top_y < min_top_y: # Handle cases where enemy is taller than playfield
-            max_top_y = min_top_y
-        self.rect.top = random.randrange(min_top_y, max_top_y + 1)
+        # Initial position setting moved out of __init__
+        # self.rect.left = SCREEN_WIDTH + random.randrange(50, 200) # Start further off screen
+        # # Ensure spawn is within playfield boundaries, adjusting for enemy height
+        # max_top_y = PLAYFIELD_BOTTOM_Y - self.rect.height
+        # min_top_y = PLAYFIELD_TOP_Y
+        # if max_top_y < min_top_y: # Handle cases where enemy is taller than playfield
+        #     max_top_y = min_top_y
+        # self.rect.top = random.randrange(min_top_y, max_top_y + 1)
 
         # Set movement speed
         self.speed_x = ENEMY1_SPEED_X

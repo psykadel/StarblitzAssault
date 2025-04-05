@@ -2,6 +2,7 @@
 
 import sys
 import os
+import pygame
 
 # Ensure the src directory is in the Python path
 # This allows for absolute imports like 'from src.game_loop import Game'
@@ -15,7 +16,7 @@ def main():
     try:
         game = Game()
         game.run()
-    except Exception as e:
+    except (pygame.error, SystemExit) as e: # Specify expected exceptions
         # Log the exception
         print(f"An error occurred: {e}") # Replace with proper logging
         # Optionally, save error details to a log file in .logs/

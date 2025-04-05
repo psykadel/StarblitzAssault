@@ -27,7 +27,7 @@ class BackgroundLayer:
             scale = screen_height / img_h
             scaled_w = int(img_w * scale)
             self.image = pygame.transform.scale(self.original_image, (scaled_w, screen_height))
-        except pygame.error as e:
+        except (pygame.error, FileNotFoundError, ZeroDivisionError) as e: # Specific exceptions
             print(f"Error loading background image: {image_path} - {e}")
             # Create a fallback surface
             self.image = pygame.Surface((100, screen_height)).convert()
