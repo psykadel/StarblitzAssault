@@ -43,6 +43,7 @@ PATTERN_COUNT = 4      # Total number of patterns
 # Custom Pygame Events
 # ENEMY_SPAWN_EVENT = pygame.USEREVENT + 1 # Removed - using wave logic
 WAVE_TIMER_EVENT = pygame.USEREVENT + 1 # Timer to trigger next wave
+ENEMY_SHOOT_EVENT = pygame.USEREVENT + 2  # Event for enemy shooting
 WAVE_DELAY_MS = 5000 # Time between enemy waves (milliseconds)
 
 class Game:
@@ -106,6 +107,8 @@ class Game:
         self.all_sprites = pygame.sprite.Group()
         self.enemies = pygame.sprite.Group() # Group for enemies
         self.bullets = pygame.sprite.Group() # Group specifically for bullets
+        # Add enemy projectiles group
+        self.enemy_projectiles = pygame.sprite.Group() # Group for enemy projectiles
 
         # Initialize game components
         self.player = Player(self.all_sprites, self.bullets)
@@ -195,6 +198,17 @@ class Game:
                 # Reset the timer for the next wave
                 pygame.time.set_timer(WAVE_TIMER_EVENT, random.randint(3000, 5000))
 
+            # Handle generic user events
+            elif event.type == pygame.USEREVENT:
+                # Check for enemy shoot event
+                if hasattr(event, 'dict') and event.dict.get('type') == 'enemy_shoot':
+                    # Play enemy laser sound
+                    self.sound_manager.play("laser3", "enemy")
+            
+            # Alternatively, if we were using a dedicated event type:
+            # elif event.type == ENEMY_SHOOT_EVENT:
+            #     self.sound_manager.play("laser3", "enemy")
+
     def spawn_enemy_wave(self, count: int, pattern_type: int = PATTERN_VERTICAL):
         """
         Spawns a wave of enemies in a specific pattern.
@@ -240,6 +254,8 @@ class Game:
             y_pos = start_y + i * spacing_y
             enemy = EnemyType1(self.all_sprites, self.enemies)
             enemy.rect.topleft = (int(x_pos), int(y_pos))
+            # Set projectile groups for this enemy
+            enemy.set_projectile_groups(self.all_sprites, self.enemy_projectiles)
 
     def _spawn_horizontal_pattern(self, count: int):
         """Creates a horizontal line of enemies entering from right."""
@@ -257,6 +273,8 @@ class Game:
             x_pos = base_x + i * spacing_x
             enemy = EnemyType1(self.all_sprites, self.enemies)
             enemy.rect.topleft = (int(x_pos), int(y_pos))
+            # Set projectile groups for this enemy
+            enemy.set_projectile_groups(self.all_sprites, self.enemy_projectiles)
 
     def _spawn_diagonal_pattern(self, count: int):
         """Creates a diagonal line of enemies entering from right."""
@@ -283,6 +301,8 @@ class Game:
             y_pos = start_y + i * spacing_y
             enemy = EnemyType1(self.all_sprites, self.enemies)
             enemy.rect.topleft = (int(x_pos), int(y_pos))
+            # Set projectile groups for this enemy
+            enemy.set_projectile_groups(self.all_sprites, self.enemy_projectiles)
 
     def _spawn_v_pattern(self, count: int):
         """Creates a V-shaped formation of enemies entering from right."""
@@ -314,6 +334,8 @@ class Game:
             
             enemy = EnemyType1(self.all_sprites, self.enemies)
             enemy.rect.topleft = (int(x_pos), int(y_pos))
+            # Set projectile groups for this enemy
+            enemy.set_projectile_groups(self.all_sprites, self.enemy_projectiles)
 
     def _update(self):
         """Updates the state of all game objects and handles collisions."""
@@ -358,10 +380,7 @@ class Game:
     def _handle_collisions(self):
         """Checks and handles collisions between game objects."""
         # Check for bullet hitting enemies
-        # groupcollide finds collisions between two groups
-        # The two True arguments mean both the bullet and the enemy are killed upon collision
         hits = pygame.sprite.groupcollide(self.enemies, self.bullets, True, True)
-        # hits is a dictionary where keys are enemies hit, values are lists of bullets that hit them
         
         # Count hits for feedback, but no need to loop
         if hits:
@@ -369,14 +388,18 @@ class Game:
             # Play explosion sound
             explosion_type = random.choice(["explosion_small", "explosion_medium", "explosion_large"])
             self.sound_manager.play(explosion_type, "explosion")
-            # Optional: Add explosion effect, score increase, etc.
-            # Future: play explosion sound or spawn explosion animation
-
-        # Check for player hitting enemies (optional: game over?)
-        # player_hits = pygame.sprite.spritecollide(self.player, self.enemies, False) # False: player doesn't die instantly
-        # if player_hits:
-        #     print("Player collided with enemy!")
-            # Handle player taking damage or game over
+        
+        # Check for enemy projectiles hitting player
+        player_hits = pygame.sprite.spritecollide(self.player, self.enemy_projectiles, True)
+        if player_hits:
+            print("Player hit by enemy projectile!")
+            # Play player hit sound
+            self.sound_manager.play("explosion_small", "player")
+            # Here you could implement player damage/health system
+            
+            # For now we'll just flash the player or provide visual feedback
+            # This could be expanded to a health system later
+            self.player.flash()  # We'll implement this method in player.py
 
     def _render(self):
         """Draws the game state to the screen."""

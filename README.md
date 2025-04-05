@@ -6,6 +6,8 @@ Blast into a relentless, side-scrolling dogfight across galaxies teeming with ho
 
 - Fast-paced side-scrolling space shooter gameplay
 - Multiple enemy formation patterns
+- Dynamic enemy shooting behavior
+- Visual feedback when player gets hit
 - Procedurally generated sound effects
 - Dynamic background music
 - Smooth player controls with responsive movement
@@ -17,6 +19,14 @@ Blast into a relentless, side-scrolling dogfight across galaxies teeming with ho
 - **M**: Toggle music pause/play
 - **+/-**: Increase/decrease music volume
 - **ESC**: Quit the game
+
+## Gameplay Mechanics
+
+### Enemy System
+- Enemies spawn in various formations (vertical, horizontal, diagonal, V-shape)
+- Enemies shoot projectiles at random intervals
+- Each enemy has a chance to fire when off cooldown
+- Enemy projectiles cause visual feedback when hitting the player
 
 ## Sound Effects & Music System
 

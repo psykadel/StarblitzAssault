@@ -62,6 +62,12 @@ class Player(pygame.sprite.Sprite):
         
         # Flag to track continuous firing state
         self.is_firing: bool = False
+        
+        # Hit effect properties
+        self.is_flashing: bool = False
+        self.flash_start_time: int = 0
+        self.flash_duration: int = 200  # Flash duration in milliseconds
+        self.original_frames: List[pygame.Surface] = []
 
     def load_sprites(self) -> None:
         """Loads animation frames using the utility function."""
@@ -118,6 +124,10 @@ class Player(pygame.sprite.Sprite):
         # Check for continuous shooting
         if self.is_firing:
             self.shoot() # shoot() already handles the cooldown
+            
+        # Update flash effect if active
+        if self.is_flashing:
+            self._update_flash()
 
     def start_firing(self) -> None:
         """Begins continuous firing."""
@@ -175,3 +185,46 @@ class Player(pygame.sprite.Sprite):
             self.shoot() # shoot() already handles the cooldown
         else:
             self.is_firing = False
+
+    def flash(self) -> None:
+        """
+        Start a flash effect to indicate the player was hit.
+        This temporarily changes the player sprite to a flashing version.
+        """
+        if not self.is_flashing:
+            self.is_flashing = True
+            self.flash_start_time = pygame.time.get_ticks()
+            
+            # Store original frames if not already stored
+            if not self.original_frames:
+                self.original_frames = self.frames.copy()
+            
+            # Create flashed (white) versions of all frames
+            self.frames = []
+            for frame in self.original_frames:
+                # Create a white silhouette of the ship
+                flashed_frame = frame.copy()
+                white_overlay = pygame.Surface(frame.get_size(), pygame.SRCALPHA)
+                white_overlay.fill((255, 255, 255, 180))  # Semi-transparent white
+                flashed_frame.blit(white_overlay, (0, 0))
+                self.frames.append(flashed_frame)
+            
+            # Update current image to show flash immediately
+            old_center = self.rect.center
+            self.image = self.frames[self.frame_index]
+            self.rect = self.image.get_rect(center=old_center)
+    
+    def _update_flash(self) -> None:
+        """Update the flash effect and revert to normal when duration is over."""
+        current_time = pygame.time.get_ticks()
+        if current_time - self.flash_start_time > self.flash_duration:
+            # Revert to original frames
+            self.is_flashing = False
+            if self.original_frames:
+                self.frames = self.original_frames.copy()
+                self.original_frames = []
+                
+                # Update current image to normal immediately
+                old_center = self.rect.center
+                self.image = self.frames[self.frame_index]
+                self.rect = self.image.get_rect(center=old_center)
