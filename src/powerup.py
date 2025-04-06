@@ -6,7 +6,7 @@ import random
 from typing import Optional, Tuple, List, Dict, Any
 
 from src.animated_sprite import AnimatedSprite
-from src.sprite_loader import load_sprite_sheet, DEFAULT_CROP_BORDER_PIXELS
+from src.sprite_loader import load_sprite_sheet
 from src.particle import ParticleSystem
 from src.logger import get_logger
 from config.sprite_constants import PowerupType
@@ -227,11 +227,12 @@ class Powerup(AnimatedSprite):
         """Load the animation frames for this powerup type."""
         # Load the sprite sheet
         try:
+            # Powerups are static items, use center alignment
             all_frames = load_sprite_sheet(
                 filename="powerups.png",
                 sprite_dir=SPRITES_DIR,
                 scale_factor=POWERUP_SCALE_FACTOR,
-                crop_border=DEFAULT_CROP_BORDER_PIXELS
+                alignment='center' # Center align powerups
             )
             
             # Log details for debugging

@@ -7,7 +7,7 @@ import math
 from typing import TYPE_CHECKING, List, Optional
 
 # Import the sprite loading utility
-from src.sprite_loader import load_sprite_sheet, DEFAULT_CROP_BORDER_PIXELS
+from src.sprite_loader import load_sprite_sheet
 from src.enemy_bullet import EnemyBullet, BouncingBullet, SpiralBullet, ExplosiveBullet, HomingBullet, WaveBullet
 from src.animated_sprite import AnimatedSprite
 from src.logger import get_logger
@@ -60,7 +60,7 @@ class EnemyType1(Enemy):
             filename="enemy1.png",
             sprite_dir=SPRITES_DIR,
             scale_factor=ENEMY1_SCALE_FACTOR,
-            crop_border=DEFAULT_CROP_BORDER_PIXELS
+            alignment='right'
         )
 
         if not self.frames:
@@ -99,7 +99,7 @@ class EnemyShooter(Enemy):
             filename="enemy2.png",
             sprite_dir=SPRITES_DIR,
             scale_factor=ENEMY1_SCALE_FACTOR,
-            crop_border=DEFAULT_CROP_BORDER_PIXELS
+            alignment='right'
         )
         
         if not self.frames:
@@ -163,7 +163,7 @@ class EnemyType3(Enemy):
             filename="enemy3.png",
             sprite_dir=SPRITES_DIR,
             scale_factor=ENEMY1_SCALE_FACTOR,
-            crop_border=DEFAULT_CROP_BORDER_PIXELS
+            alignment='right'
         )
         
         if not self.frames:
@@ -242,7 +242,7 @@ class EnemyType4(Enemy):
             filename="enemy4.png",
             sprite_dir=SPRITES_DIR,
             scale_factor=ENEMY1_SCALE_FACTOR,
-            crop_border=DEFAULT_CROP_BORDER_PIXELS
+            alignment='right'
         )
         
         if not self.frames:
@@ -340,7 +340,7 @@ class EnemyType5(Enemy):
             filename="enemy5.png",
             sprite_dir=SPRITES_DIR,
             scale_factor=ENEMY1_SCALE_FACTOR,
-            crop_border=DEFAULT_CROP_BORDER_PIXELS
+            alignment='right'
         )
         
         if not self.frames:

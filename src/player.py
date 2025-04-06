@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Tuple, List, Optional, Dict, Any
 # Import the Bullet class
 from src.projectile import Bullet, LaserBeam, ScatterProjectile
 # Import the sprite loading utility
-from src.sprite_loader import load_sprite_sheet, DEFAULT_CROP_BORDER_PIXELS
+from src.sprite_loader import load_sprite_sheet
 # Import base animated sprite
 from src.animated_sprite import AnimatedSprite
 # Import logger
@@ -164,11 +164,14 @@ class Player(AnimatedSprite):
 
     def load_sprites(self) -> None:
         """Loads animation frames using the utility function."""
+        # Player sprite likely benefits from right-alignment for consistency
         self.frames = load_sprite_sheet(
             filename="main-character.png",
             sprite_dir=SPRITES_DIR,
             scale_factor=PLAYER_SCALE_FACTOR,
-            crop_border=5 # Try a larger crop (was 4)
+            # crop_border=5 # No longer used
+            alignment='right', # Explicitly state right alignment
+            align_margin=5      # Keep a small margin from the right edge
         )
         # Error handling is done within load_sprite_sheet, which raises SystemExit
         
@@ -669,14 +672,16 @@ class Player(AnimatedSprite):
             self.powerup_sprites = []
             try:
                 # Use the same function that powerups use to load their sprites
-                from src.sprite_loader import load_sprite_sheet, DEFAULT_CROP_BORDER_PIXELS
-                from src.powerup import POWERUP_SCALE_FACTOR, SPRITES_DIR
+                from src.sprite_loader import load_sprite_sheet
+                from src.powerup import POWERUP_SCALE_FACTOR
+                from config.game_config import SPRITES_DIR
                 
+                # Powerup icons probably look best centered
                 self.powerup_sprites = load_sprite_sheet(
                     filename="powerups.png",
                     sprite_dir=SPRITES_DIR,
                     scale_factor=0.1,  # Smaller scale factor for icons
-                    crop_border=DEFAULT_CROP_BORDER_PIXELS
+                    alignment='center' # Center align powerup icons
                 )
                 
                 # Resize all sprites to a consistent size for icons
@@ -790,6 +795,7 @@ class Player(AnimatedSprite):
             expiry_time = powerup_state.get("expiry_time")
             if expiry_time is not None:
                 time_left_ms = max(0, expiry_time - current_time)
+                # Ensure integer division for seconds display
                 time_remaining_str = f"{time_left_ms // 1000}s"
             
             charges = powerup_state.get("charges")
