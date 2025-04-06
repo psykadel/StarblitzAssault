@@ -28,7 +28,16 @@ class SoundManager:
         
         # Set volume levels for channels
         for channel in self.channels.values():
-            channel.set_volume(0.7)
+            channel.set_volume(0.5)  # Default volume for all channels
+        
+        # Sound-specific volume settings - applied during sound loading
+        self.sound_volume_settings = {
+            'laser': 0.1,  # Very low volume for laser sound
+            'explosion1': 0.5,
+            'explosion2': 0.5,
+            'hit1': 0.5,
+            'powerup1': 0.5
+        }
         
         # Current music track
         self.current_music: Optional[str] = None
@@ -48,7 +57,21 @@ class SoundManager:
                 try:
                     sound_path = os.path.join(SOUNDS_DIR, filename)
                     sound_name = os.path.splitext(filename)[0]
+                    
+                    # Special case for laser1/2/3 - map them all to "laser"
+                    if sound_name in ['laser1', 'laser2', 'laser3']:
+                        sound_name = 'laser'
+                        # Only load once
+                        if 'laser' in self.sounds:
+                            continue
+                    
+                    # Load the sound
                     self.sounds[sound_name] = pygame.mixer.Sound(sound_path)
+                    
+                    # Apply sound-specific volume if defined
+                    if sound_name in self.sound_volume_settings:
+                        self.sounds[sound_name].set_volume(self.sound_volume_settings[sound_name])
+                    
                     print(f"Loaded sound: {sound_name}")
                 except pygame.error as e:
                     print(f"Error loading sound {filename}: {e}")
@@ -64,6 +87,10 @@ class SoundManager:
         Returns:
             bool: True if the sound played successfully, False otherwise
         """
+        # Map laser1/2/3 to just "laser"
+        if sound_name in ['laser1', 'laser2', 'laser3']:
+            sound_name = 'laser'
+            
         if sound_name not in self.sounds:
             # Check if we have a generated sound
             if sound_name.startswith('gen_'):
@@ -75,6 +102,7 @@ class SoundManager:
             print(f"Warning: Channel '{channel_name}' not found")
             return False
             
+        # Just play the sound - volume is already set on the Sound object
         self.channels[channel_name].play(self.sounds[sound_name])
         return True
     
@@ -106,6 +134,22 @@ class SoundManager:
         else:
             print(f"Warning: Channel '{channel_name}' not found")
     
+    def set_sound_volume(self, sound_name: str, volume: float):
+        """
+        Set volume for a specific sound.
+        
+        Args:
+            sound_name: Name of the sound
+            volume: Volume level (0.0 to 1.0)
+        """
+        if sound_name in self.sounds:
+            volume = max(0.0, min(1.0, volume))  # Clamp between 0 and 1
+            self.sounds[sound_name].set_volume(volume)
+            # Update the setting for future reference
+            self.sound_volume_settings[sound_name] = volume
+        else:
+            print(f"Warning: Sound '{sound_name}' not found")
+        
     def play_music(self, music_name: str, loops: int = -1, fade_ms: int = 1000) -> bool:
         """
         Play background music.

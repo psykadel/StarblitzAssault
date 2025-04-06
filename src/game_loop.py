@@ -362,15 +362,14 @@ class Game:
         current_time = pygame.time.get_ticks()
         if self.player.is_firing and current_time - self.last_laser_sound_time > PLAYER_SHOOT_DELAY:
             # Play laser sound when the player fires
-            laser_variant = random.choice(["laser1", "laser2", "laser3"])
-            self.sound_manager.play(laser_variant, "player")
+            self.sound_manager.play("laser", "player")
             self.last_laser_sound_time = current_time
             
         # Check for new enemy bullets by comparing counts
         current_enemy_bullet_count = len(self.enemy_bullets)
         if current_enemy_bullet_count > self.previous_enemy_bullet_count:
             # New enemy bullets were created
-            self.sound_manager.play("laser2", "enemy")
+            self.sound_manager.play("laser", "enemy")
         self.previous_enemy_bullet_count = current_enemy_bullet_count
         
         # Update background layers
