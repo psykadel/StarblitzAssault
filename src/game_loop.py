@@ -221,6 +221,25 @@ class Game:
         self.game_over = False
         self.game_over_font = pygame.font.SysFont(None, DEFAULT_FONT_SIZE * 2)
         
+        # Game over animation
+        self.game_over_start_time = 0
+        self.game_over_animation_duration = 3000  # 3 seconds total animation
+        self.game_over_animation_complete = False
+        
+        # Load game over image
+        game_over_path = os.path.join('assets', 'images', 'game-over.png')
+        try:
+            self.game_over_image = pygame.image.load(game_over_path).convert_alpha()
+            # Scale to reasonable size
+            img_width, img_height = self.game_over_image.get_size()
+            scale_factor = min(SCREEN_WIDTH * 0.7 / img_width, SCREEN_HEIGHT * 0.4 / img_height)
+            new_size = (int(img_width * scale_factor), int(img_height * scale_factor))
+            self.game_over_image = pygame.transform.scale(self.game_over_image, new_size)
+            logger.info(f"Loaded game over image: {game_over_path}")
+        except (pygame.error, FileNotFoundError) as e:
+            logger.error(f"Failed to load game over image: {e}")
+            self.game_over_image = None
+        
         # Scoring system
         self.score = 0
         self.score_font = pygame.font.SysFont(None, DEFAULT_FONT_SIZE)
@@ -254,8 +273,8 @@ class Game:
                 if event.key == pygame.K_ESCAPE:
                     self.is_running = False
                 elif event.key == pygame.K_SPACE:
-                    if self.game_over:
-                        # Restart the game when space is pressed on game over screen
+                    if self.game_over and self.game_over_animation_complete:
+                        # Only allow restart when animation is complete
                         self._reset_game()
                     elif not self.player.is_firing:
                         self.player.start_firing()
@@ -894,30 +913,69 @@ class Game:
         
         # Draw game over message if necessary
         if self.game_over:
-            # Display large GAME OVER text
-            game_over_text = self.game_over_font.render("GAME OVER", True, RED)
-            text_rect = game_over_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 40))
-            self.screen.blit(game_over_text, text_rect)
+            current_time = pygame.time.get_ticks()
+            elapsed = current_time - self.game_over_start_time
             
-            # Display level reached prominently
-            level_font = pygame.font.SysFont(None, DEFAULT_FONT_SIZE * 3)  # Larger font for level
-            level_text = level_font.render(f"LEVEL {int(self.difficulty_level)}", True, (255, 215, 0))  # Gold color
-            level_rect = level_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 20))
-            self.screen.blit(level_text, level_rect)
-            
-            # Display final score
-            final_score_text = self.score_font.render(f"FINAL SCORE: {self.score}", True, WHITE)
-            final_score_rect = final_score_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 60))
-            self.screen.blit(final_score_text, final_score_rect)
-            
-            # Display restart prompt
-            restart_text = self.score_font.render("Press Space To Try Again!", True, (0, 255, 0))  # Green text
-            restart_rect = restart_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 100))
-            
-            # Make the text blink by checking the time
-            if (pygame.time.get_ticks() // 500) % 2 == 0:  # Blinks every 500ms
-                self.screen.blit(restart_text, restart_rect)
+            if elapsed < self.game_over_animation_duration and self.game_over_image is not None:
+                # Animation still in progress
+                progress = elapsed / self.game_over_animation_duration  # 0.0 to 1.0
                 
+                # Phase 1 (0-40%): Scale up horizontally
+                if progress < 0.4:
+                    phase_progress = progress / 0.4  # 0.0 to 1.0 within this phase
+                    width_scale = 1.0 + phase_progress * 0.5  # Scale from 100% to 150%
+                    height_scale = 1.0
+                
+                # Phase 2 (40-70%): Scale up vertically
+                elif progress < 0.7:
+                    phase_progress = (progress - 0.4) / 0.3  # 0.0 to 1.0 within this phase
+                    width_scale = 1.5
+                    height_scale = 1.0 + phase_progress * 0.5  # Scale from 100% to 150%
+                
+                # Phase 3 (70-100%): Squish out of existence
+                else:
+                    phase_progress = (progress - 0.7) / 0.3  # 0.0 to 1.0 within this phase
+                    width_scale = 1.5 - phase_progress * 1.5  # Scale from 150% to 0%
+                    height_scale = 1.5 - phase_progress * 1.5  # Scale from 150% to 0%
+                
+                # Scale image according to animation phase
+                orig_width, orig_height = self.game_over_image.get_size()
+                new_width = int(orig_width * width_scale)
+                new_height = int(orig_height * height_scale)
+                
+                # Only draw if dimensions are valid
+                if new_width > 0 and new_height > 0:
+                    scaled_image = pygame.transform.scale(self.game_over_image, (new_width, new_height))
+                    image_rect = scaled_image.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 20))
+                    self.screen.blit(scaled_image, image_rect)
+                
+                # Mark animation as complete if we've reached the end
+                if progress >= 0.99:
+                    self.game_over_animation_complete = True
+            
+            else:
+                # Animation complete, show level and score info
+                self.game_over_animation_complete = True
+                
+                # Display level reached prominently
+                level_font = pygame.font.SysFont(None, DEFAULT_FONT_SIZE * 3)  # Larger font for level
+                level_text = level_font.render(f"LEVEL {int(self.difficulty_level)}", True, (255, 215, 0))  # Gold color
+                level_rect = level_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 20))
+                self.screen.blit(level_text, level_rect)
+                
+                # Display final score
+                final_score_text = self.score_font.render(f"FINAL SCORE: {self.score}", True, WHITE)
+                final_score_rect = final_score_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 20))
+                self.screen.blit(final_score_text, final_score_rect)
+                
+                # Display restart prompt
+                restart_text = self.score_font.render("Press Space To Try Again!", True, (0, 255, 0))  # Green text
+                restart_rect = restart_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 70))
+                
+                # Make the text blink by checking the time
+                if (pygame.time.get_ticks() // 500) % 2 == 0:  # Blinks every 500ms
+                    self.screen.blit(restart_text, restart_rect)
+                    
         # Draw the game logo at the top center of the screen
         if self.logo is not None:
             logo_rect = self.logo.get_rect(midtop=(SCREEN_WIDTH // 2, 5))
@@ -980,8 +1038,10 @@ class Game:
         # Make player invisible but don't remove from groups yet
         self.player.image = pygame.Surface((1, 1), pygame.SRCALPHA)
         
-        # Set game over flag
+        # Set game over flag and initialize animation
         self.game_over = True
+        self.game_over_start_time = pygame.time.get_ticks()
+        self.game_over_animation_complete = False
         
         # No longer set a timer to end the game - player can restart with space
 
