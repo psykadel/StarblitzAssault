@@ -10,7 +10,7 @@ from typing import List, Dict, Tuple, Optional, Any, Set
 
 # Import game components
 from src.player import Player, MAX_POWER_LEVEL
-from src.background import BackgroundLayer # Import BackgroundLayer
+from src.background import BackgroundLayer, BackgroundDecorations # Import BackgroundDecorations
 from src.enemy import EnemyType1, EnemyShooter, EnemyType3, EnemyType4, EnemyType5 # Import the specific enemy class
 from src.sound_manager import SoundManager
 from src.logger import get_logger
@@ -130,6 +130,26 @@ class Game:
         else:
             logger.warning(f"Background image not found at {bg_image_path}. Skipping background.")
 
+        # Initialize background decorations
+        decoration_paths = []
+        for i in range(1, 7):  # decoration1.png to decoration6.png
+            decoration_path = os.path.join(BACKGROUNDS_DIR, f"decoration{i}.png")
+            if os.path.exists(decoration_path):
+                decoration_paths.append(decoration_path)
+            else:
+                logger.warning(f"Decoration image not found: {decoration_path}")
+        
+        # Create the decorations layer with a middle-ground scroll speed (between layer speeds)
+        self.bg_decorations = BackgroundDecorations(
+            decoration_paths=decoration_paths,
+            scroll_speed=1.2,  # Speed between background layer speeds
+            screen_width=self.current_screen_width,
+            screen_height=self.current_screen_height,
+            playfield_top=PLAYFIELD_TOP_Y,
+            playfield_bottom=PLAYFIELD_BOTTOM_Y,
+            decoration_count=3  # Reduced to make them very rare
+        )
+
         # Initialize border layers
         self.borders = []
         top_border_path = os.path.join(BACKGROUNDS_DIR, "border-upper.png")
@@ -158,6 +178,19 @@ class Game:
         # Initialize game components
         self.player = Player(self.bullets, self.all_sprites)
         # self.level_manager = LevelManager() # Not used yet
+
+        # Load the game logo
+        logo_path = os.path.join('assets', 'images', 'logo.png')
+        try:
+            self.logo = pygame.image.load(logo_path).convert_alpha()
+            # Scale the logo to an appropriate size for the top of the screen
+            logo_height = int(SCREEN_HEIGHT * 0.2)  # 20% of screen height (doubled from 10%)
+            logo_width = int(logo_height * (self.logo.get_width() / self.logo.get_height()))
+            self.logo = pygame.transform.scale(self.logo, (logo_width, logo_height))
+            logger.info(f"Loaded game logo: {logo_path}")
+        except (pygame.error, FileNotFoundError) as e:
+            logger.error(f"Failed to load game logo: {e}")
+            self.logo = None
 
         # Initialize sound manager
         self.sound_manager = SoundManager()
@@ -538,6 +571,9 @@ class Game:
         for layer in self.background_layers:
             layer.update()
         
+        # Update background decorations
+        self.bg_decorations.update()
+        
         # Update border layers
         for border in self.borders:
             border.update()
@@ -642,6 +678,9 @@ class Game:
         for layer in self.background_layers:
             layer.draw(self.screen)
 
+        # Draw background decorations after background layers but before sprites
+        self.bg_decorations.draw(self.screen)
+
         # Draw player and other sprites on top
         self.all_sprites.draw(self.screen)
         # Draw enemy bullets
@@ -694,6 +733,11 @@ class Game:
             final_score_text = self.score_font.render(f"FINAL SCORE: {self.score}", True, WHITE)
             final_score_rect = final_score_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 40))
             self.screen.blit(final_score_text, final_score_rect)
+        
+        # Draw the game logo at the top center of the screen
+        if self.logo is not None:
+            logo_rect = self.logo.get_rect(midtop=(SCREEN_WIDTH // 2, 5))
+            self.screen.blit(self.logo, logo_rect)
             
         pygame.display.flip()
         
