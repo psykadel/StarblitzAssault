@@ -184,7 +184,8 @@ class Game:
         try:
             self.logo = pygame.image.load(logo_path).convert_alpha()
             # Scale the logo to an appropriate size for the top of the screen
-            logo_height = int(SCREEN_HEIGHT * 0.2)  # 20% of screen height (doubled from 10%)
+            # Increase logo height by 50% (from 20% to 30% of screen height)
+            logo_height = int(SCREEN_HEIGHT * 0.3)  # 30% of screen height (50% bigger than before)
             logo_width = int(logo_height * (self.logo.get_width() / self.logo.get_height()))
             self.logo = pygame.transform.scale(self.logo, (logo_width, logo_height))
             logger.info(f"Loaded game logo: {logo_path}")
