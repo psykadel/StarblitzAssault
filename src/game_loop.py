@@ -122,6 +122,9 @@ class Game:
         # Laser sound timer - for continuous fire sound
         self.last_laser_sound_time = 0
 
+        # Enemy bullet tracking
+        self.previous_enemy_bullet_count = 0
+        
         # Simple wave management state
         self.wave_active = False
         pygame.time.set_timer(WAVE_TIMER_EVENT, WAVE_DELAY_MS) # Timer for next wave
@@ -363,6 +366,13 @@ class Game:
             self.sound_manager.play(laser_variant, "player")
             self.last_laser_sound_time = current_time
             
+        # Check for new enemy bullets by comparing counts
+        current_enemy_bullet_count = len(self.enemy_bullets)
+        if current_enemy_bullet_count > self.previous_enemy_bullet_count:
+            # New enemy bullets were created
+            self.sound_manager.play("laser2", "enemy")
+        self.previous_enemy_bullet_count = current_enemy_bullet_count
+        
         # Update background layers
         for layer in self.background_layers:
             layer.update()

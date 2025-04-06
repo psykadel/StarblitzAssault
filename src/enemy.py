@@ -165,7 +165,9 @@ class EnemyShooter(Enemy):
         if now - self.last_shot_time > self.ENEMY_SHOOT_COOLDOWN_MS:
             self.last_shot_time = now
             target_pos = self.player_ref.rect.center
+            # Create a new enemy bullet
             EnemyBullet(self.rect.center, target_pos, self.bullet_group)
+            # Sound will be handled in the game_loop where we have access to the sound manager
         
         # Remove the enemy if it moves completely off screen
         if self.rect.right < 0:

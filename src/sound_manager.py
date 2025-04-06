@@ -44,7 +44,7 @@ class SoundManager:
             return
             
         for filename in os.listdir(SOUNDS_DIR):
-            if filename.endswith(('.wav', '.ogg')):
+            if filename.endswith(('.ogg', '.wav')):
                 try:
                     sound_path = os.path.join(SOUNDS_DIR, filename)
                     sound_name = os.path.splitext(filename)[0]
