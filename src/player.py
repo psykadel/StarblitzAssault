@@ -24,6 +24,8 @@ from config.game_config import (
 
 # Import powerup constants
 from src.powerup import POWERUP_DURATION
+# Import the new constants
+from config.sprite_constants import PowerupType
 
 # Get a logger for this module
 logger = get_logger(__name__)
@@ -110,55 +112,55 @@ class Player(AnimatedSprite):
         self.original_image = None
         self.rotation_angle = 0
         
-        # Shield meter
+        # Shield meter (Visual only, logic driven by powerup state)
         self.shield_meter_width = 100
         self.shield_meter_height = 8
         self.shield_meter_position = (20, 90)  # Moved down from 70 to 90
-        self.shield_max_value = POWERUP_DURATION  # Import this from powerup.py
-        self.shield_value = 0
+        self.shield_max_value = POWERUP_DURATION 
+        # self.shield_value = 0 # Shield value derived from state dict
         
-        # Powerup state
-        self.original_shoot = self.shoot  # Store reference to original shoot method
-        self.has_triple_shot = False
-        self.triple_shot_expiry = 0
+        # Centralized Powerup State Management
+        self.active_powerups_state: Dict[str, Dict[str, Any]] = {}
+        # Example entry: "SHIELD": {"expiry_time": 15000, "index": 2}
+        # Example entry: "SCATTER_BOMB": {"charges": 3, "index": 6}
         
-        self.normal_shoot_delay = PLAYER_SHOOT_DELAY
-        self.has_rapid_fire = False
-        self.rapid_fire_expiry = 0
-        self.rapid_fire_delay = PLAYER_SHOOT_DELAY // 3
-        
-        self.has_shield = False
-        self.shield_expiry = 0
-        self.shield_color = (0, 100, 255, 128)  # Semi-transparent blue
-        self.shield_radius = 35
-        self.shield_pulse = 0
-        
-        self.has_homing_missiles = False
-        self.homing_missiles_expiry = 0
-        
-        self.has_pulse_beam = False
-        self.pulse_beam_expiry = 0
-        self.pulse_beam_charge = 0
-        self.max_pulse_beam_charge = 100
-        self.is_charging = False
-        
-        self.has_laser_beam = False
-        self.laser_beam_expiry = 0
-        self.laser_beam_charge = 0
-        self.max_laser_beam_charge = 100
-        self.is_charging_laser = False
-        
-        self.has_scatter_bomb = False
-        self.scatter_bomb_charges = 0
-        
-        self.has_time_warp = False
-        self.time_warp_expiry = 0
-        
-        # Active powerup visual indicators
-        self.active_powerups = []
+        # Store original shoot method reference (used by some powerups)
+        self.original_shoot_method = self.shoot 
+
+        # Active powerup visual indicators (using icons)
+        # self.active_powerups = [] # Replaced by active_powerups_state
         self.powerup_icon_size = 20
         self.powerup_icon_spacing = 5
         self.powerup_icon_base_y = 55  # Increased from 45 to 55 for more space below power bar
+
+        # Remove individual powerup state flags and timers
+        # self.has_triple_shot = False
+        # self.triple_shot_expiry = 0
+        # self.normal_shoot_delay = PLAYER_SHOOT_DELAY
+        # self.has_rapid_fire = False
+        # self.rapid_fire_expiry = 0
+        # self.rapid_fire_delay = PLAYER_SHOOT_DELAY // 3
+        # self.has_shield = False
+        # self.shield_expiry = 0
+        # self.shield_color = (0, 100, 255, 128)  # Semi-transparent blue
+        # self.shield_radius = 35
+        # self.shield_pulse = 0
+        # self.has_homing_missiles = False
+        # self.homing_missiles_expiry = 0
+        # self.has_pulse_beam = False # Deprecated
+        # self.pulse_beam_expiry = 0 # Deprecated
+        # self.pulse_beam_charge = 0 # Deprecated
+        # self.max_pulse_beam_charge = 100 # Deprecated
+        # self.is_charging = False # Deprecated
+        # self.has_laser_beam = False
+        # self.laser_beam_expiry = 0
+        # self.laser_beam_charge = 0
+        # self.max_laser_beam_charge = 100
+        # self.is_charging_laser = False
+        # self.has_scatter_bomb = False
+        # self.scatter_bomb_charges = 0
+        # self.has_time_warp = False
+        # self.time_warp_expiry = 0
 
     def load_sprites(self) -> None:
         """Loads animation frames using the utility function."""
@@ -251,9 +253,9 @@ class Player(AnimatedSprite):
         # Check all powerup expirations
         self._check_powerup_expirations()
             
-        # Check charging laser beam if active
-        if self.has_laser_beam and self.is_charging_laser:
-            self._charge_laser_beam()
+        # Check charging laser beam if active - LASER_BEAM removed
+        # if PowerupType.LASER_BEAM.name in self.active_powerups_state and self.active_powerups_state[PowerupType.LASER_BEAM.name].get("is_charging", False):
+        #     self._charge_laser_beam()
         
         # Use playfield boundaries for horizontal movement
         if self.rect.left < 0:
@@ -274,18 +276,20 @@ class Player(AnimatedSprite):
         # Check for continuous shooting
         if self.is_firing:
             # Use triple shot if active, otherwise normal shot
-            if self.has_triple_shot:
+            if "TRIPLE_SHOT" in self.active_powerups_state:
                 self._shoot_triple()
             else:
-                self.shoot() # shoot() already handles the cooldown
+                self.shoot() # shoot() already handles the cooldown based on powerup state
 
-        # Update shield meter if shield is active
-        if self.has_shield:
-            current_time = pygame.time.get_ticks()
-            time_remaining = max(0, self.shield_expiry - current_time)
-            self.shield_value = time_remaining
-        else:
-            self.shield_value = 0
+        # Update shield meter if shield is active (derived from state)
+        # shield_value is calculated in draw method
+        # if "SHIELD" in self.active_powerups_state:
+        #     current_time = pygame.time.get_ticks()
+        #     expiry = self.active_powerups_state["SHIELD"].get("expiry_time", 0)
+        #     time_remaining = max(0, expiry - current_time)
+        #     self.shield_value = time_remaining
+        # else:
+        #     self.shield_value = 0
 
     def start_firing(self) -> None:
         """Begins continuous firing."""
@@ -311,11 +315,15 @@ class Player(AnimatedSprite):
                     self.speed_x = PLAYER_SPEED / 2
                     
                 # Special powerup controls
-                elif event.key == pygame.K_b and self.has_scatter_bomb and self.scatter_bomb_charges > 0:
+                # Check state dict for scatter bomb availability and charges
+                scatter_state = self.active_powerups_state.get("SCATTER_BOMB")
+                if event.key == pygame.K_b and scatter_state and scatter_state.get("charges", 0) > 0:
                     self._fire_scatter_bomb()
-                elif event.key == pygame.K_LSHIFT and self.has_laser_beam:
-                    self.is_charging_laser = True
-                    self.laser_beam_charge = 0
+                # Check state dict for laser beam and set charging flag in state dict
+                # LASER_BEAM removed
+                # elif event.key == pygame.K_LSHIFT and PowerupType.LASER_BEAM.name in self.active_powerups_state:
+                #     self.active_powerups_state[PowerupType.LASER_BEAM.name]["is_charging"] = True
+                #     self.active_powerups_state[PowerupType.LASER_BEAM.name]["charge_level"] = 0 # Reset charge level
 
             if event.type == pygame.KEYUP:
                 # Stop movement only if the released key matches the current direction
@@ -328,10 +336,12 @@ class Player(AnimatedSprite):
                 elif event.key == pygame.K_RIGHT and self.speed_x > 0:
                     self.speed_x = 0
                     
-                # Release charged beam
-                elif event.key == pygame.K_LSHIFT and self.has_laser_beam and self.is_charging_laser:
-                    self._fire_laser_beam()
-                    self.is_charging_laser = False
+                # Release charged beam - check state dict
+                # LASER_BEAM removed
+                # laser_state = self.active_powerups_state.get(PowerupType.LASER_BEAM.name)
+                # if event.key == pygame.K_LSHIFT and laser_state and laser_state.get("is_charging", False):
+                #     self._fire_laser_beam()
+                #     laser_state["is_charging"] = False # Stop charging
         except Exception as e:
             logger.error(f"Error handling input: {e}")
             # Reset speeds to prevent getting stuck moving
@@ -341,8 +351,8 @@ class Player(AnimatedSprite):
     def shoot(self) -> None:
         """Creates a projectile sprite (bullet) firing forward."""
         now = pygame.time.get_ticks()
-        # Use rapid fire delay if active
-        shoot_delay = self.rapid_fire_delay if self.has_rapid_fire else self.normal_shoot_delay
+        # Use rapid fire delay if active, otherwise normal delay
+        shoot_delay = self.active_powerups_state.get("RAPID_FIRE", {}).get("delay", PLAYER_SHOOT_DELAY)
         
         if now - self.last_shot_time > shoot_delay:
             self.last_shot_time = now
@@ -353,7 +363,7 @@ class Player(AnimatedSprite):
                 bullet = Bullet(self.rect.right, self.rect.centery, all_sprites_group, self.bullets)
                 
                 # Make bullet home in on enemies if that powerup is active
-                if self.has_homing_missiles and self.game_ref:
+                if "HOMING_MISSILES" in self.active_powerups_state and self.game_ref:
                     # Find closest enemy
                     closest_enemy = None
                     closest_dist = float('inf')
@@ -378,141 +388,67 @@ class Player(AnimatedSprite):
             # The sound is now played in the game_loop when firing starts
     
     def _charge_pulse_beam(self) -> None:
-        """Charge up the pulse beam while key is held."""
-        if self.pulse_beam_charge < self.max_pulse_beam_charge:
-            self.pulse_beam_charge += 2  # Charge rate
-            
-            # Create charging particles if we have a game reference
-            if self.game_ref and hasattr(self.game_ref, 'particles'):
-                particles_group = getattr(self.game_ref, 'particles', None)
-                if particles_group:
-                    # Only create particles every few frames
-                    if self.pulse_beam_charge % 5 == 0:
-                        charge_percent = self.pulse_beam_charge / self.max_pulse_beam_charge
-                        
-                        # Calculate color based on charge (blue to white)
-                        r = min(255, int(100 + 155 * charge_percent))
-                        g = min(255, int(200 + 55 * charge_percent))
-                        b = 255
-                        
-                        from src.powerup import PowerupParticle
-                        # Create particles around the front of the ship
-                        for _ in range(2):
-                            pos_x = self.rect.right + random.randint(-5, 5)
-                            pos_y = self.rect.centery + random.randint(-10, 10)
-                            
-                            # Random velocity
-                            vel_x = random.uniform(-0.5, 1.5)
-                            vel_y = random.uniform(-1.0, 1.0)
-                            
-                            # Random size based on charge
-                            size = random.randint(2, int(2 + 5 * charge_percent))
-                            
-                            try:
-                                # Create particle
-                                PowerupParticle(
-                                    (pos_x, pos_y), (vel_x, vel_y),
-                                    (r, g, b), size, 
-                                    random.randint(10, 20),
-                                    0.01, 0.9,
-                                    particles_group
-                                )
-                            except Exception as e:
-                                logger.warning(f"Failed to create pulse beam charging particle: {e}")
-                                break
-    
+        """Deprecated, replaced by _charge_laser_beam."""
+        logger.warning("Pulse beam charging is deprecated.")
+
     def _charge_laser_beam(self) -> None:
         """Charge up the laser beam while key is held."""
-        if self.laser_beam_charge < self.max_laser_beam_charge:
-            self.laser_beam_charge += 2  # Charge rate
-            
-            # Create charging particles if we have a game reference
-            if self.game_ref and hasattr(self.game_ref, 'particles'):
-                particles_group = getattr(self.game_ref, 'particles', None)
-                if particles_group:
-                    # Only create particles every few frames
-                    if self.laser_beam_charge % 5 == 0:
-                        charge_percent = self.laser_beam_charge / self.max_laser_beam_charge
-                        
-                        # Calculate color based on charge (green to bright green)
-                        r = min(100, int(0 + 100 * charge_percent))
-                        g = min(255, int(180 + 75 * charge_percent))
-                        b = min(100, int(0 + 100 * charge_percent))
-                        
-                        from src.powerup import PowerupParticle
-                        # Create particles around the front of the ship
-                        for _ in range(2):
-                            pos_x = self.rect.right + random.randint(-5, 5)
-                            pos_y = self.rect.centery + random.randint(-10, 10)
-                            
-                            # Random velocity
-                            vel_x = random.uniform(-0.5, 1.5)
-                            vel_y = random.uniform(-1.0, 1.0)
-                            
-                            # Random size based on charge
-                            size = random.randint(2, int(2 + 5 * charge_percent))
-                            
-                            try:
-                                # Create particle
-                                PowerupParticle(
-                                    (pos_x, pos_y), (vel_x, vel_y),
-                                    (r, g, b), size, 
-                                    random.randint(10, 20),
-                                    0.01, 0.9,
-                                    particles_group
-                                )
-                            except Exception as e:
-                                logger.warning(f"Failed to create laser beam charging particle: {e}")
-                                break
-    
+        # LASER_BEAM removed - Method kept as placeholder, could be removed
+        logger.warning("Laser beam charging is removed.")
+        pass # No-op
+        # laser_state = self.active_powerups_state.get(PowerupType.LASER_BEAM.name)
+        # if not laser_state or not laser_state.get("is_charging", False):
+        #     return # Not active or not charging
+        # 
+        # max_charge = laser_state.get("max_charge", 100)
+        # current_charge = laser_state.get("charge_level", 0)
+        # 
+        # if current_charge < max_charge:
+        #     laser_state["charge_level"] = current_charge + 2  # Charge rate
+        #     current_charge = laser_state["charge_level"] # Update for particle logic
+        #     
+        #     # Create charging particles ... (removed)
+
     def _fire_pulse_beam(self) -> None:
         """Deprecated, replaced by _fire_laser_beam."""
-        logger.warning("Pulse beam has been replaced by laser beam")
+        logger.warning("Pulse beam firing is deprecated.")
 
     def _fire_laser_beam(self) -> None:
         """Fire the charged laser beam."""
-        if not self.has_laser_beam or self.laser_beam_charge < 10:
-            return
-            
-        # Calculate charge percentage
-        charge_percent = min(1.0, self.laser_beam_charge / self.max_laser_beam_charge)
-        
-        # Get sprite groups
-        all_sprites_group = self.groups()[0] if self.groups() else None
-        if all_sprites_group and self.game_ref:
-            try:
-                # Create the laser beam and explicitly add to bullets group
-                beam = LaserBeam(self.rect.center, charge_percent, all_sprites_group)
-                # Ensure it's in the bullets group for collision detection
-                self.bullets.add(beam)
-                
-                # Play sound
-                if hasattr(self.game_ref, 'sound_manager'):
-                    try:
-                        self.game_ref.sound_manager.play("laser", "player")
-                    except Exception as e:
-                        logger.warning(f"Failed to play laser sound: {e}")
-                
-                logger.info(f"Fired laser beam with charge {charge_percent:.2f}")
-            except Exception as e:
-                logger.error(f"Error creating laser beam: {e}")
-            
-        # Reset charge
-        self.laser_beam_charge = 0
+        # LASER_BEAM removed - Method kept as placeholder, could be removed
+        logger.warning("Laser beam firing is removed.")
+        pass # No-op
+        # laser_state = self.active_powerups_state.get(PowerupType.LASER_BEAM.name)
+        # if not laser_state:
+        #     return # Laser beam not active
+        # 
+        # charge_level = laser_state.get("charge_level", 0)
+        # max_charge = laser_state.get("max_charge", 100)
+        # 
+        # if charge_level < 10: # Minimum charge to fire
+        #     laser_state["charge_level"] = 0 # Reset charge if too low
+        #     return
+        #     
+        # # Calculate charge percentage ... (removed)
+        # # Get sprite groups ... (removed)
+        # # Play sound ... (removed)
+        # laser_state["charge_level"] = 0
     
     def _fire_scatter_bomb(self) -> None:
         """Fire a scatter bomb that creates projectiles in all directions."""
-        if not self.has_scatter_bomb or self.scatter_bomb_charges <= 0:
-            return
+        scatter_state = self.active_powerups_state.get("SCATTER_BOMB")
+        if not scatter_state or scatter_state.get("charges", 0) <= 0:
+            return # Not active or no charges
             
-        # Reduce available charges
-        self.scatter_bomb_charges -= 1
+        # Reduce available charges in state
+        scatter_state["charges"] -= 1
+        charges_remaining = scatter_state["charges"]
         
-        # If no charges left, remove from active powerups
-        if self.scatter_bomb_charges <= 0:
-            self.has_scatter_bomb = False
-            if ("SCATTER_BOMB", 6) in self.active_powerups:
-                self.active_powerups.remove(("SCATTER_BOMB", 6))
+        # If no charges left, remove from active powerups state
+        if charges_remaining <= 0:
+            # No need to check self.has_scatter_bomb flag
+            if "SCATTER_BOMB" in self.active_powerups_state:
+                del self.active_powerups_state["SCATTER_BOMB"]
             logger.info("Scatter Bomb depleted")
         
         # Get sprite groups
@@ -537,7 +473,7 @@ class Player(AnimatedSprite):
                 except Exception as e:
                     logger.warning(f"Failed to play explosion sound: {e}")
             
-            logger.info(f"Fired scatter bomb. {self.scatter_bomb_charges} charges remaining")
+            logger.info(f"Fired scatter bomb. {charges_remaining} charges remaining")
             
     def take_damage(self) -> bool:
         """Reduces player's power level when hit.
@@ -546,14 +482,15 @@ class Player(AnimatedSprite):
             bool: True if player is still alive, False if game over
         """
         try:
-            # Skip damage if player is invincible
+            # Skip damage if player is invincible (standard invincibility)
             if self.is_invincible:
                 logger.info("Hit ignored - player is invincible")
                 return True
                 
-            # Skip damage if player has active shield
-            if self.has_shield:
-                logger.info("Hit ignored - player has active shield")
+            # Skip damage if player has active shield powerup
+            if "SHIELD" in self.active_powerups_state:
+                logger.info("Hit ignored - player has active shield powerup")
+                # Optionally add a shield hit effect here
                 return True
                 
             self.power_level -= 1
@@ -616,22 +553,27 @@ class Player(AnimatedSprite):
         if self.visible:
             surface.blit(self.image, self.rect)
             
-            # Draw shield if active
-            if self.has_shield:
+            # Draw shield if active (check state dict)
+            shield_state = self.active_powerups_state.get(PowerupType.SHIELD.name)
+            if shield_state:
+                # Use shield_pulse from player instance for animation continuity
+                if not hasattr(self, 'shield_pulse'): self.shield_pulse = 0
                 self.shield_pulse = (self.shield_pulse + 0.1) % (2 * math.pi)
                 pulse_value = 0.7 + 0.3 * math.sin(self.shield_pulse)
                 
                 # Calculate shield color with pulse
+                shield_base_color = shield_state.get("color", (0, 100, 255)) # Default blue
                 alpha = int(128 * pulse_value)
                 shield_color = (
-                    self.shield_color[0],
-                    self.shield_color[1],
-                    self.shield_color[2],
+                    shield_base_color[0],
+                    shield_base_color[1],
+                    shield_base_color[2],
                     alpha
                 )
                 
                 # Create shield surface
-                shield_size = int(self.shield_radius * 2 * pulse_value)
+                shield_radius = shield_state.get("radius", 35)
+                shield_size = int(shield_radius * 2 * pulse_value)
                 shield_surface = pygame.Surface((shield_size, shield_size), pygame.SRCALPHA)
                 
                 # Draw shield
@@ -647,40 +589,29 @@ class Player(AnimatedSprite):
                 shield_rect = shield_surface.get_rect(center=self.rect.center)
                 surface.blit(shield_surface, shield_rect)
             
-        # Draw laser beam charge meter if charging
-        if self.has_laser_beam and self.is_charging_laser and self.laser_beam_charge > 0:
-            charge_percent = self.laser_beam_charge / self.max_laser_beam_charge
-            
-            # Meter dimensions
-            meter_width = 40
-            meter_height = 8
-            meter_x = self.rect.right + 5
-            meter_y = self.rect.centery - meter_height // 2
-            
-            # Calculate color based on charge (green to bright green)
-            r = min(100, int(0 + 100 * charge_percent))
-            g = min(255, int(180 + 75 * charge_percent))
-            b = min(100, int(0 + 100 * charge_percent))
-            
-            # Background
-            pygame.draw.rect(
-                surface,
-                (50, 50, 50),
-                (meter_x, meter_y, meter_width, meter_height)
-            )
-            
-            # Filled portion
-            filled_width = int(meter_width * charge_percent)
-            pygame.draw.rect(
-                surface,
-                (r, g, b),
-                (meter_x, meter_y, filled_width, meter_height)
-            )
+        # Draw laser beam charge meter if charging (check state dict)
+        # LASER_BEAM removed
+        # laser_state = self.active_powerups_state.get(PowerupType.LASER_BEAM.name)
+        # if laser_state and laser_state.get("is_charging", False):
+        #     charge_level = laser_state.get("charge_level", 0)
+        #     max_charge = laser_state.get("max_charge", 100)
+        #     if charge_level > 0:
+        #         charge_percent = charge_level / max_charge
+        #         
+        #         # Meter dimensions
+        #         ...
+        #         (meter_x, meter_y, filled_width, meter_height)
+        #     )
 
-        # Draw shield meter if shield is active
-        if self.has_shield:
-            # Calculate shield percentage remaining
-            shield_percent = self.shield_value / self.shield_max_value
+        # Draw shield meter if shield is active (check state dict)
+        shield_state = self.active_powerups_state.get(PowerupType.SHIELD.name)
+        if shield_state:
+            # Calculate shield percentage remaining from state
+            current_time = pygame.time.get_ticks()
+            expiry_time = shield_state.get("expiry_time", 0)
+            duration = shield_state.get("duration", POWERUP_DURATION)
+            time_remaining = max(0, expiry_time - current_time)
+            shield_percent = time_remaining / duration if duration > 0 else 0
             
             # Draw shield meter background
             pygame.draw.rect(
@@ -715,8 +646,9 @@ class Player(AnimatedSprite):
             )
 
     def draw_powerup_icons(self, surface: pygame.Surface) -> None:
-        """Draw icons for active powerups."""
-        if not self.active_powerups:
+        """Draw icons for active powerups based on active_powerups_state."""
+        # Check the state dictionary directly
+        if not self.active_powerups_state:
             return
         
         current_time = pygame.time.get_ticks()
@@ -757,38 +689,48 @@ class Player(AnimatedSprite):
                 # Fallback to empty list, will use colors as fallback
                 self.powerup_sprites = []
         
-        # Powerup full names for display
+        # Powerup full names for display - use Enum names as keys
         display_names = {
-            "TRIPLE_SHOT": "TRIPLE SHOT",
-            "RAPID_FIRE": "RAPID FIRE",
-            "SHIELD": "SHIELD",
-            "HOMING_MISSILES": "HOMING MISSILES",
-            "LASER_BEAM": "LASER BEAM",
-            "POWER_RESTORE": "POWER RESTORE",
-            "SCATTER_BOMB": "SCATTER BOMB",
-            "TIME_WARP": "TIME WARP",
-            "MEGA_BLAST": "MEGA BLAST"
+            PowerupType.TRIPLE_SHOT.name: "TRIPLE SHOT",
+            PowerupType.RAPID_FIRE.name: "RAPID FIRE",
+            PowerupType.SHIELD.name: "SHIELD",
+            PowerupType.HOMING_MISSILES.name: "HOMING MISSILES",
+            # PowerupType.LASER_BEAM.name: "LASER BEAM", # Removed
+            PowerupType.POWER_RESTORE.name: "POWER RESTORE", # Doesn't persist in state dict
+            PowerupType.SCATTER_BOMB.name: "SCATTER BOMB",
+            PowerupType.TIME_WARP.name: "TIME WARP",
+            PowerupType.MEGA_BLAST.name: "MEGA BLAST" # Doesn't persist in state dict
         }
         
-        # Colors as fallback (same as before)
-        colors = [
-            (255, 220, 0),    # 0: TRIPLE_SHOT: Golden
-            (0, 255, 255),    # 1: RAPID_FIRE: Cyan
-            (0, 100, 255),    # 2: SHIELD: Blue
-            (255, 0, 255),    # 3: HOMING_MISSILES: Magenta
-            (0, 255, 0),      # 4: LASER_BEAM: Green
-            (255, 255, 255),  # 5: POWER_RESTORE: White
-            (255, 128, 0),    # 6: SCATTER_BOMB: Orange
-            (128, 0, 255),    # 7: TIME_WARP: Purple
-            (255, 0, 128),    # 8: MEGA_BLAST: Pink
-        ]
+        # Colors as fallback - use Enum values for indexing
+        colors = {
+            PowerupType.TRIPLE_SHOT.value: (255, 220, 0),    # Golden
+            PowerupType.RAPID_FIRE.value: (0, 255, 255),     # Cyan
+            PowerupType.SHIELD.value: (0, 100, 255),     # Blue
+            PowerupType.HOMING_MISSILES.value: (255, 0, 255),    # Magenta
+            # PowerupType.LASER_BEAM.value: (0, 255, 0),      # Green (Removed)
+            PowerupType.POWER_RESTORE.value: (255, 255, 255),  # White
+            PowerupType.SCATTER_BOMB.value: (255, 128, 0),    # Orange
+            PowerupType.TIME_WARP.value: (128, 0, 255),    # Purple
+            PowerupType.MEGA_BLAST.value: (255, 0, 128),    # Pink
+        }
         
         # Set a smaller icon size
         icon_size = 20
         spacing = 22
         
-        # Draw each active powerup
-        for i, (powerup_name, powerup_idx) in enumerate(self.active_powerups):
+        # Draw each active powerup from the state dictionary
+        # Iterate through a sorted list of powerup names for consistent order
+        active_names_sorted = sorted(self.active_powerups_state.keys())
+
+        for i, powerup_name in enumerate(active_names_sorted):
+            powerup_state = self.active_powerups_state[powerup_name]
+            powerup_idx = powerup_state.get("index", -1)
+
+            if powerup_idx == -1:
+                logger.warning(f"Powerup '{powerup_name}' in state dict missing index.")
+                continue # Skip drawing this one
+
             # Calculate vertical position for this powerup
             icon_y = start_y + i * spacing
             
@@ -807,7 +749,8 @@ class Player(AnimatedSprite):
                 surface.blit(sprite, icon_rect)
             else:
                 # Fallback to colored circle if sprites not available
-                color = colors[powerup_idx]
+                # Use Enum value to get color
+                color = colors.get(powerup_idx, (128, 128, 128)) # Default grey
                 
                 # Create circular powerup icon
                 pygame.draw.circle(
@@ -840,39 +783,39 @@ class Player(AnimatedSprite):
             surface.blit(name_shadow, (name_x + 1, name_y + 1))
             surface.blit(name_text, (name_x, name_y))
             
-            # Determine time remaining for timed powerups
-            time_remaining = None
-            if powerup_name == "TRIPLE_SHOT" and self.has_triple_shot:
-                time_remaining = max(0, (self.triple_shot_expiry - current_time) // 1000)
-            elif powerup_name == "RAPID_FIRE" and self.has_rapid_fire:
-                time_remaining = max(0, (self.rapid_fire_expiry - current_time) // 1000)
-            elif powerup_name == "SHIELD" and self.has_shield:
-                time_remaining = max(0, (self.shield_expiry - current_time) // 1000)
-            elif powerup_name == "HOMING_MISSILES" and self.has_homing_missiles:
-                time_remaining = max(0, (self.homing_missiles_expiry - current_time) // 1000)
-            elif powerup_name == "LASER_BEAM" and self.has_laser_beam:
-                time_remaining = max(0, (self.laser_beam_expiry - current_time) // 1000)
-            elif powerup_name == "TIME_WARP" and self.has_time_warp:
-                time_remaining = max(0, (self.time_warp_expiry - current_time) // 1000)
+            # Determine time remaining or charges from state
+            time_remaining_str = None
+            charges_str = None
+
+            expiry_time = powerup_state.get("expiry_time")
+            if expiry_time is not None:
+                time_left_ms = max(0, expiry_time - current_time)
+                time_remaining_str = f"{time_left_ms // 1000}s"
             
-            # For SCATTER_BOMB, show charges instead of time
-            if powerup_name == "SCATTER_BOMB":
-                time_text = time_font.render(f"{self.scatter_bomb_charges}", True, (255, 220, 150))
-            elif time_remaining is not None:
-                time_text = time_font.render(f"{time_remaining}s", True, (200, 200, 200))
+            charges = powerup_state.get("charges")
+            if charges is not None:
+                charges_str = f"{charges}"
+
+            # Display charges for scatter bomb, time for others
+            # Use Enum name for check
+            if powerup_name == PowerupType.SCATTER_BOMB.name and charges_str is not None:
+                status_text = time_font.render(charges_str, True, (255, 220, 150))
+            elif time_remaining_str is not None:
+                status_text = time_font.render(time_remaining_str, True, (200, 200, 200))
             else:
-                time_text = time_font.render("Active", True, (200, 200, 200))
+                # For powerups without time or charges (like Power Restore, though it shouldn't persist)
+                status_text = time_font.render("Active", True, (200, 200, 200))
             
-            # Position time info below the name (on same line)
-            time_x = name_x + name_text.get_width() + 5
-            time_y = name_y
-            surface.blit(time_text, (time_x, time_y))
+            # Position time/charge info below the name (on same line)
+            status_x = name_x + name_text.get_width() + 5
+            status_y = name_y
+            surface.blit(status_text, (status_x, status_y))
 
     def _shoot_triple(self) -> None:
         """Shoots three bullets in a spread pattern (triple shot powerup)."""
         now = pygame.time.get_ticks()
-        # Use rapid fire delay if active
-        shoot_delay = self.rapid_fire_delay if self.has_rapid_fire else self.normal_shoot_delay
+        # Use rapid fire delay if active (check state dict, use Enum name)
+        shoot_delay = self.active_powerups_state.get(PowerupType.RAPID_FIRE.name, {}).get("delay", PLAYER_SHOOT_DELAY)
         
         if now - self.last_shot_time > shoot_delay:
             self.last_shot_time = now
@@ -892,8 +835,8 @@ class Player(AnimatedSprite):
                 bullets[1].velocity_y = -2.0  # Upward
                 bullets[2].velocity_y = 2.0   # Downward
                 
-                # Apply homing to all bullets if that powerup is also active
-                if self.has_homing_missiles and self.game_ref:
+                # Apply homing to all bullets if that powerup is also active (check state dict, use Enum name)
+                if PowerupType.HOMING_MISSILES.name in self.active_powerups_state and self.game_ref:
                     # Find closest enemy
                     closest_enemy = None
                     closest_dist = float('inf')
@@ -954,78 +897,103 @@ class Player(AnimatedSprite):
                 self.visible = True
 
     def _check_powerup_expirations(self) -> None:
-        """Checks and handles powerup expirations."""
+        """Checks and handles powerup expirations based on active_powerups_state."""
         current_time = pygame.time.get_ticks()
-        
-        # Handle rapid fire expiry
-        if self.has_rapid_fire and current_time > self.rapid_fire_expiry:
-            self.has_rapid_fire = False
-            logger.info("Rapid Fire powerup expired")
-            # Remove from active powerups
-            self.active_powerups = [p for p in self.active_powerups if p[0] != "RAPID_FIRE"]
-        
-        # Handle triple shot expiry
-        if self.has_triple_shot and current_time > self.triple_shot_expiry:
-            self.has_triple_shot = False
-            logger.info("Triple Shot powerup expired")
-            # Remove from active powerups
-            self.active_powerups = [p for p in self.active_powerups if p[0] != "TRIPLE_SHOT"]
-        
-        # Handle shield expiry
-        if self.has_shield and current_time > self.shield_expiry:
-            self.has_shield = False
-            logger.info("Shield powerup expired")
-            # Remove from active powerups
-            self.active_powerups = [p for p in self.active_powerups if p[0] != "SHIELD"]
-        
-        # Handle homing missiles expiry
-        if self.has_homing_missiles and current_time > self.homing_missiles_expiry:
-            self.has_homing_missiles = False
-            logger.info("Homing Missiles powerup expired")
-            # Remove from active powerups
-            self.active_powerups = [p for p in self.active_powerups if p[0] != "HOMING_MISSILES"]
-        
-        # Handle time warp expiry
-        if self.has_time_warp and current_time > self.time_warp_expiry:
-            self.has_time_warp = False
-            logger.info("Time Warp powerup expired")
-            # Remove from active powerups
-            self.active_powerups = [p for p in self.active_powerups if p[0] != "TIME_WARP"]
-            
-        # Check if charging laser beam
-        if self.is_charging_laser and self.has_laser_beam:
-            self._charge_laser_beam()
+        expired_powerups = []
 
-    def add_powerup(self, powerup_name: str, powerup_idx: int) -> None:
-        """Add a powerup to the active powerups list, preventing duplicates."""
-        # Check if this powerup is already active
-        is_active = False
-        for i, (name, idx) in enumerate(self.active_powerups):
-            if name == powerup_name:
-                is_active = True
-                # Refresh duration for timed powerups
-                if powerup_name in ["TRIPLE_SHOT", "RAPID_FIRE", "SHIELD", "HOMING_MISSILES", "LASER_BEAM", "TIME_WARP"]:
-                    if powerup_name == "TRIPLE_SHOT":
-                        self.triple_shot_expiry = pygame.time.get_ticks() + POWERUP_DURATION
-                    elif powerup_name == "RAPID_FIRE":
-                        self.rapid_fire_expiry = pygame.time.get_ticks() + POWERUP_DURATION
-                    elif powerup_name == "SHIELD":
-                        self.shield_expiry = pygame.time.get_ticks() + POWERUP_DURATION
-                    elif powerup_name == "HOMING_MISSILES":
-                        self.homing_missiles_expiry = pygame.time.get_ticks() + POWERUP_DURATION
-                    elif powerup_name == "LASER_BEAM":
-                        self.laser_beam_expiry = pygame.time.get_ticks() + POWERUP_DURATION
-                    elif powerup_name == "TIME_WARP":
-                        self.time_warp_expiry = pygame.time.get_ticks() + POWERUP_DURATION
-                    logger.info(f"Refreshed duration for {powerup_name}")
-                elif powerup_name == "SCATTER_BOMB":
-                    # Add charges for scatter bomb
-                    self.scatter_bomb_charges += 3
-                    logger.info(f"Added charges to {powerup_name}, now {self.scatter_bomb_charges}")
-                # No need to add again, break the loop
-                break
-                
-        # If the powerup wasn't found in the active list, add it
-        if not is_active:
-            self.active_powerups.append((powerup_name, powerup_idx))
-            logger.info(f"Added new powerup: {powerup_name}")
+        # Make a copy of keys to iterate over, as we might modify the dict
+        powerup_names = list(self.active_powerups_state.keys())
+
+        for powerup_name in powerup_names:
+            state = self.active_powerups_state.get(powerup_name)
+            if not state: continue # Should not happen if iterating keys, but safe check
+
+            expiry_time = state.get("expiry_time")
+            if expiry_time is not None and current_time > expiry_time:
+                expired_powerups.append(powerup_name)
+        
+        for powerup_name in expired_powerups:
+            logger.info(f"{powerup_name} powerup expired")
+            # Remove the expired powerup from the state dictionary
+            if powerup_name in self.active_powerups_state:
+                 # Get the state again safely before potentially deleting the key
+                 state_to_cleanup = self.active_powerups_state.get(powerup_name)
+                 del self.active_powerups_state[powerup_name]
+                 
+                 # Specific cleanup if needed (e.g., reset rapid fire delay)
+                 if powerup_name == "RAPID_FIRE":
+                     # Shoot delay will default back to PLAYER_SHOOT_DELAY in shoot() 
+                     # when "RAPID_FIRE" key is not found in dict.
+                     pass 
+                 # LASER_BEAM Removed
+                 # elif powerup_name == PowerupType.LASER_BEAM.name and state_to_cleanup:
+                 #     # Ensure charging stops if expired mid-charge
+                 #     if state_to_cleanup.get("is_charging", False):
+                 #          state_to_cleanup["is_charging"] = False
+                 #          state_to_cleanup["charge_level"] = 0
+
+            # Note: Time Warp effect removal is handled in game_loop update based on player state
+
+    def add_powerup(self, powerup_name: str, powerup_idx: int, 
+                    duration_ms: Optional[int] = POWERUP_DURATION, 
+                    charges: Optional[int] = None,
+                    extra_state: Optional[Dict[str, Any]] = None) -> None:
+        """Adds or refreshes a powerup in the active state dictionary.
+
+        Args:
+            powerup_name: The unique string identifier (e.g., "SHIELD").
+            powerup_idx: The index corresponding to the icon/sprite (0-8).
+            duration_ms: Duration in milliseconds (for timed powerups).
+            charges: Number of uses (for charge-based powerups).
+            extra_state: Dictionary with any additional state (e.g., rapid fire delay).
+        """
+        current_time = pygame.time.get_ticks()
+        state = {"index": powerup_idx}
+        is_refresh = powerup_name in self.active_powerups_state
+
+        if duration_ms is not None:
+            state["expiry_time"] = current_time + duration_ms
+            state["duration"] = duration_ms # Store original duration for UI
+
+        if charges is not None:
+            # If refreshing, add charges; otherwise, set initial charges.
+            current_charges = self.active_powerups_state.get(powerup_name, {}).get("charges", 0)
+            state["charges"] = current_charges + charges if is_refresh else charges
+
+        if extra_state:
+            state.update(extra_state)
+
+        # Remove specific handling for Laser Beam
+        # if powerup_name == PowerupType.LASER_BEAM.name:
+        #      state["charge_level"] = 0
+        #      state["max_charge"] = 100
+        #      state["is_charging"] = False
+        #      state.setdefault("color", (0, 255, 0)) # type: ignore
+        
+        # Specific handling for Shield state - Use Enum name
+        if powerup_name == PowerupType.SHIELD.name:
+             state.setdefault("color", (0, 100, 255)) # type: ignore
+             state.setdefault("radius", 35)
+
+        self.active_powerups_state[powerup_name] = state
+
+        if is_refresh:
+            if charges is not None:
+                logger.info(f"Added {charges} charges to {powerup_name}, now {state['charges']}")
+            else:
+                logger.info(f"Refreshed duration for {powerup_name}")
+        else:
+            logger.info(f"Activated new powerup: {powerup_name}")
+
+        # Ensure powerups that provide abilities but don't have inherent state
+        # (like Homing Missiles, Triple Shot) are still added to the dict
+        # even if duration_ms and charges are None.
+        if duration_ms is None and charges is None:
+            if powerup_name not in self.active_powerups_state:
+                 self.active_powerups_state[powerup_name] = state
+                 logger.info(f"Activated passive powerup: {powerup_name}")
+
+    # Clean up old powerup tracking list method (no longer needed)
+    # def add_powerup_old(self, powerup_name: str, powerup_idx: int) -> None:
+    #     """Add a powerup to the active powerups list, preventing duplicates."""
+    # ... (old implementation removed)

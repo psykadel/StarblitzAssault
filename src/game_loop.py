@@ -19,6 +19,7 @@ from src.explosion import Explosion # Import the Explosion class
 from src.power_particles import PowerParticleSystem # Import the power particles system
 from src.particle import Particle
 from src.powerup import PowerupParticle  # Import PowerupParticle for text notifications
+from config.sprite_constants import PowerupType, ACTIVE_POWERUP_TYPES
 
 # Import config variables
 from config.game_config import (
@@ -409,11 +410,12 @@ class Game:
                         self.player.start_firing()
                         # Initial laser sound will be handled in _update
                 
-                # B key for Scatter Bomb
+                # B key for Scatter Bomb - check state dict
                 elif event.key == pygame.K_b:
-                    # Fire scatter bomb if player has it
-                    if self.player.has_scatter_bomb and self.player.scatter_bomb_charges > 0:
-                        self.player._fire_scatter_bomb()
+                    scatter_state = self.player.active_powerups_state.get("SCATTER_BOMB")
+                    if scatter_state and scatter_state.get("charges", 0) > 0:
+                        # Player method handles checking state and firing
+                        self.player._fire_scatter_bomb() 
                         logger.info("Scatter Bomb triggered with B key")
                 
                 # Volume control keys
@@ -940,57 +942,59 @@ class Game:
         # Check if it's time to spawn a powerup
         self._check_powerup_spawn()
         
-        # Apply time warp effect if active
-        if self.player.has_time_warp:
-            # Slow down enemies
-            for enemy in self.enemies:
+        # Apply time warp effect if active (check state dict)
+        time_warp_active = "TIME_WARP" in self.player.active_powerups_state
+
+        # --- Apply Time Warp Effect --- 
+        for enemy in self.enemies:
+            is_slowed = hasattr(enemy, 'is_time_warped') and enemy.is_time_warped
+            
+            if time_warp_active and not is_slowed:
+                # Apply slow effect
                 if hasattr(enemy, 'speed_x'):
-                    # Preserve original speed on first application
-                    if not hasattr(enemy, 'original_speed_x'):
-                        enemy.original_speed_x = enemy.speed_x
-                        enemy.original_speed_y = getattr(enemy, 'speed_y', 0)
-                    
-                    # Apply slow effect (50% speed)
-                    enemy.speed_x = enemy.original_speed_x * 0.5
+                    if not hasattr(enemy, 'original_speed_x'): # Store original only once
+                         enemy.original_speed_x = enemy.speed_x
+                         enemy.original_speed_y = getattr(enemy, 'speed_y', 0)
+                    enemy.speed_x *= 0.5
                     if hasattr(enemy, 'speed_y'):
-                        enemy.speed_y = enemy.original_speed_y * 0.5
+                         enemy.speed_y *= 0.5
+                enemy.is_time_warped = True # Mark as slowed
+                
+            elif not time_warp_active and is_slowed:
+                 # Restore original speed
+                 if hasattr(enemy, 'original_speed_x'):
+                      enemy.speed_x = enemy.original_speed_x
+                      if hasattr(enemy, 'original_speed_y'):
+                           enemy.speed_y = enemy.original_speed_y
+                 enemy.is_time_warped = False # Mark as normal speed
+
+        # Slow down enemy bullets
+        for bullet in self.enemy_bullets:
+            is_slowed = hasattr(bullet, 'is_time_warped') and bullet.is_time_warped
             
-            # Slow down enemy bullets
-            for bullet in self.enemy_bullets:
-                if hasattr(bullet, 'velocity'):
-                    # Preserve original velocity on first application
-                    if not hasattr(bullet, 'original_velocity'):
-                        bullet.original_velocity = bullet.velocity
-                    
-                    # Apply slow effect (50% speed)
-                    bullet.velocity = (
-                        bullet.original_velocity[0] * 0.5,
-                        bullet.original_velocity[1] * 0.5
-                    )
-                elif hasattr(bullet, 'velocity_x'):
-                    # Preserve original velocity components on first application
-                    if not hasattr(bullet, 'original_velocity_x'):
-                        bullet.original_velocity_x = bullet.velocity_x
-                        bullet.original_velocity_y = bullet.velocity_y
-                    
-                    # Apply slow effect (50% speed)
-                    bullet.velocity_x = bullet.original_velocity_x * 0.5
-                    bullet.velocity_y = bullet.original_velocity_y * 0.5
-        else:
-            # Restore original speeds if time warp just ended
-            for enemy in self.enemies:
-                if hasattr(enemy, 'original_speed_x'):
-                    enemy.speed_x = enemy.original_speed_x
-                    if hasattr(enemy, 'original_speed_y'):
-                        enemy.speed_y = enemy.original_speed_y
-            
-            # Restore enemy bullet speeds
-            for bullet in self.enemy_bullets:
-                if hasattr(bullet, 'original_velocity'):
-                    bullet.velocity = bullet.original_velocity
-                elif hasattr(bullet, 'original_velocity_x'):
-                    bullet.velocity_x = bullet.original_velocity_x
-                    bullet.velocity_y = bullet.original_velocity_y
+            if time_warp_active and not is_slowed:
+                 # Apply slow effect
+                 if hasattr(bullet, 'velocity'):
+                     if not hasattr(bullet, 'original_velocity'):
+                         bullet.original_velocity = bullet.velocity
+                     bullet.velocity = (bullet.original_velocity[0] * 0.5, bullet.original_velocity[1] * 0.5)
+                 elif hasattr(bullet, 'velocity_x'):
+                     if not hasattr(bullet, 'original_velocity_x'):
+                         bullet.original_velocity_x = bullet.velocity_x
+                         bullet.original_velocity_y = bullet.velocity_y
+                     bullet.velocity_x *= 0.5
+                     bullet.velocity_y *= 0.5
+                 bullet.is_time_warped = True # Mark as slowed
+                 
+            elif not time_warp_active and is_slowed:
+                 # Restore original speed
+                 if hasattr(bullet, 'original_velocity'):
+                     bullet.velocity = bullet.original_velocity
+                 elif hasattr(bullet, 'original_velocity_x'):
+                     bullet.velocity_x = bullet.original_velocity_x
+                     bullet.velocity_y = bullet.original_velocity_y
+                 bullet.is_time_warped = False # Mark as normal speed
+        # --- End Time Warp Effect --- 
 
         # Check for collisions
         self._handle_collisions()
@@ -1004,8 +1008,11 @@ class Game:
     
     def _spawn_powerup(self):
         """Spawn a random powerup."""
-        # Choose a random powerup type
-        powerup_type = random.randint(0, 8)
+        # Choose a random powerup type using the Enum values
+        # random.choice works directly on the Enum list
+        chosen_powerup_enum = random.choice(ACTIVE_POWERUP_TYPES)
+        powerup_type_index = chosen_powerup_enum.value # Get the integer value
+        powerup_type_name = chosen_powerup_enum.name # Get the name
         
         # Choose a spawn position just off the right side of the screen 
         # at a random height within the play field
@@ -1015,16 +1022,16 @@ class Game:
         # Import here to avoid circular imports
         from src.powerup_types import create_powerup
         
-        # Create the powerup
+        # Create the powerup using the integer index
         powerup = create_powerup(
-            powerup_type, x, y,
+            powerup_type_index, x, y,
             self.all_sprites, self.powerups,
             particles_group=self.particles,
             game_ref=self  # Pass game reference to powerup
         )
         
         
-        logger.info(f"Spawned powerup of type {powerup.type_name} at position ({x}, {y})")
+        logger.info(f"Spawned powerup of type {powerup_type_name} at position ({x}, {y})")
 
     def _spawn_powerup_of_type(self, powerup_type: int, x: float, y: float) -> None:
         """Spawn a powerup of a specific type at a specified position.
@@ -1037,7 +1044,7 @@ class Game:
         # Import here to avoid circular imports
         from src.powerup_types import create_powerup
         
-        # Create the powerup
+        # Create the powerup using the integer index
         powerup = create_powerup(
             powerup_type, x, y,
             self.all_sprites, self.powerups,
@@ -1045,7 +1052,12 @@ class Game:
             game_ref=self  # Pass game reference to powerup
         )
         
-        logger.info(f"Spawned powerup of type {powerup.type_name} at position ({x}, {y})")
+        # Get the name from the Enum using the integer value
+        try:
+            powerup_name = PowerupType(powerup_type).name
+        except ValueError:
+             powerup_name = "Unknown"
+        logger.info(f"Spawned powerup of type {powerup_name} at position ({x}, {y})")
 
     def _handle_collisions(self):
         """Checks and handles collisions between game objects."""
@@ -1094,21 +1106,23 @@ class Game:
             powerup.apply_effect(self.player)
             
             # Get powerup name and color for notification
-            powerup_name = powerup.type_name.replace("_", " ") # Replace underscores with spaces
+            # Use powerup_type_enum.name directly
+            powerup_name = powerup.powerup_type_enum.name.replace("_", " ")
             
-            # Colors for notification text (ensure order matches POWERUP_TYPES)
-            notification_colors = [
-                (255, 220, 0),    # 0: TRIPLE SHOT
-                (0, 255, 255),    # 1: RAPID FIRE
-                (0, 100, 255),    # 2: SHIELD
-                (255, 0, 255),    # 3: HOMING MISSILES
-                (0, 255, 0),      # 4: LASER BEAM
-                (255, 255, 255),  # 5: POWER RESTORE
-                (255, 128, 0),    # 6: SCATTER BOMB
-                (128, 0, 255),    # 7: TIME WARP
-                (255, 0, 128),    # 8: MEGA BLAST
-            ]
-            notification_color = notification_colors[powerup.powerup_type % len(notification_colors)]
+            # Colors for notification text (ensure order matches PowerupType Enum)
+            notification_colors = {
+                PowerupType.TRIPLE_SHOT: (255, 220, 0),
+                PowerupType.RAPID_FIRE: (0, 255, 255),
+                PowerupType.SHIELD: (0, 100, 255),
+                PowerupType.HOMING_MISSILES: (255, 0, 255),
+                # PowerupType.LASER_BEAM: (0, 255, 0), # Removed
+                PowerupType.POWER_RESTORE: (255, 255, 255),
+                PowerupType.SCATTER_BOMB: (255, 128, 0),
+                PowerupType.TIME_WARP: (128, 0, 255),
+                PowerupType.MEGA_BLAST: (255, 0, 128),
+            }
+            # Get color using the Enum member, default to white
+            notification_color = notification_colors.get(powerup.powerup_type_enum, WHITE) 
             
             # Create text notification sprite
             PowerupNotification(

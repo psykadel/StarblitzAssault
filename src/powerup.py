@@ -9,6 +9,7 @@ from src.animated_sprite import AnimatedSprite
 from src.sprite_loader import load_sprite_sheet, DEFAULT_CROP_BORDER_PIXELS
 from src.particle import ParticleSystem
 from src.logger import get_logger
+from config.sprite_constants import PowerupType
 
 # Import config variables
 from config.game_config import (
@@ -25,18 +26,8 @@ POWERUP_FLOAT_SPEED = 1.0  # Base horizontal speed
 POWERUP_DURATION = 10000  # 10 seconds for temporary powerups
 POWERUP_BLINK_START = 8000  # When to start blinking (2 seconds before expiry)
 
-# Powerup types
-POWERUP_TYPES = [
-    "TRIPLE_SHOT",       # 0: Triple shot - fire 3 bullets at once
-    "RAPID_FIRE",        # 1: Increased fire rate
-    "SHIELD",            # 2: Temporary invulnerability
-    "HOMING_MISSILES",   # 3: Bullets track enemies
-    "LASER_BEAM",        # 4: Charged powerful green laser attack
-    "POWER_RESTORE",     # 5: Restore player's health/power level
-    "SCATTER_BOMB",      # 6: Explodes into multiple projectiles
-    "TIME_WARP",         # 7: Slow down enemies and bullets
-    "MEGA_BLAST"         # 8: Screen-clearing explosion
-]
+# Powerup types list is now effectively defined by PowerupType Enum
+# POWERUP_TYPES = [...]
 
 class PowerupParticle(pygame.sprite.Sprite):
     """Particle effect for powerups."""
@@ -143,7 +134,7 @@ class PowerupParticle(pygame.sprite.Sprite):
 class Powerup(AnimatedSprite):
     """Base class for all powerups."""
     
-    def __init__(self, powerup_type: int, x: float, y: float, 
+    def __init__(self, powerup_type: PowerupType, x: float, y: float, 
                  *groups, particles_group: Optional[pygame.sprite.Group] = None,
                  game_ref = None) -> None:
         """Initialize a powerup.
@@ -158,19 +149,32 @@ class Powerup(AnimatedSprite):
         """
         super().__init__(POWERUP_ANIMATION_SPEED_MS, *groups)
         
-        # Store the type
-        self.powerup_type = powerup_type
-        self.type_name = POWERUP_TYPES[powerup_type]
+        # Store the type as Enum member
+        self.powerup_type_enum = powerup_type 
+        self.powerup_type = int(powerup_type) # Keep integer for indexing colors/etc.
+        self.type_name = powerup_type.name # Get name from Enum
         
         # Store game reference
         self.game_ref = game_ref
         
-        # Load animation frames
-        self.frames = self._load_powerup_frames(powerup_type)
+        # Load animation frames (will load all frames initially)
+        all_available_frames = self._load_powerup_frames(powerup_type)
         
-        # Set initial image
+        # Select the specific frame for this powerup type
+        # Ensure the index is valid
+        if self.powerup_type < 0 or self.powerup_type >= len(all_available_frames):
+             logger.error(f"Invalid powerup index {self.powerup_type} for loaded frames (count: {len(all_available_frames)}). Falling back.")
+             # Use the first frame as a fallback if index is bad
+             correct_frame = all_available_frames[0]
+        else:
+             correct_frame = all_available_frames[self.powerup_type]
+        
+        # Store ONLY the correct frame. AnimatedSprite will handle this list.
+        self.frames = [correct_frame]
+        
+        # Set initial image from the single correct frame
         self.frame_index = 0
-        self.image = self.frames[self.frame_index]
+        self.image = self.frames[self.frame_index] # Set initial image explicitly
         self.rect = self.image.get_rect(center=(int(x), int(y)))
         self.mask = pygame.mask.from_surface(self.image)
         
@@ -201,25 +205,25 @@ class Powerup(AnimatedSprite):
         # Initialize elapsed time for animations
         self.elapsed_time = 0
         
-        # Rotation parameters
-        self.rotation_angle = 0
-        self.rotation_speed = random.uniform(1.0, 3.0)  # Degrees per frame
+        # Rotation parameters - Removing direct rotation, handled by AnimatedSprite if needed
+        # self.rotation_angle = 0
+        # self.rotation_speed = random.uniform(1.0, 3.0)  # Degrees per frame
         
         # Pulsing effect parameters
         self.pulse_timer = 0
         self.pulse_cycle = 60  # Frames for a complete pulse cycle
         
-        # Store frame dimensions for scaling
+        # Store frame dimensions for scaling (Use first frame as reference)
         self.frame_width = self.image.get_width()
         self.frame_height = self.image.get_height()
-        self.current_frame = 0
+        # self.current_frame = 0 # No longer needed, use self.frame_index from parent
         
-        # Make orbs semi-transparent
-        self._make_frames_transparent()
+        # Make orbs semi-transparent - REMOVED for simplification
+        # self._make_frames_transparent()
         
         logger.info(f"Created {self.type_name} powerup at ({x}, {y})")
     
-    def _load_powerup_frames(self, powerup_type: int) -> List[pygame.Surface]:
+    def _load_powerup_frames(self, powerup_type: PowerupType) -> List[pygame.Surface]:
         """Load the animation frames for this powerup type."""
         # Load the sprite sheet
         try:
@@ -231,23 +235,18 @@ class Powerup(AnimatedSprite):
             )
             
             # Log details for debugging
-            logger.info(f"Loaded powerup sprite sheet with {len(all_frames)} frames")
+            logger.info(f"Loaded powerup sprite sheet with {len(all_frames)} frames. Expecting 9.")
             
-            # Return only the frames for this powerup type (assuming 9 types in a 3x3 grid)
-            if len(all_frames) >= 9:
-                # Calculate the index based on the grid layout (3x3)
-                # In a 3x3 grid, the frames are loaded in row-major order:
-                # 0 1 2
-                # 3 4 5
-                # 6 7 8
-                frame_index = powerup_type
-                if frame_index < len(all_frames):
-                    logger.info(f"Using frame {frame_index} for powerup type {self.type_name}")
-                    return [all_frames[frame_index]]  # Each powerup uses one sprite
-                else:
-                    logger.error(f"Powerup type {powerup_type} exceeds available frames {len(all_frames)}")
-            else:
-                logger.error(f"Powerup sprite sheet has insufficient frames: {len(all_frames)}")
+            # Check if we got the expected number of frames
+            if len(all_frames) < 9:
+                 logger.error(f"Powerup sprite sheet has insufficient frames: {len(all_frames)}. Expected 9.")
+                 raise ValueError("Insufficient frames in powerup sprite sheet")
+
+            # Assuming 9 powerups, frames 0-8 correspond to types 0-8
+            # We return ALL frames, the AnimatedSprite will handle cycling
+            # If a specific powerup should NOT animate, it can override update or use specific frames
+            return all_frames 
+
         except Exception as e:
             logger.error(f"Error loading powerup sprite sheet: {e}")
         
@@ -258,19 +257,17 @@ class Powerup(AnimatedSprite):
             (255, 255, 0), (255, 0, 255), (0, 255, 255),
             (255, 128, 0), (128, 0, 255), (0, 255, 128)
         ]
-        color = colors[powerup_type % len(colors)]
+        # Use the provided type index, not self.powerup_type as it might not be set yet
+        # Use the integer value of the enum member for indexing
+        color = colors[int(powerup_type) % len(colors)] 
         pygame.draw.rect(fallback, color, (0, 0, 30, 30))
-        logger.warning(f"Using fallback colored rectangle for powerup type {self.type_name}")
-        return [fallback]
-    
-    def _make_frames_transparent(self):
-        """Apply semi-transparency to all frames."""
-        for i, frame in enumerate(self.frames):
-            # Create a copy with alpha channel
-            frame_with_alpha = frame.copy().convert_alpha()
-            # Set transparency (128/255 = 50% opacity)
-            frame_with_alpha.set_alpha(128)
-            self.frames[i] = frame_with_alpha
+        # Use the name from the enum member
+        logger.warning(f"Using fallback colored rectangle for powerup type {powerup_type.name}")
+        # Return a list containing the fallback, matching expected return type
+        # Provide fallback frames based on the number of defined Enum members
+        # Ensure the list has enough elements for indexing, even if they are the same fallback
+        num_powerup_types = len(PowerupType)
+        return [fallback.copy() for _ in range(num_powerup_types)] # Use copies
     
     @property
     def position(self) -> Tuple[float, float]:
@@ -282,6 +279,8 @@ class Powerup(AnimatedSprite):
     def update(self) -> None:
         """Update powerup state, including animation and movement."""
         # Handle animation (originally in AnimatedSprite.update)
+        # Since self.frames now only has one element, this won't cycle frames,
+        # but it still handles the animation timer logic if needed elsewhere.
         super().update()
         
         # Update position
@@ -303,7 +302,6 @@ class Powerup(AnimatedSprite):
             (0, 255, 255),    # RAPID_FIRE: Cyan
             (0, 100, 255),    # SHIELD: Blue
             (255, 0, 255),    # HOMING_MISSILES: Magenta
-            (255, 255, 255),  # LASER_BEAM: White
             (0, 255, 0),      # POWER_RESTORE: Green
             (255, 128, 0),    # SCATTER_BOMB: Orange
             (128, 0, 255),    # TIME_WARP: Purple
@@ -314,9 +312,20 @@ class Powerup(AnimatedSprite):
         # Calculate glow intensity based on pulse
         glow_intensity = 0.5 + pulse * 0.3  # Vary between 0.2 and 0.8
         
-        # Scale the base image
+        # Get the current animation frame
+        # Ensure frame_index is valid
+        if not self.frames or self.frame_index >= len(self.frames):
+             logger.error(f"Invalid frame index {self.frame_index} for powerup {self.type_name}")
+             # Use a fallback image or skip update to prevent crash
+             # For now, just skip the glow/scale effect if frame is invalid
+             current_base_frame = pygame.Surface((self.frame_width, self.frame_height), pygame.SRCALPHA)
+             current_base_frame.fill((128,128,128,128)) # Grey fallback
+        else:
+             current_base_frame = self.frames[self.frame_index]
+
+        # Scale the base image (use the current animation frame)
         scaled_image = pygame.transform.scale(
-            self.frames[self.current_frame], 
+            current_base_frame, 
             (int(self.frame_width * pulse_scale), int(self.frame_height * pulse_scale))
         )
         
@@ -347,7 +356,8 @@ class Powerup(AnimatedSprite):
         glow_surface.blit(scaled_image, image_pos)
         
         # Update the powerup's image to the new glow surface
-        self.image = glow_surface
+        # This *overwrites* the frame selected by super().update()
+        self.image = glow_surface 
         
         # Restore the center position after changing the image size
         old_center = self.rect.center
@@ -377,7 +387,6 @@ class Powerup(AnimatedSprite):
             (0, 255, 255),    # RAPID_FIRE: Cyan
             (0, 100, 255),    # SHIELD: Blue
             (255, 0, 255),    # HOMING_MISSILES: Magenta
-            (255, 255, 255),  # LASER_BEAM: White
             (0, 255, 0),      # POWER_RESTORE: Green
             (255, 128, 0),    # SCATTER_BOMB: Orange
             (128, 0, 255),    # TIME_WARP: Purple
@@ -453,7 +462,6 @@ class Powerup(AnimatedSprite):
             (0, 255, 255),    # RAPID_FIRE: Cyan
             (0, 100, 255),    # SHIELD: Blue
             (255, 0, 255),    # HOMING_MISSILES: Magenta
-            (255, 255, 255),  # LASER_BEAM: White
             (0, 255, 0),      # POWER_RESTORE: Green
             (255, 128, 0),    # SCATTER_BOMB: Orange
             (128, 0, 255),    # TIME_WARP: Purple
