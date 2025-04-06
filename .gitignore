@@ -128,9 +128,6 @@ cython_debug/
 # VSCode
 .vscode/
 
-# Cursor
-.cursor/
-
 # Logs
 .logs/
 
