@@ -4,7 +4,9 @@ import pygame
 import os # Import os
 import random # Import random for random range
 import math # Import math for trig functions
-# from pygame._sdl2 import Window # Removed - No longer using maximize
+from pygame._sdl2.video import Window
+from enum import IntEnum
+from typing import List, Dict, Tuple, Optional, Any, Set
 
 # Import game components
 from src.player import Player
@@ -13,6 +15,7 @@ from src.enemy import EnemyType1 # Import the specific enemy class
 from src.enemy import EnemyShooter # Import shooter class
 from src.sound_manager import SoundManager
 from src.logger import get_logger
+from src.border import Border
 
 # Import config variables
 from config.game_config import (
@@ -46,6 +49,19 @@ PATTERN_COUNT = len(PATTERN_TYPES)
 
 # Use the event ID from config
 WAVE_TIMER_EVENT = WAVE_TIMER_EVENT_ID
+
+# Wave patterns
+class PatternType(IntEnum):
+    VERTICAL = 0
+    HORIZONTAL = 1
+    DIAGONAL = 2
+    V_FORMATION = 3
+
+# Use IntEnum names for readability
+PATTERN_VERTICAL = PatternType.VERTICAL
+PATTERN_HORIZONTAL = PatternType.HORIZONTAL
+PATTERN_DIAGONAL = PatternType.DIAGONAL
+PATTERN_V_FORMATION = PatternType.V_FORMATION
 
 class Game:
     """Main game class managing the game loop, state, and events."""
@@ -103,6 +119,23 @@ class Game:
                 self.background_layers.append(layer)
         else:
             logger.warning(f"Background image not found at {bg_image_path}. Skipping background.")
+
+        # Initialize border layers
+        self.borders = []
+        top_border_path = os.path.join(BACKGROUNDS_DIR, "border-upper.png")
+        bottom_border_path = os.path.join(BACKGROUNDS_DIR, "border-lower.png")
+        
+        # Add top border
+        if os.path.exists(top_border_path):
+            self.borders.append(Border(top_border_path, True, 1.5))
+        else:
+            logger.warning(f"Top border image not found at {top_border_path}")
+            
+        # Add bottom border
+        if os.path.exists(bottom_border_path):
+            self.borders.append(Border(bottom_border_path, False, 1.5))
+        else:
+            logger.warning(f"Bottom border image not found at {bottom_border_path}")
 
         # Initialize sprite groups
         self.all_sprites = pygame.sprite.Group()
@@ -203,29 +236,33 @@ class Game:
                 # Reset the timer for the next wave
                 pygame.time.set_timer(WAVE_TIMER_EVENT, random.randint(3000, 5000))
 
-    def spawn_enemy_wave(self, count: int, pattern_type: int = PATTERN_VERTICAL, spawn_shooters: bool = False): # <<< Add spawn_shooters flag
-        """
-        Spawns a wave of enemies in a specific pattern.
-        
-        Args:
-            count: Number of enemies to spawn
-            pattern_type: The formation pattern to use
-            spawn_shooters: Whether to spawn shooters in the wave
-        """
-        # Choose the pattern function based on pattern_type
+    def spawn_enemy_wave(self, count: int, pattern_type: int = 0, spawn_shooters: bool = False): # <<< Add spawn_shooters flag
+        """Creates a new wave of enemies based on the given pattern type."""
         if pattern_type == PATTERN_VERTICAL:
-            spacing_y = 60  # Vertical spacing between enemies
-            self._spawn_vertical_pattern(count, spacing_y, spawn_shooters=spawn_shooters) # <<< Pass flag
+            # Vertical formation - enemies in a vertical line
+            # Calculate spacing based on playfield height and enemy count
+            playfield_height = PLAYFIELD_BOTTOM_Y - PLAYFIELD_TOP_Y
+            spacing = playfield_height / (count + 1)  # +1 for proper spacing at edges
+            self._spawn_vertical_pattern(count, int(spacing), spawn_shooters=spawn_shooters) # <<< Pass flag
+            
         elif pattern_type == PATTERN_HORIZONTAL:
+            # Horizontal formation - enemies in a horizontal line
             self._spawn_horizontal_pattern(count, spawn_shooters=spawn_shooters) # <<< Pass flag
+            
         elif pattern_type == PATTERN_DIAGONAL:
+            # Diagonal formation - enemies in a diagonal line
             self._spawn_diagonal_pattern(count, spawn_shooters=spawn_shooters) # <<< Pass flag
-        elif pattern_type == PATTERN_V_SHAPE:
+            
+        elif pattern_type == PATTERN_V_FORMATION:
+            # V formation - enemies in a V shape
             self._spawn_v_pattern(count, spawn_shooters=spawn_shooters) # <<< Pass flag
+            
         else:
-            # Default to vertical pattern if invalid pattern type
-            spacing_y = 60
-            self._spawn_vertical_pattern(count, spacing_y, spawn_shooters=spawn_shooters) # <<< Pass flag
+            # Default to vertical pattern if unknown pattern type
+            logger.warning(f"Unknown pattern type: {pattern_type}. Using vertical formation.")
+            playfield_height = PLAYFIELD_BOTTOM_Y - PLAYFIELD_TOP_Y
+            spacing = playfield_height / (count + 1)
+            self._spawn_vertical_pattern(count, int(spacing), spawn_shooters=spawn_shooters) # <<< Pass flag
 
     def _spawn_vertical_pattern(self, count: int, spacing_y: int, spawn_shooters: bool = False): # <<< Add spawn_shooters flag
         """Creates a vertical line of enemies entering from right."""
@@ -380,6 +417,11 @@ class Game:
         # Update background layers
         for layer in self.background_layers:
             layer.update()
+        
+        # Update border layers
+        for border in self.borders:
+            border.update()
+            
         # Update player and other sprites
         self.all_sprites.update() # This calls update() on Player, Bullets, and Enemies
         self.enemy_bullets.update()
@@ -440,5 +482,14 @@ class Game:
         self.all_sprites.draw(self.screen)
         # Draw enemy bullets
         self.enemy_bullets.draw(self.screen)
+        
+        # Fill any gaps at screen edges with black to ensure borders are flush
+        pygame.draw.rect(self.screen, BLACK, (0, 0, SCREEN_WIDTH, PLAYFIELD_TOP_Y))
+        pygame.draw.rect(self.screen, BLACK, (0, PLAYFIELD_BOTTOM_Y, SCREEN_WIDTH, SCREEN_HEIGHT - PLAYFIELD_BOTTOM_Y))
+        
+        # Draw border layers on top of everything
+        for border in self.borders:
+            border.draw(self.screen)
+            
         # Draw UI elements (score, health, etc.) later
         pygame.display.flip()
