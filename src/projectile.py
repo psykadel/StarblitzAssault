@@ -342,13 +342,43 @@ class PulseBeam(pygame.sprite.Sprite):
         
         beam_color = (r, g, b)
         
-        # Create beam gradient
+        # Create beam gradient with dynamic pulse effect
+        self.pulse_offset = 0  # Store pulse state to animate in update
+        self._draw_beam(beam_length, beam_height, r, g, b)
+        
+        # Set up rect and mask
+        self.rect = self.image.get_rect(midleft=(beam_start_x, player_pos[1]))
+        self.mask = pygame.mask.from_surface(self.image)
+        
+        # Set lifetime based on charge level
+        min_lifetime = 10
+        max_lifetime = 30
+        self.lifetime = min_lifetime + int((max_lifetime - min_lifetime) * charge_level)
+        
+        # Store damage value based on charge
+        self.damage = 1 + int(charge_level * 2)  # 1-3 damage
+        
+        # Store beam parameters for redrawing in update
+        self.beam_length = beam_length
+        self.beam_height = beam_height
+        self.beam_r = r
+        self.beam_g = g
+        self.beam_b = b
+        
+        logger.debug(f"Created pulse beam with charge {charge_level:.2f}, damage {self.damage}")
+    
+    def _draw_beam(self, beam_length, beam_height, r, g, b):
+        """Draw the beam with pulse effect."""
+        # Clear the surface
+        self.image.fill((0, 0, 0, 0))
+        
+        # Draw beam gradient with pulse effect
         for x in range(beam_length):
             # Fade intensity with distance
             fade_factor = 1.0 - (x / beam_length) * 0.5
             
-            # Pulse effect
-            pulse = 0.75 + 0.25 * math.sin(x * 0.1)
+            # Pulse effect - use stored offset for animation
+            pulse = 0.75 + 0.25 * math.sin(x * 0.1 + self.pulse_offset)
             
             # Calculate color for this column
             col_r = min(255, int(r * fade_factor * pulse))
@@ -378,25 +408,15 @@ class PulseBeam(pygame.sprite.Sprite):
                     int(255 * edge_fade)
                 )
                 self.image.set_at((x, y), faded_color)
-        
-        # Set up rect and mask
-        self.rect = self.image.get_rect(midleft=(beam_start_x, player_pos[1]))
-        self.mask = pygame.mask.from_surface(self.image)
-        
-        # Set lifetime based on charge level
-        min_lifetime = 10
-        max_lifetime = 30
-        self.lifetime = min_lifetime + int((max_lifetime - min_lifetime) * charge_level)
-        
-        # Store damage value based on charge
-        self.damage = 1 + int(charge_level * 2)  # 1-3 damage
-        
-        logger.debug(f"Created pulse beam with charge {charge_level:.2f}, damage {self.damage}")
 
     def update(self) -> None:
-        """Update the beam's lifetime."""
+        """Update the beam's lifetime and animation."""
         # Reduce lifetime
         self.lifetime -= 1
+        
+        # Animate pulse effect
+        self.pulse_offset += 0.2
+        self._draw_beam(self.beam_length, self.beam_height, self.beam_r, self.beam_g, self.beam_b)
         
         # Fade out near end of life
         if self.lifetime < 10:

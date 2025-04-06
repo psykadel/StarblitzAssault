@@ -141,10 +141,13 @@ class SoundManager:
                 current_volume = self.sounds[category][name].get_volume()
                 # Make sure laser sounds are much quieter
                 if name == "laser":
-                    self.sounds[category][name].set_volume(current_volume * 0.3)  # Reduced to 30% of current volume
+                    # For laser sounds, set a fixed volume rather than multiplying the current volume
+                    # This prevents volume decay over repeated plays
+                    self.sounds[category][name].set_volume(self.volume * 0.25)  # 25% of base volume
                 else:
                     self.sounds[category][name].set_volume(min(1.0, current_volume * 1.5))
                     
+                # Play the sound
                 self.sounds[category][name].play()
                 
                 # Reset to original volume after a short delay (we'll let mixer handle this)
