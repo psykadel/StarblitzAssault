@@ -267,7 +267,7 @@ class Player(AnimatedSprite):
 
         # Check for continuous shooting
         if self.is_firing:
-            # Use triple shot if active
+            # Use triple shot if active, otherwise normal shot
             if self.has_triple_shot:
                 self._shoot_triple()
             else:
@@ -497,6 +497,11 @@ class Player(AnimatedSprite):
                 logger.info("Hit ignored - player is invincible")
                 return True
                 
+            # Skip damage if player has active shield
+            if self.has_shield:
+                logger.info("Hit ignored - player has active shield")
+                return True
+                
             self.power_level -= 1
             logger.info(f"Player took damage! Power level: {self.power_level}/{MAX_POWER_LEVEL}")
             
@@ -656,11 +661,62 @@ class Player(AnimatedSprite):
             )
 
     def draw_powerup_icons(self, surface: pygame.Surface) -> None:
-        """Draw icons for active powerups with improved clarity."""
+        """Draw icons for active powerups."""
         if not self.active_powerups:
             return
-            
-        # Colors for each powerup type
+        
+        current_time = pygame.time.get_ticks()
+        
+        # Position for effects panel - right side of power meter
+        effects_panel_x = 10
+        effects_panel_y = 110  # Below power meter
+        
+        # Font for powerup name and time - smaller text
+        name_font = pygame.font.SysFont(None, 16)
+        time_font = pygame.font.SysFont(None, 14)
+        
+        # Start position for the first powerup (directly at panel position since no header)
+        start_y = effects_panel_y
+        
+        # Load powerup sprites if not already loaded
+        if not hasattr(self, 'powerup_sprites'):
+            self.powerup_sprites = []
+            try:
+                # Use the same function that powerups use to load their sprites
+                from src.sprite_loader import load_sprite_sheet, DEFAULT_CROP_BORDER_PIXELS
+                from src.powerup import POWERUP_SCALE_FACTOR, SPRITES_DIR
+                
+                self.powerup_sprites = load_sprite_sheet(
+                    filename="powerups.png",
+                    sprite_dir=SPRITES_DIR,
+                    scale_factor=0.1,  # Smaller scale factor for icons
+                    crop_border=DEFAULT_CROP_BORDER_PIXELS
+                )
+                
+                # Resize all sprites to a consistent size for icons
+                icon_size = 20
+                for i, sprite in enumerate(self.powerup_sprites):
+                    self.powerup_sprites[i] = pygame.transform.scale(sprite, (icon_size, icon_size))
+                    
+            except Exception as e:
+                logger.error(f"Failed to load powerup sprites for icons: {e}")
+                # Fallback to empty list, will use colors as fallback
+                self.powerup_sprites = []
+        
+        # Powerup full names for display
+        display_names = {
+            "TRIPLE_SHOT": "TRIPLE SHOT",
+            "RAPID_FIRE": "RAPID FIRE",
+            "SHIELD": "SHIELD",
+            "HOMING_MISSILES": "HOMING MISSILES",
+            "PULSE_BEAM": "PULSE BEAM",
+            "POWER_RESTORE": "POWER RESTORE",
+            "SCATTER_BOMB": "SCATTER BOMB",
+            "TIME_WARP": "TIME WARP",
+            "MEGA_BLAST": "MEGA BLAST"
+        }
+        
+        # Colors as fallback (same as before)
         colors = [
             (255, 220, 0),    # TRIPLE_SHOT: Golden
             (0, 255, 255),    # RAPID_FIRE: Cyan
@@ -673,87 +729,62 @@ class Player(AnimatedSprite):
             (255, 0, 128),    # MEGA_BLAST: Pink (not shown)
         ]
         
-        # Powerup names for display (shorter versions)
-        display_names = {
-            "TRIPLE_SHOT": "3X",
-            "RAPID_FIRE": "RAPID",
-            "SHIELD": "SHIELD",
-            "HOMING_MISSILES": "HOMING",
-            "PULSE_BEAM": "BEAM",
-            "POWER_RESTORE": "POWER",
-            "SCATTER_BOMB": "BOMB",
-            "TIME_WARP": "TIME",
-            "MEGA_BLAST": "MEGA"
-        }
+        # Set a smaller icon size
+        icon_size = 20
+        spacing = 22
         
-        # Improved icon size and spacing
-        self.powerup_icon_size = 28
-        self.powerup_icon_spacing = 6
-        
-        # Draw header text
-        small_font = pygame.font.SysFont(None, 16)
-        header_text = small_font.render("ACTIVE POWERUPS:", True, (200, 200, 200))
-        surface.blit(header_text, (self.power_bar_position[0], self.powerup_icon_base_y - 18))
-        
-        # Draw outline container for all icons
-        total_width = len(self.active_powerups) * (self.powerup_icon_size + self.powerup_icon_spacing) - self.powerup_icon_spacing + 10
-        pygame.draw.rect(
-            surface,
-            (60, 60, 70),  # Darker background
-            (self.power_bar_position[0] - 5, self.powerup_icon_base_y - 5,
-            total_width, self.powerup_icon_size + 25),  # Extra height for time indicators
-            0,  # Fill
-            3   # Rounded corners
-        )
-        
-        # Draw time remaining legend
-        legend_text = small_font.render("Time:", True, (180, 180, 180))
-        surface.blit(legend_text, (self.power_bar_position[0] + 2, 
-                                  self.powerup_icon_base_y + self.powerup_icon_size + 3))
-
-        # Icons for each type
-        current_time = pygame.time.get_ticks()
-        font = pygame.font.SysFont(None, 14)
-        
+        # Draw each active powerup
         for i, (powerup_name, powerup_idx) in enumerate(self.active_powerups):
-            # Position
-            icon_x = self.power_bar_position[0] + i * (self.powerup_icon_size + self.powerup_icon_spacing)
-            icon_y = self.powerup_icon_base_y
+            # Calculate vertical position for this powerup
+            icon_y = start_y + i * spacing
             
-            # Create icon
-            color = colors[powerup_idx]
-            
-            # Draw icon background with gradient (lighter at top)
-            for j in range(self.powerup_icon_size):
-                # Calculate gradient factor
-                gradient_factor = 1.0 - (j / self.powerup_icon_size) * 0.4
-                bg_color = tuple(int(c * gradient_factor) for c in (50, 50, 50))
-                pygame.draw.line(
+            # Use the actual powerup sprite if available
+            if self.powerup_sprites and powerup_idx < len(self.powerup_sprites):
+                # Get the correct sprite for this powerup type
+                sprite = self.powerup_sprites[powerup_idx]
+                
+                # Position for the sprite icon
+                icon_rect = sprite.get_rect(center=(
+                    effects_panel_x + icon_size//2, 
+                    icon_y + icon_size//2
+                ))
+                
+                # Draw the sprite
+                surface.blit(sprite, icon_rect)
+            else:
+                # Fallback to colored circle if sprites not available
+                color = colors[powerup_idx]
+                
+                # Create circular powerup icon
+                pygame.draw.circle(
                     surface,
-                    bg_color,
-                    (icon_x, icon_y + j),
-                    (icon_x + self.powerup_icon_size, icon_y + j)
-                )
-            
-            # Draw icon inner with gradient
-            for j in range(self.powerup_icon_size - 4):
-                # Calculate gradient factor
-                gradient_factor = 1.0 - (j / (self.powerup_icon_size - 4)) * 0.4
-                icon_color = tuple(int(min(255, c * gradient_factor)) for c in color)
-                pygame.draw.line(
-                    surface,
-                    icon_color,
-                    (icon_x + 2, icon_y + j + 2),
-                    (icon_x + self.powerup_icon_size - 2, icon_y + j + 2)
+                    color,
+                    (effects_panel_x + icon_size//2, icon_y + icon_size//2),
+                    icon_size//2
                 )
                 
-            # Draw icon border (highlight)
-            pygame.draw.rect(
-                surface,
-                (200, 200, 200),
-                (icon_x, icon_y, self.powerup_icon_size, self.powerup_icon_size),
-                1  # Border width
-            )
+                # Inner highlight
+                pygame.draw.circle(
+                    surface,
+                    (255, 255, 255),
+                    (effects_panel_x + icon_size//2 - 2, icon_y + icon_size//2 - 2),
+                    icon_size//4
+                )
+            
+            # Get full display name
+            display_name = display_names.get(powerup_name, powerup_name)
+            
+            # Draw powerup name with a small shadow for readability
+            name_text = name_font.render(display_name, True, (255, 255, 255))
+            name_shadow = name_font.render(display_name, True, (0, 0, 0))
+            
+            # Position name to the right of the icon
+            name_x = effects_panel_x + icon_size + 5
+            name_y = icon_y + 2
+            
+            # Draw name with shadow
+            surface.blit(name_shadow, (name_x + 1, name_y + 1))
+            surface.blit(name_text, (name_x, name_y))
             
             # Determine time remaining for timed powerups
             time_remaining = None
@@ -770,48 +801,18 @@ class Player(AnimatedSprite):
             elif powerup_name == "TIME_WARP" and self.has_time_warp:
                 time_remaining = max(0, (self.time_warp_expiry - current_time) // 1000)
             
-            # For SCATTER_BOMB, show charges and key hint instead of time
+            # For SCATTER_BOMB, show charges instead of time
             if powerup_name == "SCATTER_BOMB":
-                # Simplify the display - just show BOMB and the number
-                charge_text = font.render(f"BOMB {self.scatter_bomb_charges}", True, (255, 255, 255))
-                shadow_text = font.render(f"BOMB {self.scatter_bomb_charges}", True, (0, 0, 0))
-                text_rect = charge_text.get_rect(center=(
-                    icon_x + self.powerup_icon_size // 2, 
-                    icon_y + self.powerup_icon_size // 2
-                ))
-                # Draw text shadow
-                shadow_rect = shadow_text.get_rect(center=(
-                    icon_x + self.powerup_icon_size // 2 + 1, 
-                    icon_y + self.powerup_icon_size // 2 + 1
-                ))
-                surface.blit(shadow_text, shadow_rect)
-                surface.blit(charge_text, text_rect)
-                continue  # Skip drawing the powerup name since we've combined it with the charge count
+                time_text = time_font.render(f"{self.scatter_bomb_charges}", True, (255, 220, 150))
+            elif time_remaining is not None:
+                time_text = time_font.render(f"{time_remaining}s", True, (200, 200, 200))
+            else:
+                time_text = time_font.render("Active", True, (200, 200, 200))
             
-            # Draw powerup name
-            display_name = display_names.get(powerup_name, powerup_name[:5])
-            name_text = font.render(display_name, True, (255, 255, 255))
-            shadow_text = font.render(display_name, True, (0, 0, 0))
-            name_rect = name_text.get_rect(center=(
-                icon_x + self.powerup_icon_size // 2,
-                icon_y + self.powerup_icon_size // 2
-            ))
-            # Draw text shadow
-            shadow_rect = shadow_text.get_rect(center=(
-                icon_x + self.powerup_icon_size // 2 + 1,
-                icon_y + self.powerup_icon_size // 2 + 1
-            ))
-            surface.blit(shadow_text, shadow_rect)
-            surface.blit(name_text, name_rect)
-            
-            # Draw time remaining indicator below the icon (for timed powerups)
-            if time_remaining is not None:
-                time_text = font.render(f"{time_remaining}s", True, (255, 255, 255))
-                time_rect = time_text.get_rect(center=(
-                    icon_x + self.powerup_icon_size // 2,
-                    icon_y + self.powerup_icon_size + 12
-                ))
-                surface.blit(time_text, time_rect)
+            # Position time info below the name (on same line)
+            time_x = name_x + name_text.get_width() + 5
+            time_y = name_y
+            surface.blit(time_text, (time_x, time_y))
 
     def _shoot_triple(self) -> None:
         """Shoots three bullets in a spread pattern (triple shot powerup)."""
@@ -907,49 +908,70 @@ class Player(AnimatedSprite):
             self.has_rapid_fire = False
             logger.info("Rapid Fire powerup expired")
             # Remove from active powerups
-            if "RAPID_FIRE" in self.active_powerups:
-                self.active_powerups.remove("RAPID_FIRE")
+            self.active_powerups = [p for p in self.active_powerups if p[0] != "RAPID_FIRE"]
         
         # Handle triple shot expiry
         if self.has_triple_shot and current_time > self.triple_shot_expiry:
             self.has_triple_shot = False
             logger.info("Triple Shot powerup expired")
             # Remove from active powerups
-            if "TRIPLE_SHOT" in self.active_powerups:
-                self.active_powerups.remove("TRIPLE_SHOT")
+            self.active_powerups = [p for p in self.active_powerups if p[0] != "TRIPLE_SHOT"]
         
         # Handle shield expiry
         if self.has_shield and current_time > self.shield_expiry:
             self.has_shield = False
             logger.info("Shield powerup expired")
             # Remove from active powerups
-            if "SHIELD" in self.active_powerups:
-                self.active_powerups.remove("SHIELD")
+            self.active_powerups = [p for p in self.active_powerups if p[0] != "SHIELD"]
         
         # Handle homing missiles expiry
         if self.has_homing_missiles and current_time > self.homing_missiles_expiry:
             self.has_homing_missiles = False
             logger.info("Homing Missiles powerup expired")
             # Remove from active powerups
-            if "HOMING_MISSILES" in self.active_powerups:
-                self.active_powerups.remove("HOMING_MISSILES")
+            self.active_powerups = [p for p in self.active_powerups if p[0] != "HOMING_MISSILES"]
         
         # Handle time warp expiry
         if self.has_time_warp and current_time > self.time_warp_expiry:
             self.has_time_warp = False
             logger.info("Time Warp powerup expired")
             # Remove from active powerups
-            if "TIME_WARP" in self.active_powerups:
-                self.active_powerups.remove("TIME_WARP")
+            self.active_powerups = [p for p in self.active_powerups if p[0] != "TIME_WARP"]
         
         # Handle pulse beam expiry
         if self.has_pulse_beam and current_time > self.pulse_beam_expiry:
             self.has_pulse_beam = False
             logger.info("Pulse Beam powerup expired")
             # Remove from active powerups
-            if "PULSE_BEAM" in self.active_powerups:
-                self.active_powerups.remove("PULSE_BEAM")
+            self.active_powerups = [p for p in self.active_powerups if p[0] != "PULSE_BEAM"]
                 
         # Check if charging pulse beam
         if self.is_charging and self.has_pulse_beam:
             self._charge_pulse_beam()
+
+    def add_powerup(self, powerup_name: str, powerup_idx: int) -> None:
+        """Add a powerup to the active powerups list, preventing duplicates."""
+        # Check if this powerup is already active
+        for existing in self.active_powerups:
+            if existing[0] == powerup_name:
+                # Update the existing powerup's expiry time instead of adding a duplicate
+                if powerup_name == "TRIPLE_SHOT":
+                    self.triple_shot_expiry = pygame.time.get_ticks() + POWERUP_DURATION
+                elif powerup_name == "RAPID_FIRE":
+                    self.rapid_fire_expiry = pygame.time.get_ticks() + POWERUP_DURATION
+                elif powerup_name == "SHIELD":
+                    self.shield_expiry = pygame.time.get_ticks() + POWERUP_DURATION
+                elif powerup_name == "HOMING_MISSILES":
+                    self.homing_missiles_expiry = pygame.time.get_ticks() + POWERUP_DURATION
+                elif powerup_name == "PULSE_BEAM":
+                    self.pulse_beam_expiry = pygame.time.get_ticks() + POWERUP_DURATION
+                elif powerup_name == "TIME_WARP":
+                    self.time_warp_expiry = pygame.time.get_ticks() + POWERUP_DURATION
+                elif powerup_name == "SCATTER_BOMB":
+                    # For scatter bomb, add more charges instead of extending time
+                    self.scatter_bomb_charges += 3
+                # Powerup already exists, don't add it again
+                return
+                
+        # If we get here, the powerup isn't active yet, so add it
+        self.active_powerups.append((powerup_name, powerup_idx))

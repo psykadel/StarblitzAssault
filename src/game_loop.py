@@ -471,6 +471,12 @@ class Game:
                 if event.key == pygame.K_SPACE:
                     self.player.stop_firing()
             elif event.type == WAVE_TIMER_EVENT:
+                # Skip wave spawning if game is over
+                if self.game_over:
+                    # Cancel the wave timer when game is over
+                    pygame.time.set_timer(WAVE_TIMER_EVENT, 0)
+                    return
+                    
                 # Update wave count and difficulty
                 self.wave_count += 1
                 self._update_difficulty()
@@ -1239,7 +1245,7 @@ class Game:
         self.screen.blit(score_text, score_rect)
         
         # Draw difficulty level indicator
-        difficulty_text = self.score_font.render(f"LEVEL: {int(self.difficulty_level)}", True, WHITE)
+        difficulty_text = self.score_font.render(f"WAVE: {self.wave_count}", True, WHITE)
         difficulty_rect = difficulty_text.get_rect(topright=(SCREEN_WIDTH - 20, 45))
         self.screen.blit(difficulty_text, difficulty_rect)
         
@@ -1286,12 +1292,12 @@ class Game:
                     self.game_over_animation_complete = True
             
             else:
-                # Animation complete, show level and score info
+                # Animation complete, show wave and score info
                 self.game_over_animation_complete = True
                 
-                # Display level reached prominently
-                level_font = pygame.font.SysFont(None, DEFAULT_FONT_SIZE * 3)  # Larger font for level
-                level_text = level_font.render(f"LEVEL {int(self.difficulty_level)}", True, (255, 215, 0))  # Gold color
+                # Display wave reached prominently
+                level_font = pygame.font.SysFont(None, DEFAULT_FONT_SIZE * 3)  # Larger font for wave
+                level_text = level_font.render(f"WAVE {self.wave_count}", True, (255, 215, 0))  # Gold color
                 level_rect = level_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 20))
                 self.screen.blit(level_text, level_rect)
                 
@@ -1362,6 +1368,9 @@ class Game:
         
     def _handle_game_over(self):
         """Handles the game over state when player loses all power."""
+        # Cancel the wave timer
+        pygame.time.set_timer(WAVE_TIMER_EVENT, 0)
+        
         # Play explosion sound
         self.sound_manager.play("explosion1", "player")
         logger.warning("Game over - Player destroyed!")

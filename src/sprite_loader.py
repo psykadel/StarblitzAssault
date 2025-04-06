@@ -217,3 +217,146 @@ def find_sprite_bounds(surface: pygame.Surface) -> Optional[Tuple[int, int, int,
     else:
         # No content found
         return None 
+
+def crop_border(surface: pygame.Surface, border_color: Optional[Tuple[int, int, int, int]] = None) -> pygame.Surface:
+    """
+    Crops uniform borders from a surface that match a specified border color.
+    If border_color is None, it is determined from the top-left pixel.
+    
+    Args:
+        surface: The pygame.Surface to crop.
+        border_color: The RGBA color to treat as a border. If None, the top-left pixel is used.
+    
+    Returns:
+        A new pygame.Surface with the bordering pixels trimmed.
+    """
+    if border_color is None:
+        color = surface.get_at((0, 0))
+        border_color = (color.r, color.g, color.b, color.a)
+
+    width, height = surface.get_size()
+    top, bottom, left, right = 0, height, 0, width
+
+    # Trim from the top
+    for y in range(height):
+        if any(surface.get_at((x, y)) != border_color for x in range(width)):
+            top = y
+            break
+
+    # Trim from the bottom
+    for y in range(height - 1, -1, -1):
+        if any(surface.get_at((x, y)) != border_color for x in range(width)):
+            bottom = y + 1
+            break
+
+    # Trim from the left
+    for x in range(width):
+        if any(surface.get_at((x, y)) != border_color for y in range(top, bottom)):
+            left = x
+            break
+
+    # Trim from the right
+    for x in range(width - 1, -1, -1):
+        if any(surface.get_at((x, y)) != border_color for y in range(top, bottom)):
+            right = x + 1
+            break
+
+    try:
+        cropped = surface.subsurface((left, top, right - left, bottom - top)).copy()
+    except Exception as e:
+        # In case subsurface fails, return original surface
+        print(f"Failed to crop border: {e}")
+        return surface
+    return cropped
+
+
+def load_aligned_sprites(
+    sprite_sheet_path: str,
+    grid: Tuple[int, int] = (3, 3),
+    grid_line_thickness: int = 2
+) -> List[pygame.Surface]:
+    """
+    Loads a sprite sheet and extracts individual sprites from a grid layout. 
+    It then aligns each sprite by centering the bounding box of non-transparent pixels
+    within a fixed canvas size based on the grid cell dimensions. This ensures that key 
+    features (e.g. a spaceship windshield) are positioned consistently across frames.
+    
+    Args:
+        sprite_sheet_path: File path to the sprite sheet.
+        grid: A tuple (columns, rows) representing the sprite grid layout.
+        grid_line_thickness: The thickness in pixels of the grid lines separating tiles.
+    
+    Returns:
+        A list of aligned pygame.Surface objects for the sprites.
+    """
+    try:
+        sprite_sheet = pygame.image.load(sprite_sheet_path).convert_alpha()
+    except Exception as e:
+        print(f"Error loading sprite sheet: {e}")
+        return []
+
+    sheet_width, sheet_height = sprite_sheet.get_size()
+    columns, rows = grid
+    
+    # Compute cell dimensions excluding grid lines (these form our fixed canvas sizes)
+    cell_width = (sheet_width - (columns + 1) * grid_line_thickness) // columns
+    cell_height = (sheet_height - (rows + 1) * grid_line_thickness) // rows
+
+    aligned_sprites = []
+    for row in range(rows):
+        for col in range(columns):
+            x = grid_line_thickness + col * (cell_width + grid_line_thickness)
+            y = grid_line_thickness + row * (cell_height + grid_line_thickness)
+            rect = pygame.Rect(x, y, cell_width, cell_height)
+            tile = sprite_sheet.subsurface(rect).copy()
+            
+            # Crop unwanted grid line artifacts if present
+            tile = crop_border(tile)
+            
+            # Create a mask to get the bounding box of non-transparent pixels
+            mask = pygame.mask.from_surface(tile)
+            bounding_rect = mask.get_bounding_rect()  # type: ignore
+            # Determine the sprite's center (if bounding rect is empty, use tile center)
+            if bounding_rect.w == 0 or bounding_rect.h == 0:
+                sprite_center = (tile.get_width() // 2, tile.get_height() // 2)
+            else:
+                sprite_center = (bounding_rect.x + bounding_rect.w // 2,
+                                 bounding_rect.y + bounding_rect.h // 2)
+            
+            # Create a new canvas of fixed cell size and align the sprite to its center
+            canvas = pygame.Surface((cell_width, cell_height), pygame.SRCALPHA)
+            canvas.fill((0, 0, 0, 0))
+            offset = (cell_width // 2 - sprite_center[0],
+                      cell_height // 2 - sprite_center[1])
+            canvas.blit(tile, offset)
+            aligned_sprites.append(canvas)
+    
+    return aligned_sprites
+
+
+# Example usage (you can remove or modify this block as needed):
+if __name__ == '__main__':
+    pygame.init()
+
+    # Replace with the correct path to your sprite sheet
+    sprite_sheet_file = os.path.join('assets', 'sprites', 'spaceship.png')
+    sprites = load_aligned_sprites(sprite_sheet_file, grid=(3, 3), grid_line_thickness=2)
+    
+    # For demonstration, display the aligned sprites in a simple pygame window
+    if sprites:
+        screen = pygame.display.set_mode(sprites[0].get_size())
+        clock = pygame.time.Clock()
+        index = 0
+        running = True
+        while running:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+            screen.fill((30, 30, 30))
+            screen.blit(sprites[index], (0, 0))
+            pygame.display.flip()
+            index = (index + 1) % len(sprites)
+            clock.tick(2)  # switch sprite every 0.5 sec
+    else:
+        print('No sprites loaded.')
+    pygame.quit() 

@@ -24,38 +24,16 @@ class TripleShotPowerup(Powerup):
         """Apply the triple shot effect to the player."""
         super().apply_effect(player)  # Call base implementation for power
         
-        # Store original shoot method
-        player.original_shoot = player.shoot
-        
-        # Replace with triple shot
-        def triple_shot():
-            now = pygame.time.get_ticks()
-            if now - player.last_shot_time > PLAYER_SHOOT_DELAY:
-                player.last_shot_time = now
-                
-                # Get sprite groups
-                all_sprites_group = player.groups()[0] if player.groups() else None
-                if all_sprites_group:
-                    # Center bullet
-                    Bullet(player.rect.right, player.rect.centery, 
-                          all_sprites_group, player.bullets)
-                    
-                    # Bullet above
-                    Bullet(player.rect.right, player.rect.centery - 15, 
-                          all_sprites_group, player.bullets)
-                    
-                    # Bullet below
-                    Bullet(player.rect.right, player.rect.centery + 15,
-                          all_sprites_group, player.bullets)
-                    
-                    logger.debug("Player fired triple shot")
-        
         # Set expiry time
         player.triple_shot_expiry = pygame.time.get_ticks() + POWERUP_DURATION
         player.has_triple_shot = True
         
-        # Replace shoot method
-        player.shoot = triple_shot
+        # Add to active powerups list if using add_powerup method
+        if hasattr(player, 'add_powerup'):
+            player.add_powerup("TRIPLE_SHOT", 0)
+        else:
+            # Fallback to direct append for older versions
+            player.active_powerups.append(("TRIPLE_SHOT", 0))
         
         # Create collection effect
         self._create_collection_effect(player.rect.center)
@@ -125,6 +103,9 @@ class RapidFirePowerup(Powerup):
         player.rapid_fire_expiry = pygame.time.get_ticks() + POWERUP_DURATION
         player.has_rapid_fire = True
         
+        # Add to active powerups list
+        player.active_powerups.append(("RAPID_FIRE", 1))
+        
         # Create collection effect
         self._create_collection_effect(player.rect.center)
         
@@ -149,6 +130,9 @@ class ShieldPowerup(Powerup):
         # Set expiry time longer than normal invincibility
         player.shield_expiry = pygame.time.get_ticks() + POWERUP_DURATION
         player.has_shield = True
+        
+        # Add to active powerups list
+        player.active_powerups.append(("SHIELD", 2))
         
         # Create collection effect
         self._create_collection_effect(player.rect.center)
@@ -184,6 +168,9 @@ class HomingMissilesPowerup(Powerup):
         player.homing_missiles_expiry = pygame.time.get_ticks() + POWERUP_DURATION
         player.has_homing_missiles = True
         
+        # Add to active powerups list
+        player.active_powerups.append(("HOMING_MISSILES", 3))
+        
         # Create collection effect
         self._create_collection_effect(player.rect.center)
         
@@ -214,6 +201,9 @@ class PulseBeamPowerup(Powerup):
         
         # Set expiry time
         player.pulse_beam_expiry = pygame.time.get_ticks() + POWERUP_DURATION
+        
+        # Add to active powerups list
+        player.active_powerups.append(("PULSE_BEAM", 4))
         
         # Create collection effect
         self._create_collection_effect(player.rect.center)
@@ -301,6 +291,9 @@ class TimeWarpPowerup(Powerup):
         
         # Set expiry time
         player.time_warp_expiry = pygame.time.get_ticks() + POWERUP_DURATION
+        
+        # Add to active powerups list
+        player.active_powerups.append(("TIME_WARP", 7))
         
         # Create collection effect
         self._create_collection_effect(player.rect.center)
