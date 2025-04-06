@@ -149,7 +149,7 @@ class BackgroundDecorations:
         playable_height = self.playfield_bottom - self.playfield_top
         
         # Minimum spacing between decorations (to prevent overlaps)
-        min_spacing = 250  # Significant distance between decorations
+        min_spacing = 750  # Significant distance between decorations
         
         # Create decorations with well-spaced positions
         # Divide screen into sections

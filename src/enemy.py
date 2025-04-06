@@ -60,8 +60,7 @@ class EnemyType1(Enemy):
             filename="enemy1.png",
             sprite_dir=SPRITES_DIR,
             scale_factor=ENEMY1_SCALE_FACTOR,
-            crop_border=DEFAULT_CROP_BORDER_PIXELS,
-            flip_horizontal=True  # Flip the enemy sprite
+            crop_border=DEFAULT_CROP_BORDER_PIXELS
         )
 
         if not self.frames:
@@ -69,6 +68,9 @@ class EnemyType1(Enemy):
             # Fallback or raise error - Parent init already created a rect
             self.kill()  # Remove this instance if loading failed
             return
+            
+        # Flip the sprites horizontally
+        self.frames = [pygame.transform.flip(frame, True, False) for frame in self.frames]
 
         # Set initial image and rect based on loaded frames
         self.image = self.frames[self.frame_index]
@@ -97,14 +99,16 @@ class EnemyShooter(Enemy):
             filename="enemy2.png",
             sprite_dir=SPRITES_DIR,
             scale_factor=ENEMY1_SCALE_FACTOR,
-            crop_border=DEFAULT_CROP_BORDER_PIXELS,
-            flip_horizontal=True
+            crop_border=DEFAULT_CROP_BORDER_PIXELS
         )
         
         if not self.frames:
             logger.error("EnemyShooter frames list is empty after loading!")
             self.kill()
             return
+            
+        # Flip the sprites horizontally
+        self.frames = [pygame.transform.flip(frame, True, False) for frame in self.frames]
             
         self.image = self.frames[self.frame_index]
         self.rect = self.image.get_rect()
@@ -159,14 +163,16 @@ class EnemyType3(Enemy):
             filename="enemy3.png",
             sprite_dir=SPRITES_DIR,
             scale_factor=ENEMY1_SCALE_FACTOR,
-            crop_border=DEFAULT_CROP_BORDER_PIXELS,
-            flip_horizontal=True
+            crop_border=DEFAULT_CROP_BORDER_PIXELS
         )
         
         if not self.frames:
             logger.error("EnemyType3 frames list is empty after loading!")
             self.kill()
             return
+            
+        # Flip the sprites horizontally
+        self.frames = [pygame.transform.flip(frame, True, False) for frame in self.frames]
             
         self.image = self.frames[self.frame_index]
         self.rect = self.image.get_rect()
@@ -236,14 +242,16 @@ class EnemyType4(Enemy):
             filename="enemy4.png",
             sprite_dir=SPRITES_DIR,
             scale_factor=ENEMY1_SCALE_FACTOR,
-            crop_border=DEFAULT_CROP_BORDER_PIXELS,
-            flip_horizontal=True
+            crop_border=DEFAULT_CROP_BORDER_PIXELS
         )
         
         if not self.frames:
             logger.error("EnemyType4 frames list is empty after loading!")
             self.kill()
             return
+            
+        # Flip the sprites horizontally
+        self.frames = [pygame.transform.flip(frame, True, False) for frame in self.frames]
             
         self.image = self.frames[self.frame_index]
         self.rect = self.image.get_rect()
@@ -332,14 +340,16 @@ class EnemyType5(Enemy):
             filename="enemy5.png",
             sprite_dir=SPRITES_DIR,
             scale_factor=ENEMY1_SCALE_FACTOR,
-            crop_border=DEFAULT_CROP_BORDER_PIXELS,
-            flip_horizontal=True
+            crop_border=DEFAULT_CROP_BORDER_PIXELS
         )
         
         if not self.frames:
             logger.error("EnemyType5 frames list is empty after loading!")
             self.kill()
             return
+            
+        # Flip the sprites horizontally
+        self.frames = [pygame.transform.flip(frame, True, False) for frame in self.frames]
             
         self.image = self.frames[self.frame_index]
         self.rect = self.image.get_rect()
