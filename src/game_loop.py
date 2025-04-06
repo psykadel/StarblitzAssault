@@ -253,9 +253,13 @@ class Game:
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     self.is_running = False
-                elif event.key == pygame.K_SPACE and not self.player.is_firing:
-                    self.player.start_firing()
-                    # Initial laser sound will be handled in _update
+                elif event.key == pygame.K_SPACE:
+                    if self.game_over:
+                        # Restart the game when space is pressed on game over screen
+                        self._reset_game()
+                    elif not self.player.is_firing:
+                        self.player.start_firing()
+                        # Initial laser sound will be handled in _update
                 
                 # Volume control keys
                 elif event.key == pygame.K_MINUS or event.key == pygame.K_KP_MINUS:
@@ -376,10 +380,6 @@ class Game:
                 
                 next_wave_delay = random.randint(min_delay, max_delay)
                 pygame.time.set_timer(WAVE_TIMER_EVENT, next_wave_delay)
-            elif event.type == pygame.USEREVENT:
-                # This is the game over delay timer
-                self.is_running = False
-                pygame.time.set_timer(pygame.USEREVENT, 0)  # Disable the timer
 
     def _update_difficulty(self):
         """Updates the difficulty level based on game progression."""
@@ -894,15 +894,30 @@ class Game:
         
         # Draw game over message if necessary
         if self.game_over:
+            # Display large GAME OVER text
             game_over_text = self.game_over_font.render("GAME OVER", True, RED)
-            text_rect = game_over_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
+            text_rect = game_over_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 40))
             self.screen.blit(game_over_text, text_rect)
             
-            # Also display final score
+            # Display level reached prominently
+            level_font = pygame.font.SysFont(None, DEFAULT_FONT_SIZE * 3)  # Larger font for level
+            level_text = level_font.render(f"LEVEL {int(self.difficulty_level)}", True, (255, 215, 0))  # Gold color
+            level_rect = level_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 20))
+            self.screen.blit(level_text, level_rect)
+            
+            # Display final score
             final_score_text = self.score_font.render(f"FINAL SCORE: {self.score}", True, WHITE)
-            final_score_rect = final_score_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 40))
+            final_score_rect = final_score_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 60))
             self.screen.blit(final_score_text, final_score_rect)
-        
+            
+            # Display restart prompt
+            restart_text = self.score_font.render("Press Space To Try Again!", True, (0, 255, 0))  # Green text
+            restart_rect = restart_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 100))
+            
+            # Make the text blink by checking the time
+            if (pygame.time.get_ticks() // 500) % 2 == 0:  # Blinks every 500ms
+                self.screen.blit(restart_text, restart_rect)
+                
         # Draw the game logo at the top center of the screen
         if self.logo is not None:
             logo_rect = self.logo.get_rect(midtop=(SCREEN_WIDTH // 2, 5))
@@ -968,6 +983,37 @@ class Game:
         # Set game over flag
         self.game_over = True
         
-        # We'll keep the game running until the explosion animation completes
-        # Set a timer for game end
-        pygame.time.set_timer(pygame.USEREVENT, 3000)  # 3 seconds delay to see the full explosion
+        # No longer set a timer to end the game - player can restart with space
+
+    def _reset_game(self):
+        """Reset the game state to start a new game."""
+        # Reset core game state
+        self.game_over = False
+        self.score = 0
+        self.wave_count = 0
+        self.difficulty_level = 1.0
+        
+        # Clear all sprite groups
+        self.all_sprites.empty()
+        self.enemies.empty()
+        self.bullets.empty()
+        self.enemy_bullets.empty()
+        self.explosions.empty()
+        self.particles.empty()
+        
+        # Reset game timers
+        pygame.time.set_timer(pygame.USEREVENT, 0)  # Disable any pending timers
+        pygame.time.set_timer(WAVE_TIMER_EVENT, WAVE_DELAY_MS)  # Reset wave timer
+        
+        # Re-initialize player
+        self.player = Player(self.bullets, self.all_sprites)
+        self.previous_player_power = self.player.power_level
+        self.last_laser_sound_time = 0
+        self.previous_enemy_bullet_count = 0
+        self.game_start_time = pygame.time.get_ticks()
+        
+        # Reset any other game-specific state
+        import src.enemy
+        src.enemy.ENEMY_SHOOTER_COOLDOWN_MS = ENEMY_SHOOTER_COOLDOWN_MS  # Reset to default
+        
+        logger.info("Game reset - starting new game")
