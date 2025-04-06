@@ -8,53 +8,49 @@ from typing import TYPE_CHECKING, Tuple, List
 # Import the Bullet class
 from src.projectile import Bullet
 # Import the sprite loading utility
-from src.utils.sprite_loader import load_sprite_sheet, DEFAULT_CROP_BORDER_PIXELS
+from src.sprite_loader import load_sprite_sheet, DEFAULT_CROP_BORDER_PIXELS
+# Import base animated sprite
+from src.animated_sprite import AnimatedSprite
+# Import logger
+from src.logger import get_logger
 
 # Import config variables
-from src.config import (
+from config.game_config import (
     SPRITES_DIR, PLAYER_SPEED, PLAYER_SHOOT_DELAY, SCREEN_WIDTH,
-    SCREEN_HEIGHT, PLAYFIELD_TOP_Y, PLAYFIELD_BOTTOM_Y
+    SCREEN_HEIGHT, PLAYFIELD_TOP_Y, PLAYFIELD_BOTTOM_Y,
+    PLAYER_SCALE_FACTOR, PLAYER_ANIMATION_SPEED_MS
 )
 
-# Constants for animation
-ANIMATION_SPEED_MS = 75 # Milliseconds per frame
-PLAYER_SCALE_FACTOR = 0.25 # Adjusted scale factor for bigger ship
+# Get a logger for this module
+logger = get_logger(__name__)
 
-# Avoid circular imports for type checking - though not strictly needed now
-# if TYPE_CHECKING:
-#     pass # No forward refs needed currently
-
-class Player(pygame.sprite.Sprite):
+class Player(AnimatedSprite):
     """Represents the player-controlled spaceship."""
     def __init__(self, bullets: pygame.sprite.Group, *groups) -> None:
         """Initializes the player sprite."""
-        super().__init__(*groups)
+        super().__init__(PLAYER_ANIMATION_SPEED_MS, *groups)
 
         self.bullets = bullets
-        self.frames: List[pygame.Surface] = []
         # Load frames using the utility function
         self.load_sprites()
 
-        # --- Initialization continues after load_sprites sets self.frames ---
+        # Check if sprite loading was successful
         if not self.frames:
-            print("Error: Player frames list is empty after loading!")
+            logger.error("Player frames list is empty after loading!")
             raise SystemExit()
 
-        # Animation state
-        self.frame_index: int = 0
+        # Set initial image from frames
+        self.frame_index = 0
         self.image = self.frames[self.frame_index]
         self.rect = self.image.get_rect()
         self.mask = pygame.mask.from_surface(self.image)
-        self.last_frame_update: int = pygame.time.get_ticks()
 
         # Initial position for side-scroller (e.g., left middle)
-        # Position is set after getting the rect from the loaded/scaled/cropped image
         self.rect.left = 50
         self.rect.centery = SCREEN_HEIGHT // 2
-
-        # Movement state (primarily vertical for side-scroller)
-        self.speed_x: float = 0
-        self.speed_y: float = 0
+        # Initialize float position trackers
+        self._pos_x = float(self.rect.x)
+        self._pos_y = float(self.rect.y)
 
         # Shooting cooldown timer
         self.last_shot_time: int = pygame.time.get_ticks()
@@ -72,21 +68,10 @@ class Player(pygame.sprite.Sprite):
         )
         # Error handling is done within load_sprite_sheet, which raises SystemExit
 
-    def _animate(self) -> None:
-        """Cycles through the animation frames."""
-        now = pygame.time.get_ticks()
-        if now - self.last_frame_update > ANIMATION_SPEED_MS:
-            self.last_frame_update = now
-            self.frame_index = (self.frame_index + 1) % len(self.frames)
-            # Update image and rect (important to keep center position)
-            old_center = self.rect.center
-            self.image = self.frames[self.frame_index]
-            self.rect = self.image.get_rect(center=old_center)
-            self.mask = pygame.mask.from_surface(self.image) # Update mask if using pixel-perfect collision
-
     def update(self) -> None:
         """Updates the player's position, animation, and handles continuous shooting."""
-        self._animate()
+        # Call parent update for animation and movement
+        super().update()
 
         # Update position - Apply diagonal movement normalization for consistent speed
         if self.speed_x != 0 and self.speed_y != 0:
@@ -95,24 +80,20 @@ class Player(pygame.sprite.Sprite):
             self.speed_x *= 0.7071
             self.speed_y *= 0.7071
 
-        # Apply movement with slight smoothing for better feel
-        new_x = self.rect.x + self.speed_x
-        new_y = self.rect.y + self.speed_y
-        
-        # Round to nearest pixel for smoother movement
-        self.rect.x = round(new_x)
-        self.rect.y = round(new_y)
-
         # Keep player on screen (Adjust boundaries for side-scroller)
         if self.rect.left < 0:
             self.rect.left = 0
+            self._pos_x = float(self.rect.x)
         if self.rect.right > SCREEN_WIDTH:
             self.rect.right = SCREEN_WIDTH
+            self._pos_x = float(self.rect.x)
         # Use playfield boundaries for vertical movement
         if self.rect.top < PLAYFIELD_TOP_Y:
             self.rect.top = PLAYFIELD_TOP_Y
+            self._pos_y = float(self.rect.y)
         if self.rect.bottom > PLAYFIELD_BOTTOM_Y:
             self.rect.bottom = PLAYFIELD_BOTTOM_Y
+            self._pos_y = float(self.rect.y)
 
         # Check for continuous shooting
         if self.is_firing:
@@ -139,9 +120,6 @@ class Player(pygame.sprite.Sprite):
                  self.speed_x = -PLAYER_SPEED / 2 # Slower horizontal?
             elif event.key == pygame.K_RIGHT:
                  self.speed_x = PLAYER_SPEED / 2
-            # Remove single-press shooting from here
-            # elif event.key == pygame.K_SPACE:
-            #     self.shoot()
 
         if event.type == pygame.KEYUP:
             # Stop movement only if the released key matches the current direction
@@ -163,14 +141,5 @@ class Player(pygame.sprite.Sprite):
             all_sprites_group = self.groups()[0] if self.groups() else None
             if all_sprites_group:
                 Bullet(self.rect.right, self.rect.centery, all_sprites_group, self.bullets)
-
+                logger.debug(f"Player fired bullet at position {self.rect.right}, {self.rect.centery}")
             # The sound is now played in the game_loop when firing starts
-
-    def _handle_continuous_shooting(self) -> None:
-        """Checks if the shoot key is held and calls shoot() if allowed."""
-        keys = pygame.key.get_pressed() # Get state of all keys
-        if keys[pygame.K_SPACE]:
-            self.is_firing = True
-            self.shoot() # shoot() already handles the cooldown
-        else:
-            self.is_firing = False

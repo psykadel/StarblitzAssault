@@ -6,45 +6,46 @@ import random # Import random for random range
 import math # Import math for trig functions
 # from pygame._sdl2 import Window # Removed - No longer using maximize
 
-# Import game components and config
+# Import game components
 from src.player import Player
 from src.background import BackgroundLayer # Import BackgroundLayer
 from src.enemy import EnemyType1 # Import the specific enemy class
-from src.enemy import EnemyShooter # <<< Add import for EnemyShooter
-from src.config import (
+from src.enemy import EnemyShooter # Import shooter class
+from src.sound_manager import SoundManager
+from src.logger import get_logger
+
+# Import config variables
+from config.game_config import (
     SCREEN_WIDTH,
     SCREEN_HEIGHT,
     FPS,
     BLACK,
-    BACKGROUNDS_DIR, # Import background directory path
-    ENEMY_SPAWN_RATE, # Import spawn rate from config
-    PLAYFIELD_TOP_Y,    # Add missing playfield boundary import
-    PLAYFIELD_BOTTOM_Y,  # Add missing playfield boundary import
-    PLAYER_SPEED,  # Added PLAYER_SPEED from config
-    PLAYER_SHOOT_DELAY  # Added for laser sound timing
+    BACKGROUNDS_DIR,
+    ENEMY_SPAWN_RATE,
+    PLAYFIELD_TOP_Y,
+    PLAYFIELD_BOTTOM_Y,
+    PLAYER_SPEED,
+    PLAYER_SHOOT_DELAY,
+    WAVE_TIMER_EVENT_ID,
+    WAVE_DELAY_MS,
+    PATTERN_TYPES
 )
-# Remove the non-existent imports
-# from src.utils.constants import *
-# from src.debug import draw_debug_info
-# from src.hud import HUD
 
-# Import sound manager
-from src.sound_manager import SoundManager
+# Get logger for this module
+logger = get_logger(__name__)
 
 # Define background speeds
 BG_LAYER_SPEEDS = [0.5, 1.0, 1.5] # Slowest to fastest
 
 # Enemy pattern types
-PATTERN_VERTICAL = 0   # Enemies in a straight vertical line
-PATTERN_HORIZONTAL = 1 # Enemies in a straight horizontal line
-PATTERN_DIAGONAL = 2   # Enemies in a diagonal line
-PATTERN_V_SHAPE = 3    # Enemies in a V formation
-PATTERN_COUNT = 4      # Total number of patterns
+PATTERN_VERTICAL = PATTERN_TYPES["VERTICAL"]
+PATTERN_HORIZONTAL = PATTERN_TYPES["HORIZONTAL"]
+PATTERN_DIAGONAL = PATTERN_TYPES["DIAGONAL"]
+PATTERN_V_SHAPE = PATTERN_TYPES["V_SHAPE"]
+PATTERN_COUNT = len(PATTERN_TYPES)
 
-# Custom Pygame Events
-# ENEMY_SPAWN_EVENT = pygame.USEREVENT + 1 # Removed - using wave logic
-WAVE_TIMER_EVENT = pygame.USEREVENT + 1 # Timer to trigger next wave
-WAVE_DELAY_MS = 5000 # Time between enemy waves (milliseconds)
+# Use the event ID from config
+WAVE_TIMER_EVENT = WAVE_TIMER_EVENT_ID
 
 class Game:
     """Main game class managing the game loop, state, and events."""
@@ -93,7 +94,7 @@ class Game:
                     initial_offsets = [0, bg_image_width / 4, bg_image_width * 3 / 4]
                 del _temp_layer # Clean up temporary layer
             except (pygame.error, FileNotFoundError, ZeroDivisionError, AttributeError) as e: # Specific exceptions
-                print(f"Warning: Could not get background width for offsets: {e}. Using defaults.")
+                logger.warning(f"Could not get background width for offsets: {e}. Using defaults.")
                 # Defaults already set above
 
             for i, speed in enumerate(BG_LAYER_SPEEDS):
@@ -101,7 +102,7 @@ class Game:
                 layer = BackgroundLayer(bg_image_path, speed, self.current_screen_height, initial_scroll=offset)
                 self.background_layers.append(layer)
         else:
-            print(f"Warning: Background image not found at {bg_image_path}. Skipping background.")
+            logger.warning(f"Background image not found at {bg_image_path}. Skipping background.")
 
         # Initialize sprite groups
         self.all_sprites = pygame.sprite.Group()
@@ -164,21 +165,21 @@ class Game:
                 elif event.key == pygame.K_MINUS or event.key == pygame.K_KP_MINUS:
                     current_volume = pygame.mixer.music.get_volume()
                     self.sound_manager.set_music_volume(max(0.0, current_volume - 0.1))
-                    print(f"Music volume: {pygame.mixer.music.get_volume():.1f}")
+                    logger.info(f"Music volume: {pygame.mixer.music.get_volume():.1f}")
                     
                 elif event.key == pygame.K_PLUS or event.key == pygame.K_KP_PLUS or event.key == pygame.K_EQUALS:
                     current_volume = pygame.mixer.music.get_volume()
                     self.sound_manager.set_music_volume(min(1.0, current_volume + 0.1))
-                    print(f"Music volume: {pygame.mixer.music.get_volume():.1f}")
+                    logger.info(f"Music volume: {pygame.mixer.music.get_volume():.1f}")
                     
                 # Music toggle (M key)
                 elif event.key == pygame.K_m:
                     if pygame.mixer.music.get_busy():
                         self.sound_manager.pause_music()
-                        print("Music paused")
+                        logger.info("Music paused")
                     else:
                         self.sound_manager.unpause_music()
-                        print("Music resumed")
+                        logger.info("Music resumed")
                         
             elif event.type == pygame.KEYUP:
                 if event.key == pygame.K_SPACE:
@@ -193,7 +194,7 @@ class Game:
                 # <<< Add logic to decide if wave contains shooters
                 has_shooters = random.choice([True, False]) # 50% chance for now
 
-                print(f"Spawning wave of {count} enemies with pattern {pattern_type}{' (shooters)' if has_shooters else ''}")
+                logger.info(f"Spawning wave of {count} enemies with pattern {pattern_type}{' (shooters)' if has_shooters else ''}")
                 self.spawn_enemy_wave(count, pattern_type=pattern_type, spawn_shooters=has_shooters) # <<< Pass shooter flag
                 
                 # Play wave spawn sound
@@ -251,7 +252,8 @@ class Game:
                 enemy = EnemyShooter(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
             else:
                 enemy = EnemyType1(self.all_sprites, self.enemies)
-            enemy.rect.topleft = (int(x_pos), int(y_pos))
+            # Use the property setter instead of direct rect access
+            enemy.topleft = (x_pos, y_pos)
 
     def _spawn_horizontal_pattern(self, count: int, spawn_shooters: bool = False): # <<< Add spawn_shooters flag
         """Creates a horizontal line of enemies entering from right."""
@@ -272,7 +274,8 @@ class Game:
                 enemy = EnemyShooter(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
             else:
                 enemy = EnemyType1(self.all_sprites, self.enemies)
-            enemy.rect.topleft = (int(x_pos), int(y_pos))
+            # Use the property setter instead of direct rect access
+            enemy.topleft = (x_pos, y_pos)
 
     def _spawn_diagonal_pattern(self, count: int, spawn_shooters: bool = False): # <<< Add spawn_shooters flag
         """Creates a diagonal line of enemies entering from right."""
@@ -302,7 +305,8 @@ class Game:
                 enemy = EnemyShooter(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
             else:
                 enemy = EnemyType1(self.all_sprites, self.enemies)
-            enemy.rect.topleft = (int(x_pos), int(y_pos))
+            # Use the property setter instead of direct rect access
+            enemy.topleft = (x_pos, y_pos)
 
     def _spawn_v_pattern(self, count: int, spawn_shooters: bool = False): # <<< Add spawn_shooters flag
         """Creates a V-shaped formation of enemies entering from right."""
@@ -337,7 +341,8 @@ class Game:
                 enemy = EnemyShooter(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
             else:
                 enemy = EnemyType1(self.all_sprites, self.enemies)
-            enemy.rect.topleft = (int(x_pos), int(y_pos))
+            # Use the property setter instead of direct rect access
+            enemy.topleft = (x_pos, y_pos)
 
     def _update(self):
         """Updates the state of all game objects and handles collisions."""
@@ -404,21 +409,21 @@ class Game:
         # We check if the player sprite collides with any sprite in the enemies group.
         # False means the player sprite is *not* killed automatically on collision.
         # We handle player death/damage logic separately if needed.
-        player_hits = pygame.sprite.spritecollide(self.player, self.enemies, True, pygame.sprite.collide_mask)
-        if player_hits:
+        enemy_hits = pygame.sprite.spritecollide(self.player, self.enemies, False, pygame.sprite.collide_mask)
+        if enemy_hits:
             # Play player explosion sound
             self.sound_manager.play("explosion1", "player")
-            print("Player hit by enemy!") # Placeholder for game over/damage
+            logger.warning("Player hit by enemy!") # Placeholder for game over/damage
             # TODO: Implement player health/lives or game over sequence
             # For now, let's just end the game
             # self.is_running = False # Temporarily disable instant game over
 
         # <<< Add Collision: Player vs Enemy Bullets
-        player_hit_by_bullet = pygame.sprite.spritecollide(self.player, self.enemy_bullets, True, pygame.sprite.collide_mask)
-        if player_hit_by_bullet:
+        enemy_bullet_hits = pygame.sprite.spritecollide(self.player, self.enemy_bullets, True, pygame.sprite.collide_mask)
+        if enemy_bullet_hits:
             # Play a different sound for bullet hit? Maybe a shield hit sound later?
             self.sound_manager.play("hit1", "player") # Using a generic hit sound
-            print("Player hit by enemy bullet!")
+            logger.warning("Player hit by enemy bullet!")
             # TODO: Implement player damage/shield logic
             # self.is_running = False # Temporarily disable instant game over
 

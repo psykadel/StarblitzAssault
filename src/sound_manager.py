@@ -4,7 +4,11 @@ import os
 import pygame
 import random
 from typing import Dict, Optional
-from src.config import SOUNDS_DIR, MUSIC_DIR
+from config.game_config import SOUNDS_DIR, MUSIC_DIR, DEFAULT_SOUND_VOLUME, DEFAULT_MUSIC_VOLUME
+from src.logger import get_logger
+
+# Get a logger for this module
+logger = get_logger(__name__)
 
 class SoundManager:
     """Manages loading, caching, and playing game sound effects and music."""

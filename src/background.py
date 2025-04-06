@@ -2,7 +2,10 @@
 
 import pygame
 import os
-from typing import TYPE_CHECKING
+import sys
+from typing import TYPE_CHECKING, Tuple, List, Dict, Optional
+
+from config.game_config import SCREEN_WIDTH
 
 if TYPE_CHECKING:
     from src.config import SCREEN_WIDTH

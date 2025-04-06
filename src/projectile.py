@@ -1,10 +1,10 @@
 """Defines projectiles like the player's laser."""
 
 import pygame
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Tuple, List, Optional
 
 # Import SCREEN_WIDTH for runtime use
-from src.config import SCREEN_WIDTH
+from config.game_config import SCREEN_WIDTH
 
 # Keep TYPE_CHECKING block empty or remove if no longer needed
 if TYPE_CHECKING:

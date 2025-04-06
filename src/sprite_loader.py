@@ -3,6 +3,10 @@
 import pygame
 import os
 from typing import List, Tuple
+from src.logger import get_logger
+
+# Get a logger for this module
+logger = get_logger(__name__)
 
 # --- Constants ---
 DEFAULT_SPRITE_SHEET_GRID: Tuple[int, int] = (3, 3) # Default grid dimensions (cols, rows)
@@ -42,14 +46,14 @@ def load_sprite_sheet(
         # Load the sheet and ensure it has per-pixel alpha transparency
         sprite_sheet = pygame.image.load(sprite_sheet_path).convert_alpha()
     except (pygame.error, FileNotFoundError) as e: # Specific exceptions
-        print(f"Error loading sprite sheet: {sprite_sheet_path} - {e}")
+        logger.error(f"Error loading sprite sheet: {sprite_sheet_path} - {e}")
         raise SystemExit(e)
 
     # Get dimensions
     sheet_width, sheet_height = sprite_sheet.get_size()
     cols, rows = grid_dimensions
     if cols <= 0 or rows <= 0:
-        print(f"Error: Invalid grid dimensions {grid_dimensions} for {filename}")
+        logger.error(f"Invalid grid dimensions {grid_dimensions} for {filename}")
         raise SystemExit()
 
     # Calculate dimensions of a single sprite cell on the sheet
@@ -67,13 +71,13 @@ def load_sprite_sheet(
 
     # Debug info to help diagnose crop issues
     if "main-character.png" in filename:
-        print(f"Player sprite crop info - Sheet size: {sheet_width}x{sheet_height}")
-        print(f"Sprite cell: {sprite_width}x{sprite_height}, Crop: {crop_px}")
-        print(f"Final cropped size: {cropped_width}x{cropped_height}")
+        logger.debug(f"Player sprite crop info - Sheet size: {sheet_width}x{sheet_height}")
+        logger.debug(f"Sprite cell: {sprite_width}x{sprite_height}, Crop: {crop_px}")
+        logger.debug(f"Final cropped size: {cropped_width}x{cropped_height}")
 
     # Check if cropping makes the dimensions invalid
     if cropped_width <= 0 or cropped_height <= 0:
-        print(f"Warning: Cropping {crop_px}px results in <=0 dimension for {filename}. Disabling crop for this sheet.")
+        logger.warning(f"Cropping {crop_px}px results in <=0 dimension for {filename}. Disabling crop for this sheet.")
         crop_px = 0
         cropped_width = sprite_width
         cropped_height = sprite_height
@@ -108,9 +112,7 @@ def load_sprite_sheet(
                     frame_surface = pygame.transform.scale(frame_surface, new_size)
                 except (ValueError, pygame.error) as e: # Specify pygame.error too
                      # Catch potential errors from scaling (e.g., too large)
-                     # Break long print statement
-                    print(f"Warning: Error scaling frame {len(frames)} in {filename}: "
-                          f"{e}. Using unscaled cropped size.")
+                    logger.warning(f"Error scaling frame {len(frames)} in {filename}: {e}. Using unscaled cropped size.")
 
             # Flip the frame horizontally if requested
             if flip_horizontal:
@@ -120,7 +122,7 @@ def load_sprite_sheet(
 
     # Final check if any frames were actually extracted
     if not frames:
-         print(f"Error: No frames extracted from {sprite_sheet_path}")
+         logger.error(f"No frames extracted from {sprite_sheet_path}")
          raise SystemExit()
 
-    return frames
+    return frames 

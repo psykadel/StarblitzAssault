@@ -1,7 +1,7 @@
 import pygame
 import math
 
-from src.config import SCREEN_WIDTH, SCREEN_HEIGHT
+from config.game_config import SCREEN_WIDTH, SCREEN_HEIGHT
 
 ENEMY_BULLET_SPEED = 5
 BULLET_SIZE = (8, 8)
