@@ -1,0 +1,13 @@
+---
+description: When asked to "lint".
+globs: 
+alwaysApply: false
+---
+<!-- Rule Type: Agent Requested -->
+<!-- Description: When asked to "lint". -->
+
+# IMPORTANT: Review every file in workspace
+- DO NOT make a .pylintrc file
+- DO NOT update a .pylintrc file to avoid fixing linting issues
+- Fix every linter issue completely
+

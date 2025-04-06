@@ -1,0 +1,22 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Pygame Guidelines
+
+## Sprite Sheets
+- Sprite sheets are located in `assets/sprites`
+- Sprite sheets are 1024x1024 and arranged in a grid 3x3 grid of identical squares
+- Sprite sheets have an alpha channel (transparent background)
+- Parse the sprite sheets for the characters and animations!
+
+## Assets
+- Store in `assets/`
+- Convert assets after loading (`convert()` or `convert_alpha()`)
+- Preload assets before the game loop
+
+## File Management
+- Use `os.path.join()` for file paths
+- Wrap file operations in `try-except`
+- Save configurations and states in JSON

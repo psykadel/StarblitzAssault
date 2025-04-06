@@ -1,0 +1,12 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Commit all
+
+- First look to see what all has changed or been added to the workspace.  Get everything we need to commit
+- Commit granular changes writing a nice commit message for each granular change.  Logically group the changes and use multiple commits
+- Use git best practices for your descriptions and grouping of changes
+- Ensure everything changed, added, or removed is committed
+- Just commit do not push

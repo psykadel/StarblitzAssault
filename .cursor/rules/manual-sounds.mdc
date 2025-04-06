@@ -1,0 +1,16 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Use the following approach to implement a sound system
+
+- Check to see if a sound system exists in the code
+- If the sound system does not exist make it
+- Download appropriate open free sounds from the internet using curl
+- Use the OGG format for sounds
+- Adjust the sound system to use the newly downloaded sounds
+- Ensure all sounds are organized and named clearly
+- DO NOT GENERATE YOUR OWN SOUNDS
+- DO NOT INSTALL NEW SOFTWARE
+- THIS IS ONLY SOUNDS NOT MUSIC

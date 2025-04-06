@@ -1,0 +1,8 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Clean and simplify
+
+Review and refine this entire codebase to preserve existing functionality while enhancing readability and consistency. Remove any unnecessary code or comments, simplify logic, centralize common capabilities and constants, ensure consistent style, and rename variables or functions for clarity. Document the code as needed without altering its core behavior or introducing new features.  Do not break anything.
