@@ -182,30 +182,71 @@ class Game:
 
         # Initialize background layers
         self.background_layers = []
-        bg_image_path = os.path.join(BACKGROUNDS_DIR, "starfield.png")
-        initial_offsets = [0, 100, 200] # Default fallback offsets
-        bg_image_width = 0 # Default fallback width
-        if os.path.exists(bg_image_path):
-            # Calculate approximate initial offsets based on screen width
-            # Get image width *after* scaling to screen height for better offsets
-            try:
-                # Use a variable to hold the temporary layer
-                _temp_layer = BackgroundLayer(bg_image_path, 0, self.current_screen_height)
-                bg_image_width = _temp_layer.image_width
-                # Use more distinct offsets (e.g., 0, 1/4, 3/4) only if width is valid
-                if bg_image_width > 0:
-                    initial_offsets = [0, bg_image_width / 4, bg_image_width * 3 / 4]
-                del _temp_layer # Clean up temporary layer
-            except (pygame.error, FileNotFoundError, ZeroDivisionError, AttributeError) as e: # Specific exceptions
-                logger.warning(f"Could not get background width for offsets: {e}. Using defaults.")
-                # Defaults already set above
-
-            for i, speed in enumerate(BG_LAYER_SPEEDS):
-                offset = initial_offsets[i % len(initial_offsets)] # Cycle through offsets
-                layer = BackgroundLayer(bg_image_path, speed, self.current_screen_height, initial_scroll=offset)
-                self.background_layers.append(layer)
-        else:
-            logger.warning(f"Background image not found at {bg_image_path}. Skipping background.")
+        # Use the three different starfield images with different scroll speeds for parallax
+        starfield_images = ["starfield1.png", "starfield2.png", "starfield3.png"]
+        
+        # Randomize vertical offsets to avoid repeating patterns
+        vertical_offsets = [random.randint(-50, 50) for _ in range(len(starfield_images))]
+        
+        # Different initial horizontal offsets for each layer
+        # These will be recalculated more accurately after loading the images
+        initial_offsets = [0, 100, 200]  # Default fallback offsets
+        
+        for i, (image_name, speed) in enumerate(zip(starfield_images, BG_LAYER_SPEEDS)):
+            bg_image_path = os.path.join(BACKGROUNDS_DIR, image_name)
+            
+            if os.path.exists(bg_image_path):
+                try:
+                    # Create a temporary layer to get the image width for better offsets
+                    _temp_layer = BackgroundLayer(
+                        bg_image_path, 
+                        0, 
+                        self.current_screen_height,
+                        vertical_offset=vertical_offsets[i]  # Apply vertical offset
+                    )
+                    
+                    bg_image_width = _temp_layer.image_width
+                    
+                    # Calculate better horizontal offsets if width is valid
+                    if bg_image_width > 0:
+                        # Distribute the layers at different horizontal positions
+                        if i == 0:
+                            offset = 0
+                        elif i == 1:
+                            offset = bg_image_width / 3  # One third of the way
+                        else:
+                            offset = bg_image_width * 2 / 3  # Two thirds of the way
+                    else:
+                        offset = initial_offsets[i]
+                        
+                    del _temp_layer  # Clean up temporary layer
+                    
+                    # Create the actual layer with appropriate offsets and speed
+                    layer = BackgroundLayer(
+                        bg_image_path,
+                        speed,
+                        self.current_screen_height,
+                        initial_scroll=offset,
+                        vertical_offset=vertical_offsets[i]  # Apply same vertical offset
+                    )
+                    self.background_layers.append(layer)
+                    
+                except (pygame.error, FileNotFoundError, ZeroDivisionError, AttributeError) as e:
+                    logger.warning(f"Could not load background image {image_name}: {e}")
+            else:
+                logger.warning(f"Background image not found at {bg_image_path}")
+        
+        # Fallback if no backgrounds were loaded
+        if not self.background_layers:
+            logger.warning("No background images loaded. Using default starfield.")
+            bg_image_path = os.path.join(BACKGROUNDS_DIR, "starfield.png")
+            if os.path.exists(bg_image_path):
+                for i, speed in enumerate(BG_LAYER_SPEEDS):
+                    offset = initial_offsets[i % len(initial_offsets)]
+                    layer = BackgroundLayer(bg_image_path, speed, self.current_screen_height, initial_scroll=offset)
+                    self.background_layers.append(layer)
+            else:
+                logger.warning(f"Default background image not found at {bg_image_path}. No backgrounds will be used.")
 
         # Initialize background decorations
         decoration_paths = []
@@ -361,6 +402,13 @@ class Game:
                     elif not self.player.is_firing:
                         self.player.start_firing()
                         # Initial laser sound will be handled in _update
+                
+                # B key for Scatter Bomb
+                elif event.key == pygame.K_b:
+                    # Fire scatter bomb if player has it
+                    if self.player.has_scatter_bomb and self.player.scatter_bomb_charges > 0:
+                        self.player._fire_scatter_bomb()
+                        logger.info("Scatter Bomb triggered with B key")
                 
                 # Volume control keys
                 elif event.key == pygame.K_MINUS or event.key == pygame.K_KP_MINUS:
@@ -843,6 +891,10 @@ class Game:
                 self.last_laser_sound_time = current_time
             except Exception as e:
                 logger.warning(f"Failed to play laser sound: {e}")
+        elif not self.player.is_firing:
+            # Reset the laser sound timer when player stops firing
+            # This ensures the sound will play immediately when firing resumes
+            self.last_laser_sound_time = 0
             
         # Check for new enemy bullets by comparing counts
         current_enemy_bullet_count = len(self.enemy_bullets)
@@ -1260,6 +1312,9 @@ class Game:
         if self.logo is not None:
             logo_rect = self.logo.get_rect(midtop=(SCREEN_WIDTH // 2, 5))
             self.screen.blit(self.logo, logo_rect)
+        
+        # Draw help text with controls info
+        self._draw_help_text()
             
         pygame.display.flip()
         
@@ -1365,3 +1420,40 @@ class Game:
         # These sounds don't need to be explicitly preloaded anymore
         # as the SoundManager handles fallbacks gracefully
         pass
+
+    def _draw_help_text(self):
+        """Draw help text showing controls in bottom left corner."""
+        # Only draw help text if player is alive (don't clutter game over screen)
+        if not self.player.is_alive or self.game_over:
+            return
+            
+        help_font = pygame.font.SysFont(None, 20)  # Slightly larger font
+        controls = [
+            "CONTROLS",  # Removed colon
+            "ARROWS - Move",  # Changed : to -
+            "SPACE - Fire",
+            "B - Scatter Bomb",
+            # Removed SHIFT mechanic
+            "M - Toggle Music",
+            "+/- - Volume"
+        ]
+        
+        y_pos = SCREEN_HEIGHT - 10 - (len(controls) * 22)  # Increased spacing
+        for i, text in enumerate(controls):
+            # Shadow
+            shadow_surf = help_font.render(text, True, (0, 0, 0))
+            self.screen.blit(shadow_surf, (11, y_pos + 1))
+            
+            # Text
+            if i == 0:  # First line (header)
+                color = (255, 255, 100)  # Brighter yellow for header
+                # Draw the header with a slightly larger font
+                header_font = pygame.font.SysFont(None, 22)
+                text_surf = header_font.render(text, True, color)
+            else:
+                # Brighter text colors for better readability
+                color = (230, 230, 230)  # Almost white for commands
+                text_surf = help_font.render(text, True, color)
+                
+            self.screen.blit(text_surf, (10, y_pos))
+            y_pos += 22  # Increased spacing
