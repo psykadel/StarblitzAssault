@@ -36,7 +36,8 @@ from config.game_config import (
     PATTERN_TYPES,
     WHITE,
     RED,
-    DEFAULT_FONT_SIZE
+    DEFAULT_FONT_SIZE,
+    ENEMY_SHOOTER_COOLDOWN_MS
 )
 
 # Get logger for this module
@@ -77,6 +78,12 @@ class Game:
         # Game state
         self.is_running = True
         self.is_paused = False
+        
+        # Difficulty progression
+        self.difficulty_level = 1.0  # Starting difficulty (will increase over time)
+        self.max_difficulty = 10.0   # Maximum difficulty cap
+        self.difficulty_increase_rate = 0.05  # How much difficulty increases per wave
+        self.game_start_time = pygame.time.get_ticks()  # Track game duration
         
         # Consider adding mixer init for sounds later: pygame.mixer.init()
 
@@ -207,7 +214,8 @@ class Game:
         
         # Simple wave management state
         self.wave_active = False
-        pygame.time.set_timer(WAVE_TIMER_EVENT, WAVE_DELAY_MS) # Timer for next wave
+        self.wave_count = 0  # Track number of waves for difficulty progression
+        pygame.time.set_timer(WAVE_TIMER_EVENT, WAVE_DELAY_MS)  # Timer for next wave
         
         # Game over state
         self.game_over = False
@@ -294,14 +302,50 @@ class Game:
                 if event.key == pygame.K_SPACE:
                     self.player.stop_firing()
             elif event.type == WAVE_TIMER_EVENT:
+                # Update wave count and difficulty
+                self.wave_count += 1
+                self._update_difficulty()
+                
                 # Select a random pattern type
                 pattern_type = random.randint(0, 3)  # 0-3 for our four pattern types
                 
-                # Random count of enemies between 4 and 7
-                count = random.randint(4, 7)
+                # Scale number of enemies based on difficulty (4-7 base, up to 5-10 at max difficulty)
+                min_enemies = 4 + int((self.difficulty_level - 1) / 3)  # Increases by 1 every 3 difficulty levels
+                max_enemies = 7 + int((self.difficulty_level - 1) / 2)  # Increases by 1 every 2 difficulty levels
+                min_enemies = min(min_enemies, 8)  # Cap minimum count
+                max_enemies = min(max_enemies, 12)  # Cap maximum count
                 
-                # Choose an enemy type with weighted probability
-                enemy_type_weights = [40, 30, 10, 10, 10]  # Weights for each enemy type (sum = 100)
+                count = random.randint(min_enemies, max_enemies)
+                
+                # Adjust enemy type weights based on difficulty
+                # As difficulty increases, reduce basic enemy chance and increase harder enemies
+                basic_weight = max(5, 40 - int(self.difficulty_level * 3.5))  # Decreases with difficulty
+                shooter_weight = min(45, 30 + int(self.difficulty_level * 1.5))  # Increases with difficulty
+                wave_weight = min(20, 10 + int(self.difficulty_level))  # Increases with difficulty
+                spiral_weight = min(20, 10 + int(self.difficulty_level))  # Increases with difficulty
+                seeker_weight = min(25, 10 + int(self.difficulty_level * 1.5))  # Increases fastest with difficulty
+                
+                enemy_type_weights = [
+                    basic_weight,   # Basic
+                    shooter_weight, # Shooter
+                    wave_weight,    # Wave
+                    spiral_weight,  # Spiral
+                    seeker_weight   # Seeker
+                ]
+                
+                # Normalize weights to ensure they sum to 100
+                total_weight = sum(enemy_type_weights)
+                enemy_type_weights = [int(w * 100 / total_weight) for w in enemy_type_weights]
+                
+                # Ensure minimum weight of 5 for all enemy types
+                for i in range(len(enemy_type_weights)):
+                    if enemy_type_weights[i] < 5:
+                        enemy_type_weights[i] = 5
+                
+                # Ensure all weights sum to 100 (adjust last weight if needed)
+                weight_sum = sum(enemy_type_weights)
+                enemy_type_weights[-1] += (100 - weight_sum)
+                
                 enemy_type_index = random.choices(
                     [0, 1, 2, 3, 4],  # EnemyType1, EnemyShooter, EnemyType3, EnemyType4, EnemyType5
                     weights=enemy_type_weights,
@@ -316,48 +360,78 @@ class Game:
                     4: "Seeker"
                 }
 
-                logger.info(f"Spawning wave of {count} {enemy_type_names[enemy_type_index]} enemies with pattern {pattern_type}")
+                logger.info(f"Wave {self.wave_count} - Difficulty {self.difficulty_level:.1f}: Spawning {count} {enemy_type_names[enemy_type_index]} enemies with pattern {pattern_type}")
                 self.spawn_enemy_wave(count, pattern_type=pattern_type, enemy_type_index=enemy_type_index)
                 
                 # Play wave spawn sound
                 self.sound_manager.play("powerup1", "enemy")
                 
-                # Reset the timer for the next wave
-                pygame.time.set_timer(WAVE_TIMER_EVENT, random.randint(3000, 5000))
+                # Calculate next wave delay based on difficulty (quicker waves at higher difficulty)
+                min_delay = max(1500, 5000 - int(self.difficulty_level * 350))  # Decreases with difficulty
+                max_delay = max(3000, 8000 - int(self.difficulty_level * 500))  # Decreases with difficulty
+                
+                # Ensure min_delay doesn't exceed max_delay
+                if min_delay > max_delay:
+                    min_delay = max_delay - 500
+                
+                next_wave_delay = random.randint(min_delay, max_delay)
+                pygame.time.set_timer(WAVE_TIMER_EVENT, next_wave_delay)
             elif event.type == pygame.USEREVENT:
                 # This is the game over delay timer
                 self.is_running = False
                 pygame.time.set_timer(pygame.USEREVENT, 0)  # Disable the timer
 
+    def _update_difficulty(self):
+        """Updates the difficulty level based on game progression."""
+        # Increase difficulty with each wave, but cap at maximum
+        self.difficulty_level = min(self.max_difficulty, 
+                                   1.0 + (self.wave_count * self.difficulty_increase_rate))
+        
+        # Calculate modified cooldown times based on difficulty
+        # Faster shooting at higher difficulty (up to 50% reduction)
+        cooldown_reduction = min(0.5, (self.difficulty_level - 1) * 0.05)  # 5% reduction per level, max 50%
+        
+        # Override global cooldown with difficulty-adjusted value (using monkey patching)
+        import src.enemy
+        src.enemy.ENEMY_SHOOTER_COOLDOWN_MS = int(ENEMY_SHOOTER_COOLDOWN_MS * (1.0 - cooldown_reduction))
+
+        # Display difficulty level in the console for debugging
+        if self.wave_count % 5 == 0:  # Log every 5 waves
+            logger.info(f"Difficulty increased to: {self.difficulty_level:.1f} (Wave {self.wave_count})")
+            logger.info(f"Enemy cooldown reduced to: {src.enemy.ENEMY_SHOOTER_COOLDOWN_MS}ms (from {ENEMY_SHOOTER_COOLDOWN_MS}ms)")
+
     def spawn_enemy_wave(self, count: int, pattern_type: int = 0, enemy_type_index: int = 0):
         """Creates a new wave of enemies based on the given pattern type."""
+        # Apply difficulty-based speed modifier
+        speed_modifier = 1.0 + (self.difficulty_level - 1) * 0.1  # 10% increase per difficulty level
+        
         if pattern_type == PATTERN_VERTICAL:
             # Vertical formation - enemies in a vertical line
             # Calculate spacing based on playfield height and enemy count
             playfield_height = PLAYFIELD_BOTTOM_Y - PLAYFIELD_TOP_Y
             spacing = playfield_height / (count + 1)  # +1 for proper spacing at edges
-            self._spawn_vertical_pattern(count, int(spacing), enemy_type_index)
+            self._spawn_vertical_pattern(count, int(spacing), enemy_type_index, speed_modifier)
             
         elif pattern_type == PATTERN_HORIZONTAL:
             # Horizontal formation - enemies in a horizontal line
-            self._spawn_horizontal_pattern(count, enemy_type_index)
+            self._spawn_horizontal_pattern(count, enemy_type_index, speed_modifier)
             
         elif pattern_type == PATTERN_DIAGONAL:
             # Diagonal formation - enemies in a diagonal line
-            self._spawn_diagonal_pattern(count, enemy_type_index)
+            self._spawn_diagonal_pattern(count, enemy_type_index, speed_modifier)
             
         elif pattern_type == PATTERN_V_FORMATION:
             # V formation - enemies in a V shape
-            self._spawn_v_pattern(count, enemy_type_index)
+            self._spawn_v_pattern(count, enemy_type_index, speed_modifier)
             
         else:
             # Default to vertical pattern if unknown pattern type
             logger.warning(f"Unknown pattern type: {pattern_type}. Using vertical formation.")
             playfield_height = PLAYFIELD_BOTTOM_Y - PLAYFIELD_TOP_Y
             spacing = playfield_height / (count + 1)
-            self._spawn_vertical_pattern(count, int(spacing), enemy_type_index)
+            self._spawn_vertical_pattern(count, int(spacing), enemy_type_index, speed_modifier)
 
-    def _spawn_vertical_pattern(self, count: int, spacing_y: int, enemy_type_index: int = 0):
+    def _spawn_vertical_pattern(self, count: int, spacing_y: int, enemy_type_index: int = 0, speed_modifier: float = 1.0):
         """Creates a vertical line of enemies entering from right.
         
         Args:
@@ -365,6 +439,7 @@ class Game:
             spacing_y: Vertical spacing between enemies
             enemy_type_index: Type of enemy to spawn (0: EnemyType1, 1: EnemyShooter, 
                               2: EnemyType3, 3: EnemyType4, 4: EnemyType5)
+            speed_modifier: Multiplier for enemy speed based on difficulty
         """
         # Calculate the playfield height for spacing
         playfield_height = PLAYFIELD_BOTTOM_Y - PLAYFIELD_TOP_Y
@@ -396,17 +471,39 @@ class Game:
                 enemy = EnemyType5(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
             else:
                 enemy = EnemyType1(self.all_sprites, self.enemies)
+            
+            # Apply speed modifier based on difficulty
+            enemy.speed_x *= speed_modifier
+            
+            # Adjust shooting cooldowns based on enemy type
+            if isinstance(enemy, EnemyShooter):
+                # Basic shooter - uses ENEMY_SHOOTER_COOLDOWN_MS directly
+                enemy.last_shot_time = pygame.time.get_ticks()  # Reset timer
+            elif isinstance(enemy, EnemyType3):
+                # Wave projectile enemy - uses ENEMY_SHOOTER_COOLDOWN_MS * 1.5
+                enemy.last_shot_time = pygame.time.get_ticks()  # Reset timer
+            elif isinstance(enemy, EnemyType4):
+                # Spiral shooter - has multiple cooldowns
+                enemy.last_shot_time = pygame.time.get_ticks()  # Reset timer
+                enemy.last_homing_shot_time = pygame.time.get_ticks()  # Reset timer
+                enemy.homing_shot_cooldown = max(1000, int(enemy.homing_shot_cooldown / speed_modifier))
+            elif isinstance(enemy, EnemyType5):
+                # Advanced shooter - has multiple cooldowns
+                enemy.last_explosive_shot_time = pygame.time.get_ticks()  # Reset timer
+                enemy.last_homing_shot_time = pygame.time.get_ticks()  # Reset timer
+                enemy.explosive_cooldown = max(1000, int(enemy.explosive_cooldown / speed_modifier))
+                enemy.homing_cooldown = max(1000, int(enemy.homing_cooldown / speed_modifier))
                 
             # Use the property setter instead of direct rect access
             enemy.topleft = (x_pos, y_pos)
 
-    def _spawn_horizontal_pattern(self, count: int, enemy_type_index: int = 0):
+    def _spawn_horizontal_pattern(self, count: int, enemy_type_index: int = 0, speed_modifier: float = 1.0):
         """Creates a horizontal line of enemies entering from right.
         
         Args:
             count: Number of enemies to spawn
-            enemy_type_index: Type of enemy to spawn (0: EnemyType1, 1: EnemyShooter, 
-                              2: EnemyType3, 3: EnemyType4, 4: EnemyType5)
+            enemy_type_index: Type of enemy to spawn
+            speed_modifier: Multiplier for enemy speed based on difficulty
         """
         # Spacing between enemies horizontally
         spacing_x = 60
@@ -433,16 +530,38 @@ class Game:
             else:
                 enemy = EnemyType1(self.all_sprites, self.enemies)
                 
+            # Apply speed modifier based on difficulty
+            enemy.speed_x *= speed_modifier
+            
+            # Adjust shooting cooldowns based on enemy type
+            if isinstance(enemy, EnemyShooter):
+                # Basic shooter - uses ENEMY_SHOOTER_COOLDOWN_MS directly
+                enemy.last_shot_time = pygame.time.get_ticks()  # Reset timer
+            elif isinstance(enemy, EnemyType3):
+                # Wave projectile enemy - uses ENEMY_SHOOTER_COOLDOWN_MS * 1.5
+                enemy.last_shot_time = pygame.time.get_ticks()  # Reset timer
+            elif isinstance(enemy, EnemyType4):
+                # Spiral shooter - has multiple cooldowns
+                enemy.last_shot_time = pygame.time.get_ticks()  # Reset timer
+                enemy.last_homing_shot_time = pygame.time.get_ticks()  # Reset timer
+                enemy.homing_shot_cooldown = max(1000, int(enemy.homing_shot_cooldown / speed_modifier))
+            elif isinstance(enemy, EnemyType5):
+                # Advanced shooter - has multiple cooldowns
+                enemy.last_explosive_shot_time = pygame.time.get_ticks()  # Reset timer
+                enemy.last_homing_shot_time = pygame.time.get_ticks()  # Reset timer
+                enemy.explosive_cooldown = max(1000, int(enemy.explosive_cooldown / speed_modifier))
+                enemy.homing_cooldown = max(1000, int(enemy.homing_cooldown / speed_modifier))
+                
             # Use the property setter instead of direct rect access
             enemy.topleft = (x_pos, y_pos)
 
-    def _spawn_diagonal_pattern(self, count: int, enemy_type_index: int = 0):
+    def _spawn_diagonal_pattern(self, count: int, enemy_type_index: int = 0, speed_modifier: float = 1.0):
         """Creates a diagonal line of enemies entering from right.
         
         Args:
             count: Number of enemies to spawn
-            enemy_type_index: Type of enemy to spawn (0: EnemyType1, 1: EnemyShooter, 
-                              2: EnemyType3, 3: EnemyType4, 4: EnemyType5)
+            enemy_type_index: Type of enemy to spawn
+            speed_modifier: Multiplier for enemy speed based on difficulty
         """
         # Spacing between enemies
         spacing_x = 50
@@ -478,16 +597,38 @@ class Game:
             else:
                 enemy = EnemyType1(self.all_sprites, self.enemies)
                 
+            # Apply speed modifier based on difficulty
+            enemy.speed_x *= speed_modifier
+            
+            # Adjust shooting cooldowns based on enemy type
+            if isinstance(enemy, EnemyShooter):
+                # Basic shooter - uses ENEMY_SHOOTER_COOLDOWN_MS directly
+                enemy.last_shot_time = pygame.time.get_ticks()  # Reset timer
+            elif isinstance(enemy, EnemyType3):
+                # Wave projectile enemy - uses ENEMY_SHOOTER_COOLDOWN_MS * 1.5
+                enemy.last_shot_time = pygame.time.get_ticks()  # Reset timer
+            elif isinstance(enemy, EnemyType4):
+                # Spiral shooter - has multiple cooldowns
+                enemy.last_shot_time = pygame.time.get_ticks()  # Reset timer
+                enemy.last_homing_shot_time = pygame.time.get_ticks()  # Reset timer
+                enemy.homing_shot_cooldown = max(1000, int(enemy.homing_shot_cooldown / speed_modifier))
+            elif isinstance(enemy, EnemyType5):
+                # Advanced shooter - has multiple cooldowns
+                enemy.last_explosive_shot_time = pygame.time.get_ticks()  # Reset timer
+                enemy.last_homing_shot_time = pygame.time.get_ticks()  # Reset timer
+                enemy.explosive_cooldown = max(1000, int(enemy.explosive_cooldown / speed_modifier))
+                enemy.homing_cooldown = max(1000, int(enemy.homing_cooldown / speed_modifier))
+                
             # Use the property setter instead of direct rect access
             enemy.topleft = (x_pos, y_pos)
 
-    def _spawn_v_pattern(self, count: int, enemy_type_index: int = 0):
+    def _spawn_v_pattern(self, count: int, enemy_type_index: int = 0, speed_modifier: float = 1.0):
         """Creates a V-shaped formation of enemies entering from right.
         
         Args:
             count: Number of enemies to spawn
-            enemy_type_index: Type of enemy to spawn (0: EnemyType1, 1: EnemyShooter, 
-                              2: EnemyType3, 3: EnemyType4, 4: EnemyType5)
+            enemy_type_index: Type of enemy to spawn
+            speed_modifier: Multiplier for enemy speed based on difficulty
         """
         # Need an odd number for the V-pattern to look symmetrical
         if count % 2 == 0:
@@ -526,6 +667,28 @@ class Game:
                 enemy = EnemyType5(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
             else:
                 enemy = EnemyType1(self.all_sprites, self.enemies)
+                
+            # Apply speed modifier based on difficulty
+            enemy.speed_x *= speed_modifier
+            
+            # Adjust shooting cooldowns based on enemy type
+            if isinstance(enemy, EnemyShooter):
+                # Basic shooter - uses ENEMY_SHOOTER_COOLDOWN_MS directly
+                enemy.last_shot_time = pygame.time.get_ticks()  # Reset timer
+            elif isinstance(enemy, EnemyType3):
+                # Wave projectile enemy - uses ENEMY_SHOOTER_COOLDOWN_MS * 1.5
+                enemy.last_shot_time = pygame.time.get_ticks()  # Reset timer
+            elif isinstance(enemy, EnemyType4):
+                # Spiral shooter - has multiple cooldowns
+                enemy.last_shot_time = pygame.time.get_ticks()  # Reset timer
+                enemy.last_homing_shot_time = pygame.time.get_ticks()  # Reset timer
+                enemy.homing_shot_cooldown = max(1000, int(enemy.homing_shot_cooldown / speed_modifier))
+            elif isinstance(enemy, EnemyType5):
+                # Advanced shooter - has multiple cooldowns
+                enemy.last_explosive_shot_time = pygame.time.get_ticks()  # Reset timer
+                enemy.last_homing_shot_time = pygame.time.get_ticks()  # Reset timer
+                enemy.explosive_cooldown = max(1000, int(enemy.explosive_cooldown / speed_modifier))
+                enemy.homing_cooldown = max(1000, int(enemy.homing_cooldown / speed_modifier))
                 
             # Use the property setter instead of direct rect access
             enemy.topleft = (x_pos, y_pos)
@@ -723,6 +886,11 @@ class Game:
         score_text = self.score_font.render(f"SCORE: {self.score}", True, WHITE)
         score_rect = score_text.get_rect(topright=(SCREEN_WIDTH - 20, 15))
         self.screen.blit(score_text, score_rect)
+        
+        # Draw difficulty level indicator
+        difficulty_text = self.score_font.render(f"LEVEL: {int(self.difficulty_level)}", True, WHITE)
+        difficulty_rect = difficulty_text.get_rect(topright=(SCREEN_WIDTH - 20, 45))
+        self.screen.blit(difficulty_text, difficulty_rect)
         
         # Draw game over message if necessary
         if self.game_over:
