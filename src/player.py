@@ -25,7 +25,7 @@ from config.game_config import (
 logger = get_logger(__name__)
 
 # Power level constants
-MAX_POWER_LEVEL = 9
+MAX_POWER_LEVEL = 5
 POWER_BAR_SCALE = 0.3
 INVINCIBILITY_DURATION = 3000  # 3 seconds of invincibility after hit
 
@@ -65,8 +65,27 @@ class Player(AnimatedSprite):
         
         # Power level system
         self.power_level = MAX_POWER_LEVEL
-        self.power_bar_frames = self.load_power_bar_sprites()
+        self.previous_power_level = MAX_POWER_LEVEL
         self.is_alive = True
+        
+        # Power bar colors
+        self.power_colors = [
+            (255, 0, 0),      # Red (critical)
+            (255, 128, 0),    # Orange (low)
+            (255, 255, 0),    # Yellow (medium)
+            (128, 255, 0),    # Yellow-Green (good)
+            (0, 255, 0)       # Green (full)
+        ]
+        
+        # Power bar dimensions
+        self.power_bar_width = 200
+        self.power_bar_height = 20
+        self.power_bar_border = 2
+        self.power_bar_position = (20, 15)
+        
+        # Power bar particle effect timer
+        self.power_change_time = 0
+        self.particle_cooldown = 200  # ms between particle bursts
         
         # Invincibility system
         self.is_invincible = False
@@ -84,15 +103,6 @@ class Player(AnimatedSprite):
         )
         # Error handling is done within load_sprite_sheet, which raises SystemExit
         
-    def load_power_bar_sprites(self) -> List[pygame.Surface]:
-        """Loads power bar sprites."""
-        return load_sprite_sheet(
-            filename="power-bar.png",
-            sprite_dir=SPRITES_DIR,
-            scale_factor=POWER_BAR_SCALE,
-            crop_border=DEFAULT_CROP_BORDER_PIXELS
-        )
-
     def update(self) -> None:
         """Updates the player's position, animation, and handles continuous shooting."""
         # Skip update if player is dead
@@ -101,6 +111,12 @@ class Player(AnimatedSprite):
             
         # Call parent update for animation and movement
         super().update()
+        
+        # Check if power level has changed
+        if self.power_level != self.previous_power_level:
+            # Record the time of power change for particle effects
+            self.power_change_time = pygame.time.get_ticks()
+            self.previous_power_level = self.power_level
         
         # Handle invincibility
         if self.is_invincible:
@@ -227,8 +243,25 @@ class Player(AnimatedSprite):
         logger.info("Player invincibility activated for 3 seconds")
         return True
         
-    def get_power_bar_image(self) -> pygame.Surface:
-        """Returns the current power bar image based on power level."""
+    def get_power_bar_color(self) -> tuple:
+        """Returns the current power bar color based on power level."""
         # Guard against invalid power level
-        index = max(0, min(MAX_POWER_LEVEL - 1, MAX_POWER_LEVEL - self.power_level))
-        return self.power_bar_frames[index]
+        index = max(0, min(MAX_POWER_LEVEL - 1, self.power_level - 1))
+        return self.power_colors[index]
+        
+    def should_emit_particles(self) -> bool:
+        """Check if particles should be emitted from the power bar."""
+        current_time = pygame.time.get_ticks()
+        return (current_time - self.power_change_time < 1000 and 
+                (current_time - self.power_change_time) % self.particle_cooldown < 50)
+                
+    def get_power_bar_particles_position(self) -> tuple:
+        """Get the position for power bar particles."""
+        # Calculate the current width of the filled power bar
+        filled_width = (self.power_bar_width - self.power_bar_border * 2) * self.power_level / MAX_POWER_LEVEL
+        
+        # Position at the end of the filled portion
+        x = self.power_bar_position[0] + self.power_bar_border + filled_width
+        y = self.power_bar_position[1] + self.power_bar_height / 2
+        
+        return (x, y)

@@ -9,7 +9,7 @@ from enum import IntEnum
 from typing import List, Dict, Tuple, Optional, Any, Set
 
 # Import game components
-from src.player import Player
+from src.player import Player, MAX_POWER_LEVEL
 from src.background import BackgroundLayer # Import BackgroundLayer
 from src.enemy import EnemyType1 # Import the specific enemy class
 from src.enemy import EnemyShooter # Import shooter class
@@ -17,6 +17,7 @@ from src.sound_manager import SoundManager
 from src.logger import get_logger
 from src.border import Border
 from src.explosion import Explosion # Import the Explosion class
+from src.power_particles import PowerParticleSystem # Import the power particles system
 
 # Import config variables
 from config.game_config import (
@@ -177,6 +178,11 @@ class Game:
         # Game over state
         self.game_over = False
         self.game_over_font = pygame.font.SysFont(None, DEFAULT_FONT_SIZE * 2)
+        
+        # Scoring system
+        self.score = 0
+        self.score_font = pygame.font.SysFont(None, DEFAULT_FONT_SIZE)
+        self.previous_player_power = self.player.power_level
 
     def run(self):
         """Starts and manages the main game loop."""
@@ -468,7 +474,13 @@ class Game:
         # We use pygame.sprite.collide_mask for pixel-perfect collision detection.
         hits = pygame.sprite.groupcollide(self.enemies, self.bullets, True, True, pygame.sprite.collide_mask)
         for enemy in hits: # Iterate through enemies that were hit
-             # Play enemy explosion sound
+            # Add score for destroying enemy
+            if hasattr(enemy, 'is_shooter') and enemy.is_shooter:
+                self.score += 150  # Shooter enemies worth more points
+            else:
+                self.score += 100  # Regular enemies
+                
+            # Play enemy explosion sound
             self.sound_manager.play("explosion2", "enemy")
             # Create explosion at enemy position
             explosion_size = (50, 50)  # Size for enemy explosion
@@ -505,14 +517,24 @@ class Game:
                 self._handle_game_over()
 
         # Collision: Player vs Enemy Bullets
-        enemy_bullet_hits = pygame.sprite.spritecollide(self.player, self.enemy_bullets, True, pygame.sprite.collide_mask)
-        if enemy_bullet_hits:
-            # Play a different sound for bullet hit
+        bullet_hits = pygame.sprite.spritecollide(self.player, self.enemy_bullets, True, pygame.sprite.collide_mask)
+        if bullet_hits:
+            previous_power = self.player.power_level
+            player_survived = self.player.take_damage()
+            
+            # Create power decrease particles if power changed
+            if player_survived and previous_power > self.player.power_level:
+                power_bar_pos = self.player.get_power_bar_particles_position()
+                power_color = self.player.get_power_bar_color()
+                PowerParticleSystem.create_power_change_effect(
+                    power_bar_pos, power_color, is_decrease=True, group=self.particles
+                )
+            
+            # Play hit sound
             self.sound_manager.play("hit1", "player")
-            logger.warning("Player hit by enemy bullet!")
-            # Apply damage to player
-            player_alive = self.player.take_damage()
-            if not player_alive:
+            
+            # Check for game over
+            if not player_survived:
                 self._handle_game_over()
 
     def _render(self):
@@ -541,20 +563,85 @@ class Game:
         for border in self.borders:
             border.draw(self.screen)
             
-        # Draw power bar
+        # Draw custom power bar
         if self.player.is_alive:
-            power_bar = self.player.get_power_bar_image()
-            power_bar_rect = power_bar.get_rect()
-            power_bar_rect.topleft = (20, 15)  # Position in top-left corner with margin
-            self.screen.blit(power_bar, power_bar_rect)
+            self._draw_power_bar()
             
+            # Check if we should emit power change particles
+            if self.player.should_emit_particles():
+                power_bar_pos = self.player.get_power_bar_particles_position()
+                power_color = self.player.get_power_bar_color()
+                
+                # Determine if power decreased or increased
+                is_decrease = self.previous_player_power > self.player.power_level
+                
+                # Create power change particles
+                PowerParticleSystem.create_power_change_effect(
+                    power_bar_pos, power_color, is_decrease=is_decrease, group=self.particles
+                )
+            
+            # Update previous power level
+            self.previous_player_power = self.player.power_level
+            
+        # Draw score in upper right corner
+        score_text = self.score_font.render(f"SCORE: {self.score}", True, WHITE)
+        score_rect = score_text.get_rect(topright=(SCREEN_WIDTH - 20, 15))
+        self.screen.blit(score_text, score_rect)
+        
         # Draw game over message if necessary
         if self.game_over:
             game_over_text = self.game_over_font.render("GAME OVER", True, RED)
             text_rect = game_over_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
             self.screen.blit(game_over_text, text_rect)
             
+            # Also display final score
+            final_score_text = self.score_font.render(f"FINAL SCORE: {self.score}", True, WHITE)
+            final_score_rect = final_score_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 40))
+            self.screen.blit(final_score_text, final_score_rect)
+            
         pygame.display.flip()
+        
+    def _draw_power_bar(self):
+        """Draws the custom power bar with power level indicators."""
+        # Get bar position and dimensions from player
+        x, y = self.player.power_bar_position
+        width = self.player.power_bar_width
+        height = self.player.power_bar_height
+        border = self.player.power_bar_border
+        
+        # Draw outer border (black)
+        pygame.draw.rect(self.screen, BLACK, (x, y, width, height))
+        
+        # Calculate filled portion width
+        filled_width = (width - border * 2) * self.player.power_level / MAX_POWER_LEVEL
+        
+        # Draw filled portion with color based on power level
+        bar_color = self.player.get_power_bar_color()
+        pygame.draw.rect(self.screen, bar_color, (x + border, y + border, filled_width, height - border * 2))
+        
+        # Draw power level indicators (segment lines)
+        segments = MAX_POWER_LEVEL
+        segment_width = (width - border * 2) / segments
+        
+        for i in range(1, segments):
+            segment_x = x + border + i * segment_width
+            # Draw segment line
+            pygame.draw.line(
+                self.screen,
+                BLACK,
+                (segment_x, y + border),
+                (segment_x, y + height - border),
+                2
+            )
+            
+        # Draw power level text for clarity
+        power_text = self.score_font.render(
+            f"POWER: {self.player.power_level}/{MAX_POWER_LEVEL}", 
+            True, 
+            WHITE
+        )
+        text_rect = power_text.get_rect(topleft=(x + width + 10, y))
+        self.screen.blit(power_text, text_rect)
         
     def _handle_game_over(self):
         """Handles the game over state when player loses all power."""
