@@ -16,6 +16,7 @@ from src.enemy import EnemyShooter # Import shooter class
 from src.sound_manager import SoundManager
 from src.logger import get_logger
 from src.border import Border
+from src.explosion import Explosion # Import the Explosion class
 
 # Import config variables
 from config.game_config import (
@@ -31,7 +32,10 @@ from config.game_config import (
     PLAYER_SHOOT_DELAY,
     WAVE_TIMER_EVENT_ID,
     WAVE_DELAY_MS,
-    PATTERN_TYPES
+    PATTERN_TYPES,
+    WHITE,
+    RED,
+    DEFAULT_FONT_SIZE
 )
 
 # Get logger for this module
@@ -141,7 +145,8 @@ class Game:
         self.all_sprites = pygame.sprite.Group()
         self.enemies = pygame.sprite.Group() # Group for enemies
         self.bullets = pygame.sprite.Group() # Group specifically for bullets
-        self.enemy_bullets = pygame.sprite.Group() # <<< Add group for enemy bullets
+        self.enemy_bullets = pygame.sprite.Group() # Group for enemy bullets
+        self.explosions = pygame.sprite.Group() # Group for explosion effects
 
         # Initialize game components
         self.player = Player(self.bullets, self.all_sprites)
@@ -162,6 +167,10 @@ class Game:
         # Simple wave management state
         self.wave_active = False
         pygame.time.set_timer(WAVE_TIMER_EVENT, WAVE_DELAY_MS) # Timer for next wave
+        
+        # Game over state
+        self.game_over = False
+        self.game_over_font = pygame.font.SysFont(None, DEFAULT_FONT_SIZE * 2)
 
     def run(self):
         """Starts and manages the main game loop."""
@@ -235,6 +244,10 @@ class Game:
                 
                 # Reset the timer for the next wave
                 pygame.time.set_timer(WAVE_TIMER_EVENT, random.randint(3000, 5000))
+            elif event.type == pygame.USEREVENT:
+                # This is the game over delay timer
+                self.is_running = False
+                pygame.time.set_timer(pygame.USEREVENT, 0)  # Disable the timer
 
     def spawn_enemy_wave(self, count: int, pattern_type: int = 0, spawn_shooters: bool = False): # <<< Add spawn_shooters flag
         """Creates a new wave of enemies based on the given pattern type."""
@@ -425,6 +438,7 @@ class Game:
         # Update player and other sprites
         self.all_sprites.update() # This calls update() on Player, Bullets, and Enemies
         self.enemy_bullets.update()
+        self.explosions.update() # Update explosion animations
         # self.level_manager.update() # Update level/spawn enemies later
 
         # Check for collisions
@@ -447,27 +461,41 @@ class Game:
             # TODO: Add score for hitting enemies
             # TODO: Spawn explosion effect
 
+        # Skip collision handling if player is not alive
+        if not self.player.is_alive:
+            return
+
+        # We'll still detect collisions but damage handling is in take_damage
+        # which checks for invincibility
+
         # Collision: Player vs Enemies
         # We check if the player sprite collides with any sprite in the enemies group.
-        # False means the player sprite is *not* killed automatically on collision.
-        # We handle player death/damage logic separately if needed.
-        enemy_hits = pygame.sprite.spritecollide(self.player, self.enemies, False, pygame.sprite.collide_mask)
+        # True means the enemy sprite is killed on collision.
+        # We handle player death/damage logic separately.
+        enemy_hits = pygame.sprite.spritecollide(self.player, self.enemies, True, pygame.sprite.collide_mask)
         if enemy_hits:
-            # Play player explosion sound
-            self.sound_manager.play("explosion1", "player")
-            logger.warning("Player hit by enemy!") # Placeholder for game over/damage
-            # TODO: Implement player health/lives or game over sequence
-            # For now, let's just end the game
-            # self.is_running = False # Temporarily disable instant game over
+            # Play player explosion sound for each enemy hit
+            for enemy in enemy_hits:
+                self.sound_manager.play("explosion2", "enemy")
+                
+            # Play hit sound for player
+            self.sound_manager.play("hit1", "player")
+            logger.warning("Player hit by enemy!")
+            # Apply damage to player
+            player_alive = self.player.take_damage()
+            if not player_alive:
+                self._handle_game_over()
 
-        # <<< Add Collision: Player vs Enemy Bullets
+        # Collision: Player vs Enemy Bullets
         enemy_bullet_hits = pygame.sprite.spritecollide(self.player, self.enemy_bullets, True, pygame.sprite.collide_mask)
         if enemy_bullet_hits:
-            # Play a different sound for bullet hit? Maybe a shield hit sound later?
-            self.sound_manager.play("hit1", "player") # Using a generic hit sound
+            # Play a different sound for bullet hit
+            self.sound_manager.play("hit1", "player")
             logger.warning("Player hit by enemy bullet!")
-            # TODO: Implement player damage/shield logic
-            # self.is_running = False # Temporarily disable instant game over
+            # Apply damage to player
+            player_alive = self.player.take_damage()
+            if not player_alive:
+                self._handle_game_over()
 
     def _render(self):
         """Draws the game state to the screen."""
@@ -482,6 +510,8 @@ class Game:
         self.all_sprites.draw(self.screen)
         # Draw enemy bullets
         self.enemy_bullets.draw(self.screen)
+        # Draw explosions
+        self.explosions.draw(self.screen)
         
         # Fill any gaps at screen edges with black to ensure borders are flush
         pygame.draw.rect(self.screen, BLACK, (0, 0, SCREEN_WIDTH, PLAYFIELD_TOP_Y))
@@ -491,5 +521,37 @@ class Game:
         for border in self.borders:
             border.draw(self.screen)
             
-        # Draw UI elements (score, health, etc.) later
+        # Draw power bar
+        if self.player.is_alive:
+            power_bar = self.player.get_power_bar_image()
+            power_bar_rect = power_bar.get_rect()
+            power_bar_rect.topleft = (20, 15)  # Position in top-left corner with margin
+            self.screen.blit(power_bar, power_bar_rect)
+            
+        # Draw game over message if necessary
+        if self.game_over:
+            game_over_text = self.game_over_font.render("GAME OVER", True, RED)
+            text_rect = game_over_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
+            self.screen.blit(game_over_text, text_rect)
+            
         pygame.display.flip()
+        
+    def _handle_game_over(self):
+        """Handles the game over state when player loses all power."""
+        # Play explosion sound
+        self.sound_manager.play("explosion1", "player")
+        logger.warning("Game over - Player destroyed!")
+        
+        # Create explosion effect at the player's position
+        explosion_size = (100, 100)  # Size of the explosion
+        Explosion(self.player.rect.center, explosion_size, self.explosions)
+        
+        # Make player invisible but don't remove from groups yet
+        self.player.image = pygame.Surface((1, 1), pygame.SRCALPHA)
+        
+        # Set game over flag
+        self.game_over = True
+        
+        # We'll keep the game running until the explosion animation completes
+        # Set a timer for game end
+        pygame.time.set_timer(pygame.USEREVENT, 2000)  # 2 seconds delay

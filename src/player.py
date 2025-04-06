@@ -24,6 +24,11 @@ from config.game_config import (
 # Get a logger for this module
 logger = get_logger(__name__)
 
+# Power level constants
+MAX_POWER_LEVEL = 9
+POWER_BAR_SCALE = 0.3
+INVINCIBILITY_DURATION = 3000  # 3 seconds of invincibility after hit
+
 class Player(AnimatedSprite):
     """Represents the player-controlled spaceship."""
     def __init__(self, bullets: pygame.sprite.Group, *groups) -> None:
@@ -57,6 +62,17 @@ class Player(AnimatedSprite):
         
         # Flag to track continuous firing state
         self.is_firing: bool = False
+        
+        # Power level system
+        self.power_level = MAX_POWER_LEVEL
+        self.power_bar_frames = self.load_power_bar_sprites()
+        self.is_alive = True
+        
+        # Invincibility system
+        self.is_invincible = False
+        self.invincibility_timer = 0
+        self.blink_counter = 0
+        self.visible = True
 
     def load_sprites(self) -> None:
         """Loads animation frames using the utility function."""
@@ -67,11 +83,51 @@ class Player(AnimatedSprite):
             crop_border=5 # Try a larger crop (was 4)
         )
         # Error handling is done within load_sprite_sheet, which raises SystemExit
+        
+    def load_power_bar_sprites(self) -> List[pygame.Surface]:
+        """Loads power bar sprites."""
+        return load_sprite_sheet(
+            filename="power-bar.png",
+            sprite_dir=SPRITES_DIR,
+            scale_factor=POWER_BAR_SCALE,
+            crop_border=DEFAULT_CROP_BORDER_PIXELS
+        )
 
     def update(self) -> None:
         """Updates the player's position, animation, and handles continuous shooting."""
+        # Skip update if player is dead
+        if not self.is_alive:
+            return
+            
         # Call parent update for animation and movement
         super().update()
+        
+        # Handle invincibility
+        if self.is_invincible:
+            current_time = pygame.time.get_ticks()
+            if current_time - self.invincibility_timer >= INVINCIBILITY_DURATION:
+                # Invincibility period has ended
+                self.is_invincible = False
+                self.visible = True
+                self.image.set_alpha(255)  # Ensure full visibility
+                logger.info("Player invincibility ended")
+            else:
+                # Blink effect during invincibility
+                self.blink_counter += 1
+                if self.blink_counter >= 3:  # Toggle visibility every 3 frames (more frequent blinking)
+                    self.blink_counter = 0
+                    self.visible = not self.visible
+                
+                # Make the player blink by toggling transparency
+                if not self.visible:
+                    # More transparent when blinking
+                    self.image.set_alpha(80)
+                else:
+                    # Reset to fully visible
+                    self.image.set_alpha(255)
+        else:
+            # Ensure player is fully visible when not invincible
+            self.image.set_alpha(255)
 
         # Update position - Apply diagonal movement normalization for consistent speed
         if self.speed_x != 0 and self.speed_y != 0:
@@ -143,3 +199,36 @@ class Player(AnimatedSprite):
                 Bullet(self.rect.right, self.rect.centery, all_sprites_group, self.bullets)
                 logger.debug(f"Player fired bullet at position {self.rect.right}, {self.rect.centery}")
             # The sound is now played in the game_loop when firing starts
+            
+    def take_damage(self) -> bool:
+        """Reduces player's power level when hit.
+        
+        Returns:
+            bool: True if player is still alive, False if game over
+        """
+        # Skip damage if player is invincible
+        if self.is_invincible:
+            logger.info("Hit ignored - player is invincible")
+            return True
+            
+        self.power_level -= 1
+        logger.info(f"Player took damage! Power level: {self.power_level}/{MAX_POWER_LEVEL}")
+        
+        if self.power_level <= 0:
+            self.is_alive = False
+            logger.warning("Player power depleted! Game over!")
+            return False
+            
+        # Activate invincibility after taking damage
+        self.is_invincible = True
+        self.invincibility_timer = pygame.time.get_ticks()
+        self.blink_counter = 0
+        self.visible = True  # Start visible
+        logger.info("Player invincibility activated for 3 seconds")
+        return True
+        
+    def get_power_bar_image(self) -> pygame.Surface:
+        """Returns the current power bar image based on power level."""
+        # Guard against invalid power level
+        index = max(0, min(MAX_POWER_LEVEL - 1, MAX_POWER_LEVEL - self.power_level))
+        return self.power_bar_frames[index]
