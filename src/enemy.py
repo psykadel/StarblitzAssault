@@ -419,4 +419,411 @@ class EnemyType5(Enemy):
         
         logger.debug(f"Enemy fired advanced homing bullets from {self.rect.center}")
 
+# Enemy Type 6: Teleporting enemy with bouncing projectiles
+class EnemyType6(Enemy):
+    """Enemy that teleports around the screen and fires bouncing projectiles."""
+    
+    def __init__(self, player_ref, bullet_group, *groups) -> None:
+        super().__init__(*groups)
+        
+        self.player_ref = player_ref
+        self.bullet_group = bullet_group
+        self.last_shot_time = pygame.time.get_ticks()
+        
+        # Teleportation parameters
+        self.teleport_delay = 2000  # ms between teleports
+        self.last_teleport_time = pygame.time.get_ticks()
+        self.teleport_radius = 150  # Teleport within this distance of previous position
+        self.teleport_effect_duration = 15  # Frames for teleport effect
+        self.teleport_effect = 0  # Current frame of teleport effect
+        
+        # Load frames
+        self.frames = load_sprite_sheet(
+            filename="enemy6.png",
+            sprite_dir=SPRITES_DIR,
+            scale_factor=ENEMY1_SCALE_FACTOR,
+            alignment='right'
+        )
+        
+        if not self.frames:
+            logger.error("EnemyType6 frames list is empty after loading!")
+            self.kill()
+            return
+            
+        # Flip the sprites horizontally
+        self.frames = [pygame.transform.flip(frame, True, False) for frame in self.frames]
+            
+        self.image = self.frames[self.frame_index]
+        self.rect = self.image.get_rect()
+        self.mask = pygame.mask.from_surface(self.image)
+        
+        # Make sure to synchronize the float position trackers with the rect position
+        self._pos_x = float(self.rect.x)
+        self._pos_y = float(self.rect.y)
+        
+        # Set initial movement speed (slower than standard)
+        self.set_speed(ENEMY1_SPEED_X * 0.6, 0)
+        
+        # Alpha for teleport effect
+        self.alpha = 255
+        self.teleporting = False
+
+    def update(self) -> None:
+        # Handle teleport visual effect
+        if self.teleport_effect > 0:
+            self.teleport_effect -= 1
+            # Make sprite fade in during teleport effect
+            self.alpha = int(255 * (1 - (self.teleport_effect / self.teleport_effect_duration)))
+            # Apply alpha to image
+            for i, frame in enumerate(self.frames):
+                self.frames[i] = frame.copy()
+                self.frames[i].set_alpha(self.alpha)
+            
+            # Update current image
+            self.image = self.frames[self.frame_index]
+        
+        # Call parent update for animation and movement
+        super().update()
+        
+        # Check if it's time to teleport
+        now = pygame.time.get_ticks()
+        if now - self.last_teleport_time > self.teleport_delay:
+            self.last_teleport_time = now
+            self._teleport()
+        
+        # Shooting logic: fire bouncing bullets
+        if now - self.last_shot_time > ENEMY_SHOOTER_COOLDOWN_MS * 1.5:
+            self.last_shot_time = now
+            self._fire_bouncing_projectiles()
+    
+    def _teleport(self) -> None:
+        """Teleport to a new random position."""
+        # Set teleport effect
+        self.teleport_effect = self.teleport_effect_duration
+        
+        # Current position
+        current_x = self._pos_x
+        current_y = self._pos_y
+        
+        # Generate new position within the screen boundaries and within teleport radius
+        new_x = max(SCREEN_WIDTH * 0.5, min(SCREEN_WIDTH - self.rect.width, 
+                    current_x + random.uniform(-self.teleport_radius, self.teleport_radius)))
+        new_y = max(PLAYFIELD_TOP_Y, min(PLAYFIELD_BOTTOM_Y - self.rect.height, 
+                    current_y + random.uniform(-self.teleport_radius, self.teleport_radius)))
+        
+        # Set new position
+        self._pos_x = new_x
+        self._pos_y = new_y
+        self.rect.x = round(new_x)
+        self.rect.y = round(new_y)
+        
+        logger.debug(f"Enemy teleported from ({current_x}, {current_y}) to ({new_x}, {new_y})")
+        
+    def _fire_bouncing_projectiles(self) -> None:
+        """Fire projectiles that bounce off screen boundaries."""
+        if not self.player_ref:
+            return
+        
+        # Fire 3 bouncing bullets in different directions
+        for i in range(3):
+            bullet = BouncingBullet(self.rect.center, self.bullet_group)
+        
+        logger.debug(f"Enemy fired bouncing bullets from {self.rect.center}")
+
+# Enemy Type 7: Rotating formation enemy with wave bullets
+class EnemyType7(Enemy):
+    """Enemy that rotates around a point and fires wave bullets in patterns."""
+    
+    def __init__(self, player_ref, bullet_group, *groups) -> None:
+        super().__init__(*groups)
+        
+        self.player_ref = player_ref
+        self.bullet_group = bullet_group
+        self.last_shot_time = pygame.time.get_ticks()
+        
+        # Rotation parameters
+        self.orbit_center_x = 0  # Will be set when positioned
+        self.orbit_radius = 80
+        self.angle = random.uniform(0, 360)
+        self.rotation_speed = 1.5  # Degrees per frame
+        
+        # Bullet pattern parameters
+        self.pattern_index = 0
+        self.patterns = ["fan", "alternating"]
+        self.current_pattern = self.patterns[0]
+        self.pattern_change_delay = 5000  # ms between pattern changes
+        self.last_pattern_change = pygame.time.get_ticks()
+        
+        # Load frames
+        self.frames = load_sprite_sheet(
+            filename="enemy7.png",
+            sprite_dir=SPRITES_DIR,
+            scale_factor=ENEMY1_SCALE_FACTOR,
+            alignment='right'
+        )
+        
+        if not self.frames:
+            logger.error("EnemyType7 frames list is empty after loading!")
+            self.kill()
+            return
+            
+        # Flip the sprites horizontally
+        self.frames = [pygame.transform.flip(frame, True, False) for frame in self.frames]
+            
+        self.image = self.frames[self.frame_index]
+        self.rect = self.image.get_rect()
+        self.mask = pygame.mask.from_surface(self.image)
+        
+        # Make sure to synchronize the float position trackers with the rect position
+        self._pos_x = float(self.rect.x)
+        self._pos_y = float(self.rect.y)
+        
+        # No direct movement - orbit point will move
+        self.set_speed(0, 0)
+
+    def update(self) -> None:
+        # Set orbit center if this is the first update
+        if self.orbit_center_x == 0:
+            self.orbit_center_x = self._pos_x + 100  # Orbit center is ahead of initial position
+            self.orbit_center_y = self._pos_y
+        
+        # Orbital movement
+        self.angle = (self.angle + self.rotation_speed) % 360
+        
+        # Calculate orbit center movement (it drifts left)
+        self.orbit_center_x -= ENEMY1_SPEED_X * 0.5
+        
+        # Calculate position based on orbit
+        rad_angle = math.radians(self.angle)
+        self._pos_x = self.orbit_center_x + self.orbit_radius * math.cos(rad_angle)
+        self._pos_y = self.orbit_center_y + self.orbit_radius * math.sin(rad_angle)
+        
+        # Update rect position from float position
+        self.rect.x = round(self._pos_x)
+        self.rect.y = round(self._pos_y)
+        
+        # Pattern change logic
+        now = pygame.time.get_ticks()
+        if now - self.last_pattern_change > self.pattern_change_delay:
+            self.last_pattern_change = now
+            self.pattern_index = (self.pattern_index + 1) % len(self.patterns)
+            self.current_pattern = self.patterns[self.pattern_index]
+        
+        # Call animation update but not movement (we handle movement manually)
+        AnimatedSprite.update(self)
+        
+        # Check if sprite is off-screen
+        if self.rect.right < 0:
+            self.kill()
+            logger.debug(f"Enemy killed - moved off screen")
+            return
+        
+        # Shooting logic based on current pattern
+        now = pygame.time.get_ticks()
+        if now - self.last_shot_time > ENEMY_SHOOTER_COOLDOWN_MS * 1.2:
+            self.last_shot_time = now
+            if self.current_pattern == "fan":
+                self._fire_fan_pattern()
+            elif self.current_pattern == "alternating":
+                self._fire_alternating_pattern()
+    
+    def _fire_fan_pattern(self) -> None:
+        """Fire wave bullets in a fan pattern."""
+        if not self.player_ref:
+            return
+        
+        # Fire 3 wave bullets in different directions
+        for i in range(-1, 2):
+            bullet = WaveBullet((self.rect.centerx, self.rect.centery + i * 15), -1, self.bullet_group)
+            
+            # Offset the wave phase for visual effect
+            bullet.distance_traveled = i * bullet.wave_frequency * math.pi
+        
+        logger.debug(f"Enemy fired fan pattern wave bullets from {self.rect.center}")
+    
+    def _fire_alternating_pattern(self) -> None:
+        """Fire alternating wave bullets above and below."""
+        if not self.player_ref:
+            return
+        
+        # Alternate between top and bottom
+        offset = 20 if (pygame.time.get_ticks() // 1000) % 2 == 0 else -20
+        
+        # Fire a wave bullet
+        bullet = WaveBullet((self.rect.centerx, self.rect.centery + offset), -1, self.bullet_group)
+        
+        logger.debug(f"Enemy fired alternating wave bullet from {self.rect.center}")
+
+# Enemy Type 8: Phasing shield enemy with multiple attack modes
+class EnemyType8(Enemy):
+    """Enemy with phasing shield that alternates between spiral and explosive projectiles."""
+    
+    def __init__(self, player_ref, bullet_group, *groups) -> None:
+        super().__init__(*groups)
+        
+        self.player_ref = player_ref
+        self.bullet_group = bullet_group
+        self.last_shot_time = pygame.time.get_ticks()
+        
+        # Shield parameters
+        self.has_shield = True
+        self.shield_health = 3  # Hit count before shield deactivates
+        self.shield_recharge_delay = 4000  # ms until shield recharges
+        self.last_shield_hit = 0
+        self.shield_color = (0, 200, 255)  # Cyan shield
+        self.shield_alpha = 180  # Semi-transparent
+        
+        # Attack mode parameters
+        self.attack_modes = ["spiral", "explosive"]
+        self.current_mode_index = 0
+        self.current_mode = self.attack_modes[0]
+        self.mode_change_delay = 3500  # ms between mode changes
+        self.last_mode_change = pygame.time.get_ticks()
+        
+        # Movement pattern
+        self.direction_x = -1  # Start moving left
+        self.direction_y = random.choice([-1, 1])  # Random initial vertical direction
+        self.direction_change_delay = 1500  # ms between direction changes
+        self.last_direction_change = pygame.time.get_ticks()
+        
+        # Load frames
+        self.frames = load_sprite_sheet(
+            filename="enemy8.png",
+            sprite_dir=SPRITES_DIR,
+            scale_factor=ENEMY1_SCALE_FACTOR,
+            alignment='right'
+        )
+        
+        if not self.frames:
+            logger.error("EnemyType8 frames list is empty after loading!")
+            self.kill()
+            return
+            
+        # Flip the sprites horizontally
+        self.frames = [pygame.transform.flip(frame, True, False) for frame in self.frames]
+            
+        self.image = self.frames[self.frame_index]
+        self.rect = self.image.get_rect()
+        self.mask = pygame.mask.from_surface(self.image)
+        
+        # Make sure to synchronize the float position trackers with the rect position
+        self._pos_x = float(self.rect.x)
+        self._pos_y = float(self.rect.y)
+        
+        # Set movement speed
+        self.set_speed(ENEMY1_SPEED_X * 0.8 * self.direction_x, 
+                       ENEMY1_SPEED_X * 0.5 * self.direction_y)
+        
+        # Create shield surface
+        self.shield_image = None
+        self._update_shield()
+
+    def _update_shield(self):
+        """Update the shield visual based on current state."""
+        if not self.has_shield:
+            self.shield_image = None
+            return
+        
+        # Create a transparent surface slightly larger than the sprite
+        shield_size = (self.rect.width + 20, self.rect.height + 20)
+        self.shield_image = pygame.Surface(shield_size, pygame.SRCALPHA)
+        
+        # Draw the shield as a transparent ellipse
+        shield_color = (*self.shield_color, self.shield_alpha)
+        pygame.draw.ellipse(
+            self.shield_image,
+            shield_color,
+            (0, 0, shield_size[0], shield_size[1]),
+            3  # Line width
+        )
+
+    def update(self) -> None:
+        # Shield recharge logic
+        now = pygame.time.get_ticks()
+        if not self.has_shield and now - self.last_shield_hit > self.shield_recharge_delay:
+            self.has_shield = True
+            self.shield_health = 3
+            self._update_shield()
+            logger.debug(f"Enemy shield recharged")
+        
+        # Direction change logic
+        if now - self.last_direction_change > self.direction_change_delay:
+            self.last_direction_change = now
+            # Reverse vertical direction
+            self.direction_y *= -1
+            self.speed_y = ENEMY1_SPEED_X * 0.5 * self.direction_y
+        
+        # Attack mode change logic
+        if now - self.last_mode_change > self.mode_change_delay:
+            self.last_mode_change = now
+            self.current_mode_index = (self.current_mode_index + 1) % len(self.attack_modes)
+            self.current_mode = self.attack_modes[self.current_mode_index]
+        
+        # Call parent update for animation and movement
+        super().update()
+        
+        # Ensure enemy stays within playfield vertically
+        if self.rect.top < PLAYFIELD_TOP_Y:
+            self.rect.top = PLAYFIELD_TOP_Y
+            self._pos_y = float(self.rect.y)
+            self.direction_y = 1
+            self.speed_y = abs(self.speed_y)
+        
+        if self.rect.bottom > PLAYFIELD_BOTTOM_Y:
+            self.rect.bottom = PLAYFIELD_BOTTOM_Y
+            self._pos_y = float(self.rect.y)
+            self.direction_y = -1
+            self.speed_y = -abs(self.speed_y)
+        
+        # Shooting logic based on current mode
+        if now - self.last_shot_time > ENEMY_SHOOTER_COOLDOWN_MS:
+            self.last_shot_time = now
+            if self.current_mode == "spiral":
+                self._fire_spiral_projectiles()
+            elif self.current_mode == "explosive":
+                self._fire_explosive_projectiles()
+    
+    def hit(self):
+        """Handle being hit by player projectile. Returns True if damaged, False if shielded."""
+        if self.has_shield:
+            self.shield_health -= 1
+            if self.shield_health <= 0:
+                self.has_shield = False
+                self.last_shield_hit = pygame.time.get_ticks()
+                self._update_shield()
+                logger.debug(f"Enemy shield depleted")
+            return False
+        return True
+    
+    def draw(self, surface):
+        """Override draw to add shield."""
+        # Draw the sprite
+        surface.blit(self.image, self.rect)
+        
+        # Draw the shield if active
+        if self.has_shield and self.shield_image:
+            shield_rect = self.shield_image.get_rect(center=self.rect.center)
+            surface.blit(self.shield_image, shield_rect)
+    
+    def _fire_spiral_projectiles(self) -> None:
+        """Fire spiral projectiles in a pattern."""
+        if not self.player_ref:
+            return
+        
+        # Fire 2 spiral projectiles at different angles
+        for angle in range(0, 360, 180):  # 2 bullets in opposite directions
+            bullet = SpiralBullet(self.rect.center, angle, self.bullet_group)
+        
+        logger.debug(f"Enemy fired spiral bullets from {self.rect.center}")
+    
+    def _fire_explosive_projectiles(self) -> None:
+        """Fire explosive projectiles."""
+        if not self.player_ref:
+            return
+        
+        # Create an explosive bullet
+        bullet = ExplosiveBullet(self.rect.center, self.bullet_group)
+        
+        logger.debug(f"Enemy fired explosive bullet from {self.rect.center}")
+
 # Add more enemy classes as needed (e.g., Charger, Shooter, Boss)

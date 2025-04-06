@@ -4,12 +4,15 @@ import os
 import logging
 from typing import Optional
 
+# Import the LOG_LEVEL from game config
+from config.game_config import LOG_LEVEL
+
 # Configure the root logger
-def setup_logger(log_level: int = logging.INFO) -> None:
+def setup_logger(log_level: int = LOG_LEVEL) -> None:
     """Set up the logger with file and console handlers.
     
     Args:
-        log_level: The logging level to use (default: INFO)
+        log_level: The logging level to use (default: from game_config.LOG_LEVEL)
     """
     # Create logs directory if it doesn't exist
     log_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.logs')

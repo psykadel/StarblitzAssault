@@ -37,27 +37,31 @@ class SoundManager:
         self._load_sounds()
         
     def _load_sounds(self) -> None:
-        """Load all sound files into memory."""
+        """Load all sound effects into memory."""
         # Create silent fallbacks for all required sounds
         self._create_silent_sound("laser", "player")
         self._create_silent_sound("explosion1", "player")
         self._create_silent_sound("hit1", "player")
         self._create_silent_sound("powerup", "player")
+        self._create_silent_sound("shield", "player")
         
         self._create_silent_sound("laser", "enemy")
         self._create_silent_sound("explosion2", "enemy")
         self._create_silent_sound("powerup", "enemy")  # Add enemy powerup sound
+        self._create_silent_sound("shield", "enemy")  # Add enemy shield sound
         
         # Try to load actual sound files - use .ogg files since that's what we have
         self._try_load_sound("laser", "laser1.ogg", "player")
         self._try_load_sound("explosion1", "explosion1.ogg", "player")
         self._try_load_sound("hit1", "hit1.ogg", "player")
         self._try_load_sound("powerup", "powerup1.ogg", "player")
+        self._try_load_sound("shield", "powerup1.ogg", "player")  # Shield shares powerup sound
         
         # Use player powerup sound for enemy too
         self._try_load_sound("laser", "laser2.ogg", "enemy")
         self._try_load_sound("explosion2", "explosion2.ogg", "enemy")
         self._try_load_sound("powerup", "powerup1.ogg", "enemy")
+        self._try_load_sound("shield", "powerup1.ogg", "enemy")  # Shield shares powerup sound
     
     def _create_silent_sound(self, name: str, category: str) -> None:
         """Create a silent sound as a fallback.
