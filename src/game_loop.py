@@ -82,7 +82,7 @@ class Game:
         # Difficulty progression
         self.difficulty_level = 1.0  # Starting difficulty (will increase over time)
         self.max_difficulty = 10.0   # Maximum difficulty cap
-        self.difficulty_increase_rate = 0.05  # How much difficulty increases per wave
+        self.difficulty_increase_rate = 0.2  # Significantly increased from 0.05 to 0.2
         self.game_start_time = pygame.time.get_ticks()  # Track game duration
         
         # Consider adding mixer init for sounds later: pygame.mixer.init()
@@ -309,11 +309,11 @@ class Game:
                 # Select a random pattern type
                 pattern_type = random.randint(0, 3)  # 0-3 for our four pattern types
                 
-                # Scale number of enemies based on difficulty (4-7 base, up to 5-10 at max difficulty)
-                min_enemies = 4 + int((self.difficulty_level - 1) / 3)  # Increases by 1 every 3 difficulty levels
-                max_enemies = 7 + int((self.difficulty_level - 1) / 2)  # Increases by 1 every 2 difficulty levels
-                min_enemies = min(min_enemies, 8)  # Cap minimum count
-                max_enemies = min(max_enemies, 12)  # Cap maximum count
+                # Scale number of enemies based on difficulty (4-7 base, up to 8-12 at max difficulty)
+                min_enemies = 4 + int((self.difficulty_level - 1) / 1.5)  # Increases by 1 every 1.5 difficulty levels (faster)
+                max_enemies = 7 + int((self.difficulty_level - 1) / 1)    # Increases by 1 every difficulty level (faster)
+                min_enemies = min(min_enemies, 10)  # Higher cap (was 8)
+                max_enemies = min(max_enemies, 15)  # Higher cap (was 12)
                 
                 count = random.randint(min_enemies, max_enemies)
                 
@@ -367,8 +367,8 @@ class Game:
                 self.sound_manager.play("powerup1", "enemy")
                 
                 # Calculate next wave delay based on difficulty (quicker waves at higher difficulty)
-                min_delay = max(1500, 5000 - int(self.difficulty_level * 350))  # Decreases with difficulty
-                max_delay = max(3000, 8000 - int(self.difficulty_level * 500))  # Decreases with difficulty
+                min_delay = max(1000, 5000 - int(self.difficulty_level * 500))  # More aggressive decrease (was 350)
+                max_delay = max(2000, 8000 - int(self.difficulty_level * 650))  # More aggressive decrease (was 500)
                 
                 # Ensure min_delay doesn't exceed max_delay
                 if min_delay > max_delay:
@@ -388,8 +388,8 @@ class Game:
                                    1.0 + (self.wave_count * self.difficulty_increase_rate))
         
         # Calculate modified cooldown times based on difficulty
-        # Faster shooting at higher difficulty (up to 50% reduction)
-        cooldown_reduction = min(0.5, (self.difficulty_level - 1) * 0.05)  # 5% reduction per level, max 50%
+        # Faster shooting at higher difficulty (up to 70% reduction)
+        cooldown_reduction = min(0.7, (self.difficulty_level - 1) * 0.1)  # Increased from 0.05 to 0.1 per level, max 70% (was 50%)
         
         # Override global cooldown with difficulty-adjusted value (using monkey patching)
         import src.enemy
@@ -403,7 +403,7 @@ class Game:
     def spawn_enemy_wave(self, count: int, pattern_type: int = 0, enemy_type_index: int = 0):
         """Creates a new wave of enemies based on the given pattern type."""
         # Apply difficulty-based speed modifier
-        speed_modifier = 1.0 + (self.difficulty_level - 1) * 0.1  # 10% increase per difficulty level
+        speed_modifier = 1.0 + (self.difficulty_level - 1) * 0.15  # Increased from 0.1 to 0.15 (15% per level)
         
         if pattern_type == PATTERN_VERTICAL:
             # Vertical formation - enemies in a vertical line
