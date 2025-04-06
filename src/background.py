@@ -5,6 +5,7 @@ import os
 import sys
 from typing import TYPE_CHECKING, Tuple, List, Dict, Optional
 import random
+import math
 
 from config.game_config import SCREEN_WIDTH
 
@@ -14,7 +15,7 @@ if TYPE_CHECKING:
 class BackgroundLayer:
     """Represents a single horizontally scrolling background layer."""
 
-    def __init__(self, image_path: str, scroll_speed: float, screen_height: int, initial_scroll: float = 0.0):
+    def __init__(self, image_path: str, scroll_speed: float, screen_height: int, initial_scroll: float = 0.0, vertical_offset: int = 0):
         """Initializes the background layer.
 
         Args:
@@ -23,6 +24,7 @@ class BackgroundLayer:
                           Positive values scroll left-to-right (image moves left).
             screen_height: The height of the game screen for scaling.
             initial_scroll: The starting horizontal scroll offset.
+            vertical_offset: The vertical offset for the layer (positive moves down, negative moves up).
         """
         try:
             # Load and potentially scale image to screen height while maintaining aspect ratio
@@ -42,6 +44,8 @@ class BackgroundLayer:
         self.image_width = self.image.get_width()
         # Ensure initial scroll wraps correctly if it's larger than width
         self.scroll = initial_scroll % self.image_width
+        # Store vertical offset
+        self.vertical_offset = vertical_offset
 
     def update(self) -> None:
         """Updates the scroll position of the layer."""
@@ -58,16 +62,18 @@ class BackgroundLayer:
         int_scroll = int(self.scroll)
 
         # Draw the image multiple times to cover the screen
-        # Start by drawing the part of the image determined by the scroll
-        surface.blit(self.image, (-int_scroll, 0))
-
-        # If the first image doesn't cover the screen, draw another one to its right
-        if -int_scroll + self.image_width < screen_width:
-            surface.blit(self.image, (-int_scroll + self.image_width, 0))
-
-        # If the scrolled image starts off-screen to the left, draw one before it
-        if -int_scroll > 0:
-            surface.blit(self.image, (-int_scroll - self.image_width, 0))
+        # Apply vertical offset to all blit operations
+        
+        # Calculate how many tiles we need to cover the screen width
+        needed_tiles = math.ceil(screen_width / self.image_width) + 2  # Add extra for smooth scrolling
+        
+        # Draw multiple instances of the image to ensure smooth scrolling
+        for i in range(-1, needed_tiles):
+            tile_position = (-int_scroll + i * self.image_width, self.vertical_offset)
+            surface.blit(self.image, tile_position)
+            
+        # This approach ensures that tiles are always scrolling in smoothly from the right
+        # rather than suddenly appearing at the edge of the screen
 
 class BackgroundDecorations:
     """Manages decorative elements that appear in the background with parallax effect."""
