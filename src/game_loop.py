@@ -11,13 +11,13 @@ from typing import List, Dict, Tuple, Optional, Any, Set
 # Import game components
 from src.player import Player, MAX_POWER_LEVEL
 from src.background import BackgroundLayer # Import BackgroundLayer
-from src.enemy import EnemyType1 # Import the specific enemy class
-from src.enemy import EnemyShooter # Import shooter class
+from src.enemy import EnemyType1, EnemyShooter, EnemyType3, EnemyType4, EnemyType5 # Import the specific enemy class
 from src.sound_manager import SoundManager
 from src.logger import get_logger
 from src.border import Border
 from src.explosion import Explosion # Import the Explosion class
 from src.power_particles import PowerParticleSystem # Import the power particles system
+from src.particle import Particle
 
 # Import config variables
 from config.game_config import (
@@ -235,6 +235,27 @@ class Game:
                         self.sound_manager.unpause_music()
                         logger.info("Music resumed")
                         
+                elif event.key == pygame.K_t:
+                    # Test mode - spawn one of each enemy type
+                    logger.info("Test mode - spawning all enemy types")
+                    
+                    # Spawn position
+                    x_pos = SCREEN_WIDTH - 100
+                    y_spacing = (PLAYFIELD_BOTTOM_Y - PLAYFIELD_TOP_Y) / 6
+                    
+                    # Spawn one of each enemy type
+                    enemies = [
+                        EnemyType1(self.all_sprites, self.enemies),
+                        EnemyShooter(self.player, self.enemy_bullets, self.all_sprites, self.enemies),
+                        EnemyType3(self.player, self.enemy_bullets, self.all_sprites, self.enemies),
+                        EnemyType4(self.player, self.enemy_bullets, self.all_sprites, self.enemies),
+                        EnemyType5(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
+                    ]
+                    
+                    # Position them vertically stacked
+                    for i, enemy in enumerate(enemies):
+                        enemy.topleft = (x_pos, PLAYFIELD_TOP_Y + (i + 1) * y_spacing)
+                        
             elif event.type == pygame.KEYUP:
                 if event.key == pygame.K_SPACE:
                     self.player.stop_firing()
@@ -245,11 +266,24 @@ class Game:
                 # Random count of enemies between 4 and 7
                 count = random.randint(4, 7)
                 
-                # <<< Add logic to decide if wave contains shooters
-                has_shooters = random.choice([True, False]) # 50% chance for now
+                # Choose an enemy type with weighted probability
+                enemy_type_weights = [40, 30, 10, 10, 10]  # Weights for each enemy type (sum = 100)
+                enemy_type_index = random.choices(
+                    [0, 1, 2, 3, 4],  # EnemyType1, EnemyShooter, EnemyType3, EnemyType4, EnemyType5
+                    weights=enemy_type_weights,
+                    k=1
+                )[0]
 
-                logger.info(f"Spawning wave of {count} enemies with pattern {pattern_type}{' (shooters)' if has_shooters else ''}")
-                self.spawn_enemy_wave(count, pattern_type=pattern_type, spawn_shooters=has_shooters) # <<< Pass shooter flag
+                enemy_type_names = {
+                    0: "Basic",
+                    1: "Shooter",
+                    2: "Wave",
+                    3: "Spiral",
+                    4: "Seeker"
+                }
+
+                logger.info(f"Spawning wave of {count} {enemy_type_names[enemy_type_index]} enemies with pattern {pattern_type}")
+                self.spawn_enemy_wave(count, pattern_type=pattern_type, enemy_type_index=enemy_type_index)
                 
                 # Play wave spawn sound
                 self.sound_manager.play("powerup1", "enemy")
@@ -261,36 +295,43 @@ class Game:
                 self.is_running = False
                 pygame.time.set_timer(pygame.USEREVENT, 0)  # Disable the timer
 
-    def spawn_enemy_wave(self, count: int, pattern_type: int = 0, spawn_shooters: bool = False): # <<< Add spawn_shooters flag
+    def spawn_enemy_wave(self, count: int, pattern_type: int = 0, enemy_type_index: int = 0):
         """Creates a new wave of enemies based on the given pattern type."""
         if pattern_type == PATTERN_VERTICAL:
             # Vertical formation - enemies in a vertical line
             # Calculate spacing based on playfield height and enemy count
             playfield_height = PLAYFIELD_BOTTOM_Y - PLAYFIELD_TOP_Y
             spacing = playfield_height / (count + 1)  # +1 for proper spacing at edges
-            self._spawn_vertical_pattern(count, int(spacing), spawn_shooters=spawn_shooters) # <<< Pass flag
+            self._spawn_vertical_pattern(count, int(spacing), enemy_type_index)
             
         elif pattern_type == PATTERN_HORIZONTAL:
             # Horizontal formation - enemies in a horizontal line
-            self._spawn_horizontal_pattern(count, spawn_shooters=spawn_shooters) # <<< Pass flag
+            self._spawn_horizontal_pattern(count, enemy_type_index)
             
         elif pattern_type == PATTERN_DIAGONAL:
             # Diagonal formation - enemies in a diagonal line
-            self._spawn_diagonal_pattern(count, spawn_shooters=spawn_shooters) # <<< Pass flag
+            self._spawn_diagonal_pattern(count, enemy_type_index)
             
         elif pattern_type == PATTERN_V_FORMATION:
             # V formation - enemies in a V shape
-            self._spawn_v_pattern(count, spawn_shooters=spawn_shooters) # <<< Pass flag
+            self._spawn_v_pattern(count, enemy_type_index)
             
         else:
             # Default to vertical pattern if unknown pattern type
             logger.warning(f"Unknown pattern type: {pattern_type}. Using vertical formation.")
             playfield_height = PLAYFIELD_BOTTOM_Y - PLAYFIELD_TOP_Y
             spacing = playfield_height / (count + 1)
-            self._spawn_vertical_pattern(count, int(spacing), spawn_shooters=spawn_shooters) # <<< Pass flag
+            self._spawn_vertical_pattern(count, int(spacing), enemy_type_index)
 
-    def _spawn_vertical_pattern(self, count: int, spacing_y: int, spawn_shooters: bool = False): # <<< Add spawn_shooters flag
-        """Creates a vertical line of enemies entering from right."""
+    def _spawn_vertical_pattern(self, count: int, spacing_y: int, enemy_type_index: int = 0):
+        """Creates a vertical line of enemies entering from right.
+        
+        Args:
+            count: Number of enemies to spawn
+            spacing_y: Vertical spacing between enemies
+            enemy_type_index: Type of enemy to spawn (0: EnemyType1, 1: EnemyShooter, 
+                              2: EnemyType3, 3: EnemyType4, 4: EnemyType5)
+        """
         # Calculate the playfield height for spacing
         playfield_height = PLAYFIELD_BOTTOM_Y - PLAYFIELD_TOP_Y
         
@@ -309,16 +350,30 @@ class Game:
         # Create the enemies
         for i in range(count):
             y_pos = start_y + i * spacing_y
-            # <<< Choose enemy type based on flag
-            if spawn_shooters:
+            
+            # Create the enemy based on the specified type
+            if enemy_type_index == 1:
                 enemy = EnemyShooter(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
+            elif enemy_type_index == 2:
+                enemy = EnemyType3(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
+            elif enemy_type_index == 3:
+                enemy = EnemyType4(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
+            elif enemy_type_index == 4:
+                enemy = EnemyType5(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
             else:
                 enemy = EnemyType1(self.all_sprites, self.enemies)
+                
             # Use the property setter instead of direct rect access
             enemy.topleft = (x_pos, y_pos)
 
-    def _spawn_horizontal_pattern(self, count: int, spawn_shooters: bool = False): # <<< Add spawn_shooters flag
-        """Creates a horizontal line of enemies entering from right."""
+    def _spawn_horizontal_pattern(self, count: int, enemy_type_index: int = 0):
+        """Creates a horizontal line of enemies entering from right.
+        
+        Args:
+            count: Number of enemies to spawn
+            enemy_type_index: Type of enemy to spawn (0: EnemyType1, 1: EnemyShooter, 
+                              2: EnemyType3, 3: EnemyType4, 4: EnemyType5)
+        """
         # Spacing between enemies horizontally
         spacing_x = 60
         
@@ -331,16 +386,30 @@ class Game:
         # Create the enemies
         for i in range(count):
             x_pos = base_x + i * spacing_x
-            # <<< Choose enemy type based on flag
-            if spawn_shooters:
+            
+            # Create the enemy based on the specified type
+            if enemy_type_index == 1:
                 enemy = EnemyShooter(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
+            elif enemy_type_index == 2:
+                enemy = EnemyType3(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
+            elif enemy_type_index == 3:
+                enemy = EnemyType4(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
+            elif enemy_type_index == 4:
+                enemy = EnemyType5(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
             else:
                 enemy = EnemyType1(self.all_sprites, self.enemies)
+                
             # Use the property setter instead of direct rect access
             enemy.topleft = (x_pos, y_pos)
 
-    def _spawn_diagonal_pattern(self, count: int, spawn_shooters: bool = False): # <<< Add spawn_shooters flag
-        """Creates a diagonal line of enemies entering from right."""
+    def _spawn_diagonal_pattern(self, count: int, enemy_type_index: int = 0):
+        """Creates a diagonal line of enemies entering from right.
+        
+        Args:
+            count: Number of enemies to spawn
+            enemy_type_index: Type of enemy to spawn (0: EnemyType1, 1: EnemyShooter, 
+                              2: EnemyType3, 3: EnemyType4, 4: EnemyType5)
+        """
         # Spacing between enemies
         spacing_x = 50
         spacing_y = 50
@@ -362,16 +431,30 @@ class Game:
         for i in range(count):
             x_pos = start_x + i * spacing_x
             y_pos = start_y + i * spacing_y
-            # <<< Choose enemy type based on flag
-            if spawn_shooters:
+            
+            # Create the enemy based on the specified type
+            if enemy_type_index == 1:
                 enemy = EnemyShooter(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
+            elif enemy_type_index == 2:
+                enemy = EnemyType3(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
+            elif enemy_type_index == 3:
+                enemy = EnemyType4(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
+            elif enemy_type_index == 4:
+                enemy = EnemyType5(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
             else:
                 enemy = EnemyType1(self.all_sprites, self.enemies)
+                
             # Use the property setter instead of direct rect access
             enemy.topleft = (x_pos, y_pos)
 
-    def _spawn_v_pattern(self, count: int, spawn_shooters: bool = False): # <<< Add spawn_shooters flag
-        """Creates a V-shaped formation of enemies entering from right."""
+    def _spawn_v_pattern(self, count: int, enemy_type_index: int = 0):
+        """Creates a V-shaped formation of enemies entering from right.
+        
+        Args:
+            count: Number of enemies to spawn
+            enemy_type_index: Type of enemy to spawn (0: EnemyType1, 1: EnemyShooter, 
+                              2: EnemyType3, 3: EnemyType4, 4: EnemyType5)
+        """
         # Need an odd number for the V-pattern to look symmetrical
         if count % 2 == 0:
             count += 1
@@ -398,11 +481,18 @@ class Game:
             # Y increases as we go away from center
             y_pos = center_y + index_from_center * spacing_y
             
-            # <<< Choose enemy type based on flag
-            if spawn_shooters:
+            # Create the enemy based on the specified type
+            if enemy_type_index == 1:
                 enemy = EnemyShooter(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
+            elif enemy_type_index == 2:
+                enemy = EnemyType3(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
+            elif enemy_type_index == 3:
+                enemy = EnemyType4(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
+            elif enemy_type_index == 4:
+                enemy = EnemyType5(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
             else:
                 enemy = EnemyType1(self.all_sprites, self.enemies)
+                
             # Use the property setter instead of direct rect access
             enemy.topleft = (x_pos, y_pos)
 
@@ -474,11 +564,17 @@ class Game:
         # We use pygame.sprite.collide_mask for pixel-perfect collision detection.
         hits = pygame.sprite.groupcollide(self.enemies, self.bullets, True, True, pygame.sprite.collide_mask)
         for enemy in hits: # Iterate through enemies that were hit
-            # Add score for destroying enemy
-            if hasattr(enemy, 'is_shooter') and enemy.is_shooter:
-                self.score += 150  # Shooter enemies worth more points
+            # Add score for destroying enemy based on enemy type
+            if isinstance(enemy, EnemyType5):
+                self.score += 300  # Most difficult enemy
+            elif isinstance(enemy, EnemyType4):
+                self.score += 250  # Erratic movement enemy
+            elif isinstance(enemy, EnemyType3):
+                self.score += 200  # Oscillating enemy
+            elif isinstance(enemy, EnemyShooter):
+                self.score += 150  # Basic shooter enemy
             else:
-                self.score += 100  # Regular enemies
+                self.score += 100  # Basic enemy
                 
             # Play enemy explosion sound
             self.sound_manager.play("explosion2", "enemy")
