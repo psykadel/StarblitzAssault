@@ -268,6 +268,9 @@ class ScatterBombPowerup(Powerup):
         # Add charges of scatter bombs (3 uses)
         player.scatter_bomb_charges = 3
         
+        # Add to active powerups list
+        player.active_powerups.append(("SCATTER_BOMB", 6))
+        
         # Create collection effect
         self._create_collection_effect(player.rect.center)
         

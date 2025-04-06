@@ -71,15 +71,42 @@ class PowerupParticle(pygame.sprite.Sprite):
         self.gravity = gravity
         self.drag = drag
         
-        # Create the image
-        self.image = pygame.Surface((size, size), pygame.SRCALPHA)
+        # Create the image with glow effect
+        self._create_particle_image()
+        
+        self.rect = self.image.get_rect(center=(int(self.pos_x), int(self.pos_y)))
+    
+    def _create_particle_image(self):
+        """Create particle image with glow effect."""
+        # Create larger surface to accommodate glow
+        glow_size = self.size * 2
+        total_size = glow_size * 2
+        
+        self.image = pygame.Surface((total_size, total_size), pygame.SRCALPHA)
+        
+        # Inner core (full brightness)
         pygame.draw.circle(
             self.image,
-            color,
-            (size // 2, size // 2),
-            size // 2
+            (*self.color, 255),  # Full alpha
+            (total_size // 2, total_size // 2),
+            self.size // 2
         )
-        self.rect = self.image.get_rect(center=(int(self.pos_x), int(self.pos_y)))
+        
+        # Middle glow
+        pygame.draw.circle(
+            self.image,
+            (*self.color, 150),  # Medium alpha
+            (total_size // 2, total_size // 2),
+            self.size
+        )
+        
+        # Outer glow (very faint)
+        pygame.draw.circle(
+            self.image,
+            (*self.color, 75),  # Low alpha
+            (total_size // 2, total_size // 2),
+            glow_size
+        )
     
     def update(self) -> None:
         """Update particle position and appearance."""
@@ -108,15 +135,8 @@ class PowerupParticle(pygame.sprite.Sprite):
         if new_size != self.size:
             self.size = new_size
             # Recreate the image with new size
-            self.image = pygame.Surface((self.size, self.size), pygame.SRCALPHA)
-            alpha = int(255 * fade_factor)
-            color_with_alpha = (*self.color, alpha)
-            pygame.draw.circle(
-                self.image,
-                color_with_alpha,
-                (self.size // 2, self.size // 2),
-                self.size // 2
-            )
+            self._create_particle_image()
+            # Keep the same center position
             old_center = self.rect.center
             self.rect = self.image.get_rect(center=old_center)
 
@@ -151,16 +171,24 @@ class Powerup(AnimatedSprite):
         # Set initial image
         self.frame_index = 0
         self.image = self.frames[self.frame_index]
-        self.rect = self.image.get_rect(center=(x, y))
+        self.rect = self.image.get_rect(center=(int(x), int(y)))
         self.mask = pygame.mask.from_surface(self.image)
         
         # Position tracking for smoother movement
         self.pos_x = float(x)
         self.pos_y = float(y)
         
+        # Create a position tuple for internal tracking
+        self._position_x = float(x)
+        self._position_y = float(y)
+        
         # Movement parameters - straight movement like enemies
         self.speed_x = -POWERUP_FLOAT_SPEED * 0.75  # 75% of enemy speed
         self.speed_y = 0
+        
+        # Additional movement parameters for compatibility with all update methods
+        self.move_speed = POWERUP_FLOAT_SPEED * 0.75
+        self.move_speed_mod = 0
         
         # Particle effect parameters
         self.particles_group = particles_group
@@ -172,6 +200,22 @@ class Powerup(AnimatedSprite):
         
         # Initialize elapsed time for animations
         self.elapsed_time = 0
+        
+        # Rotation parameters
+        self.rotation_angle = 0
+        self.rotation_speed = random.uniform(1.0, 3.0)  # Degrees per frame
+        
+        # Pulsing effect parameters
+        self.pulse_timer = 0
+        self.pulse_cycle = 60  # Frames for a complete pulse cycle
+        
+        # Store frame dimensions for scaling
+        self.frame_width = self.image.get_width()
+        self.frame_height = self.image.get_height()
+        self.current_frame = 0
+        
+        # Make orbs semi-transparent
+        self._make_frames_transparent()
         
         logger.info(f"Created {self.type_name} powerup at ({x}, {y})")
     
@@ -219,45 +263,107 @@ class Powerup(AnimatedSprite):
         logger.warning(f"Using fallback colored rectangle for powerup type {self.type_name}")
         return [fallback]
     
+    def _make_frames_transparent(self):
+        """Apply semi-transparency to all frames."""
+        for i, frame in enumerate(self.frames):
+            # Create a copy with alpha channel
+            frame_with_alpha = frame.copy().convert_alpha()
+            # Set transparency (128/255 = 50% opacity)
+            frame_with_alpha.set_alpha(128)
+            self.frames[i] = frame_with_alpha
+    
+    @property
+    def position(self) -> Tuple[float, float]:
+        """Get the current position as a tuple."""
+        return (self._position_x, self._position_y)
+    
+    # Make sure we only have one update method
+    # This version handles both the animation and movement/effects
     def update(self) -> None:
-        """Update the powerup's position and animation."""
-        super().update()  # Handle animation from parent class
+        """Update powerup state, including animation and movement."""
+        # Handle animation (originally in AnimatedSprite.update)
+        super().update()
         
-        # Apply horizontal movement (continuously move left like enemies)
-        self.pos_x += self.speed_x
+        # Update position
+        self._position_x -= self.move_speed * (1 + self.move_speed_mod)
+        self.rect.center = (int(self._position_x), int(self._position_y))
         
-        # Update rect from float position
-        self.rect.centerx = round(self.pos_x)
-        self.rect.centery = round(self.pos_y)
+        # Update the pulsing effect
+        self.pulse_timer += 1
+        if self.pulse_timer > self.pulse_cycle:
+            self.pulse_timer = 0
         
-        # Update elapsed time
-        self.elapsed_time = pygame.time.get_ticks()
+        # Calculate pulse scale based on sine wave
+        pulse = math.sin(self.pulse_timer / self.pulse_cycle * math.pi * 2)
+        pulse_scale = 1.0 + pulse * 0.1  # Scale between 0.9 and 1.1
         
-        # Apply subtle pulsing effect
-        pulse_factor = 0.05  # Very subtle pulsing
-        pulse_scale = 1.0 + (math.sin(self.elapsed_time * 0.003) * pulse_factor)
+        # Colors for the glow effect based on powerup type
+        colors = [
+            (255, 220, 0),    # TRIPLE_SHOT: Golden
+            (0, 255, 255),    # RAPID_FIRE: Cyan
+            (0, 100, 255),    # SHIELD: Blue
+            (255, 0, 255),    # HOMING_MISSILES: Magenta
+            (255, 255, 255),  # PULSE_BEAM: White
+            (0, 255, 0),      # POWER_RESTORE: Green
+            (255, 128, 0),    # SCATTER_BOMB: Orange
+            (128, 0, 255),    # TIME_WARP: Purple
+            (255, 0, 128),    # MEGA_BLAST: Pink
+        ]
+        glow_color = colors[self.powerup_type % len(colors)]
         
-        # Store current center before scaling
-        current_center = self.rect.center
+        # Calculate glow intensity based on pulse
+        glow_intensity = 0.5 + pulse * 0.3  # Vary between 0.2 and 0.8
         
-        # Scale from original frame
-        scaled_size = (
-            int(self.frames[self.frame_index].get_width() * pulse_scale),
-            int(self.frames[self.frame_index].get_height() * pulse_scale)
+        # Scale the base image
+        scaled_image = pygame.transform.scale(
+            self.frames[self.current_frame], 
+            (int(self.frame_width * pulse_scale), int(self.frame_height * pulse_scale))
         )
-        self.image = pygame.transform.scale(self.frames[self.frame_index], scaled_size)
         
-        # Restore center position
-        self.rect = self.image.get_rect(center=current_center)
+        # Create a larger surface for the glow effect
+        glow_size = max(scaled_image.get_width(), scaled_image.get_height()) * 2
+        glow_surface = pygame.Surface((glow_size, glow_size), pygame.SRCALPHA)
         
-        # Create particles at intervals
-        now = pygame.time.get_ticks()
-        if now - self.last_particle_time > self.particle_interval and self.particles_group:
-            self.last_particle_time = now
+        # Draw semi-transparent glowing rings
+        center = (glow_size // 2, glow_size // 2)
+        for radius in range(glow_size // 4, glow_size // 2, 2):
+            # Calculate alpha based on radius (outer rings are more transparent)
+            alpha = int(max(0, 150 * (1 - radius / (glow_size / 2)) * glow_intensity))
+            # Create a temporary surface for this ring
+            ring_surface = pygame.Surface((glow_size, glow_size), pygame.SRCALPHA)
+            pygame.draw.circle(
+                ring_surface, (*glow_color, alpha), center, radius
+            )
+            # Add the ring to the glow surface
+            glow_surface.blit(ring_surface, (0, 0))
+        
+        # Calculate position to center the scaled image on the glow surface
+        image_pos = (
+            center[0] - scaled_image.get_width() // 2,
+            center[1] - scaled_image.get_height() // 2
+        )
+        
+        # Draw the base image on top of the glow
+        glow_surface.blit(scaled_image, image_pos)
+        
+        # Update the powerup's image to the new glow surface
+        self.image = glow_surface
+        
+        # Restore the center position after changing the image size
+        old_center = self.rect.center
+        self.rect = self.image.get_rect()
+        self.rect.center = old_center
+        
+        # Create a new mask for collision detection
+        self.mask = pygame.mask.from_surface(self.image)
+        
+        # Create trail particles at intervals
+        if self.particles_group and pygame.time.get_ticks() - self.last_particle_time > self.particle_interval:
             self._create_trail_particles()
-            
-        # Remove if completely off left edge of screen
-        if self.rect.right < -50:
+            self.last_particle_time = pygame.time.get_ticks()
+        
+        # Remove if off screen
+        if self.rect.right < 0:
             self.kill()
     
     def _create_trail_particles(self) -> None:
@@ -279,25 +385,50 @@ class Powerup(AnimatedSprite):
         ]
         color = colors[self.powerup_type % len(colors)]
         
-        # Create 1-2 particles at the rear of the powerup
-        for _ in range(random.randint(1, 2)):
+        # Create more particles (3-5) at and around the powerup
+        for _ in range(random.randint(3, 5)):
+            # Position randomly around the powerup, not just behind
             position = (
-                self.rect.right + random.randint(-3, 3),
-                self.rect.centery + random.randint(-5, 5)
+                self.rect.centerx + random.randint(-self.rect.width//2, self.rect.width//2),
+                self.rect.centery + random.randint(-self.rect.height//2, self.rect.height//2)
             )
             
-            # Random velocity
-            vel_x = random.uniform(0.5, 1.5)  # Opposite direction of movement
-            vel_y = random.uniform(-0.3, 0.3)
+            # Random velocity - particles spread in all directions
+            angle = random.uniform(0, math.pi * 2)
+            speed = random.uniform(0.5, 2.0)
+            vel_x = math.cos(angle) * speed
+            vel_y = math.sin(angle) * speed
             
-            # Random size and lifetime
-            size = random.randint(2, 4)  # Smaller particles
-            lifetime = random.randint(10, 20)  # Shorter lifetime
+            # Larger particles with longer lifetime
+            size = random.randint(3, 6)  # Increased size
+            lifetime = random.randint(15, 30)  # Longer lifetime
             
             # Create particle
             PowerupParticle(
                 position, (vel_x, vel_y), color,
                 size, lifetime, 0.01, 0.95,
+                self.particles_group
+            )
+            
+        # Also create a "wake" of smaller particles behind the powerup
+        for _ in range(2):
+            wake_pos = (
+                self.rect.right + random.randint(-3, 3),
+                self.rect.centery + random.randint(-8, 8)
+            )
+            
+            # Mostly trailing behind
+            vel_x = random.uniform(0.8, 1.8)  # Slightly faster
+            vel_y = random.uniform(-0.4, 0.4)  # Slight vertical spread
+            
+            # Smaller but still visible
+            size = random.randint(2, 4)
+            lifetime = random.randint(10, 20)
+            
+            # Create particle
+            PowerupParticle(
+                wake_pos, (vel_x, vel_y), color,
+                size, lifetime, 0.01, 0.92,
                 self.particles_group
             )
     
@@ -308,11 +439,9 @@ class Powerup(AnimatedSprite):
         """
         logger.info(f"Collected {self.type_name} powerup")
         
-        # Basic implementation - restore some power
-        if player.power_level < 5:
-            player.power_level += 1
-            logger.info(f"Power increased to {player.power_level}")
-        
+        # Base implementation doesn't modify power level
+        # Power level restoration happens only in PowerRestorePowerup
+    
     def _create_collection_effect(self, position: Tuple[int, int]) -> None:
         """Create a visual effect when powerup is collected."""
         if not self.particles_group:
