@@ -2,9 +2,10 @@
 
 import pygame
 import random
-from typing import Tuple, List
+from typing import Tuple, List, Literal, Optional
 
 from src.animated_sprite import AnimatedSprite
+from src.particle import ParticleSystem, Particle
 from src.logger import get_logger
 
 # Get a logger for this module
@@ -13,13 +14,17 @@ logger = get_logger(__name__)
 class Explosion(AnimatedSprite):
     """Animated explosion effect that removes itself after playing once."""
     
-    def __init__(self, position: Tuple[int, int], size: Tuple[int, int], *groups) -> None:
+    def __init__(self, position: Tuple[int, int], size: Tuple[int, int], 
+                 explosion_type: Literal["enemy", "player"] = "enemy", 
+                 *groups, particles_group: Optional[pygame.sprite.Group] = None) -> None:
         """Initialize an explosion effect at the given position.
         
         Args:
             position: The center position (x, y) for the explosion
             size: The size (width, height) of the explosion
+            explosion_type: Type of explosion - "enemy" or "player" for different effects
             *groups: Sprite groups to add this explosion to
+            particles_group: Optional group to add particles to (separate from explosion)
         """
         # Use a faster animation speed for explosion
         super().__init__(80, *groups)
@@ -36,6 +41,87 @@ class Explosion(AnimatedSprite):
         # Keep track of whether the animation has completed
         self.animation_complete = False
         
+        # Store all particles created for this explosion
+        self.particles = []
+        
+        # Store particles group reference
+        self.particles_group = particles_group
+        
+        # Create particles based on explosion type
+        if explosion_type == "enemy":
+            self._create_enemy_explosion_particles(position)
+        else:  # player explosion
+            self._create_player_explosion_particles(position)
+        
+    def _create_enemy_explosion_particles(self, position: Tuple[int, int]) -> None:
+        """Create particles for enemy explosion."""
+        # Bright, fiery colors for enemy explosions
+        color_ranges = [
+            (200, 255, 100, 200, 0, 100),     # Yellow-orange range
+            (200, 255, 0, 100, 0, 50),        # Red-orange range
+            (255, 255, 200, 255, 0, 50),      # Bright yellow range
+            (150, 255, 150, 255, 150, 255),   # White-yellow range
+        ]
+        
+        # Create a burst of particles - fewer but bigger
+        self.particles = ParticleSystem.create_explosion(
+            position=position,
+            count=15,                     # Reduced particle count
+            size_range=(3, 8),            # Increased size range
+            color_ranges=color_ranges,    # Possible color ranges
+            speed_range=(2.0, 5.0),       # Faster speed
+            lifetime_range=(25, 45),      # Longer lifetime
+            gravity=0.03,                 # Less gravity
+            group=self.particles_group    # Add to particles group
+        )
+        
+        logger.debug(f"Created {len(self.particles)} particles for enemy explosion")
+    
+    def _create_player_explosion_particles(self, position: Tuple[int, int]) -> None:
+        """Create particles for player explosion - more dramatic!"""
+        # Main explosion particles - vibrant colors
+        color_ranges = [
+            (200, 255, 200, 255, 0, 100),     # Yellow-white range
+            (200, 255, 0, 100, 0, 50),        # Red-orange range
+            (150, 255, 150, 255, 150, 255),   # White range
+            (0, 100, 100, 255, 200, 255),     # Blue range (special)
+        ]
+        
+        # Initial burst - fewer but bigger particles
+        initial_burst = ParticleSystem.create_explosion(
+            position=position,
+            count=25,                     # Reduced particle count
+            size_range=(5, 14),           # Larger size
+            color_ranges=color_ranges,    # Vibrant colors
+            speed_range=(3.0, 7.0),       # Faster speed
+            lifetime_range=(35, 65),      # Longer lifetime
+            gravity=0.02,                 # Less gravity for more spread
+            group=self.particles_group    # Add to particles group
+        )
+        
+        self.particles.extend(initial_burst)
+        
+        # Add one delayed secondary explosion
+        # Random offset from center for secondary explosion
+        offset_x = random.randint(-20, 20)
+        offset_y = random.randint(-20, 20)
+        secondary_pos = (position[0] + offset_x, position[1] + offset_y)
+        
+        secondary = ParticleSystem.create_explosion(
+            position=secondary_pos,
+            count=10,
+            size_range=(4, 12),
+            color_ranges=color_ranges,
+            speed_range=(2.0, 5.0),
+            lifetime_range=(25, 55),
+            gravity=0.03,
+            group=self.particles_group    # Add to particles group
+        )
+        
+        self.particles.extend(secondary)
+        
+        logger.debug(f"Created {len(self.particles)} particles for player explosion")
+    
     def _create_explosion_frames(self, size: Tuple[int, int]) -> List[pygame.Surface]:
         """Create explosion animation frames.
         

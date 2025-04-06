@@ -71,6 +71,12 @@ class Game:
     """Main game class managing the game loop, state, and events."""
     def __init__(self):
         pygame.init()
+        logger.info("Initializing game")
+        
+        # Game state
+        self.is_running = True
+        self.is_paused = False
+        
         # Consider adding mixer init for sounds later: pygame.mixer.init()
 
         # Load configuration - Use config for window size, remove RESIZABLE
@@ -95,7 +101,6 @@ class Game:
         pygame.display.set_caption("Starblitz Assault") # From game.mdc
 
         self.clock = pygame.time.Clock()
-        self.is_running = True
 
         # Initialize background layers
         self.background_layers = []
@@ -147,6 +152,7 @@ class Game:
         self.bullets = pygame.sprite.Group() # Group specifically for bullets
         self.enemy_bullets = pygame.sprite.Group() # Group for enemy bullets
         self.explosions = pygame.sprite.Group() # Group for explosion effects
+        self.particles = pygame.sprite.Group() # Group for particles
 
         # Initialize game components
         self.player = Player(self.bullets, self.all_sprites)
@@ -396,6 +402,11 @@ class Game:
 
     def _update(self):
         """Updates the state of all game objects and handles collisions."""
+        # Skip updates if game is paused or over
+        # (We'll implement a proper pause later, for now we don't use this)
+        if self.is_paused:
+            return
+
         # Process keyboard input for player movement
         keys = pygame.key.get_pressed()
         
@@ -439,6 +450,7 @@ class Game:
         self.all_sprites.update() # This calls update() on Player, Bullets, and Enemies
         self.enemy_bullets.update()
         self.explosions.update() # Update explosion animations
+        self.particles.update() # Update particles
         # self.level_manager.update() # Update level/spawn enemies later
 
         # Check for collisions
@@ -458,8 +470,10 @@ class Game:
         for enemy in hits: # Iterate through enemies that were hit
              # Play enemy explosion sound
             self.sound_manager.play("explosion2", "enemy")
-            # TODO: Add score for hitting enemies
-            # TODO: Spawn explosion effect
+            # Create explosion at enemy position
+            explosion_size = (50, 50)  # Size for enemy explosion
+            Explosion(enemy.rect.center, explosion_size, "enemy", self.explosions, particles_group=self.particles)
+            logger.debug(f"Enemy destroyed at {enemy.rect.center}")
 
         # Skip collision handling if player is not alive
         if not self.player.is_alive:
@@ -477,6 +491,10 @@ class Game:
             # Play player explosion sound for each enemy hit
             for enemy in enemy_hits:
                 self.sound_manager.play("explosion2", "enemy")
+                # Create explosion at enemy position
+                explosion_size = (50, 50)
+                Explosion(enemy.rect.center, explosion_size, "enemy", self.explosions, particles_group=self.particles)
+                logger.debug(f"Enemy destroyed by collision at {enemy.rect.center}")
                 
             # Play hit sound for player
             self.sound_manager.play("hit1", "player")
@@ -512,6 +530,8 @@ class Game:
         self.enemy_bullets.draw(self.screen)
         # Draw explosions
         self.explosions.draw(self.screen)
+        # Draw particles
+        self.particles.draw(self.screen)
         
         # Fill any gaps at screen edges with black to ensure borders are flush
         pygame.draw.rect(self.screen, BLACK, (0, 0, SCREEN_WIDTH, PLAYFIELD_TOP_Y))
@@ -543,8 +563,8 @@ class Game:
         logger.warning("Game over - Player destroyed!")
         
         # Create explosion effect at the player's position
-        explosion_size = (100, 100)  # Size of the explosion
-        Explosion(self.player.rect.center, explosion_size, self.explosions)
+        explosion_size = (120, 120)  # Larger size for the player explosion
+        Explosion(self.player.rect.center, explosion_size, "player", self.explosions, particles_group=self.particles)
         
         # Make player invisible but don't remove from groups yet
         self.player.image = pygame.Surface((1, 1), pygame.SRCALPHA)
@@ -554,4 +574,4 @@ class Game:
         
         # We'll keep the game running until the explosion animation completes
         # Set a timer for game end
-        pygame.time.set_timer(pygame.USEREVENT, 2000)  # 2 seconds delay
+        pygame.time.set_timer(pygame.USEREVENT, 3000)  # 3 seconds delay to see the full explosion
