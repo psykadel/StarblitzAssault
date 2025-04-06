@@ -22,6 +22,9 @@ from config.game_config import (
     PLAYER_SCALE_FACTOR, PLAYER_ANIMATION_SPEED_MS, BULLET_SPEED
 )
 
+# Import powerup constants
+from src.powerup import POWERUP_DURATION
+
 # Get a logger for this module
 logger = get_logger(__name__)
 
@@ -100,6 +103,20 @@ class Player(AnimatedSprite):
         self.blink_counter = 0
         self.visible = True
         
+        # Hit animation
+        self.is_hit_animating = False
+        self.hit_animation_start = 0
+        self.hit_animation_duration = 500  # milliseconds
+        self.original_image = None
+        self.rotation_angle = 0
+        
+        # Shield meter
+        self.shield_meter_width = 100
+        self.shield_meter_height = 8
+        self.shield_meter_position = (20, 90)  # Moved down from 70 to 90
+        self.shield_max_value = POWERUP_DURATION  # Import this from powerup.py
+        self.shield_value = 0
+        
         # Powerup state
         self.original_shoot = self.shoot  # Store reference to original shoot method
         self.has_triple_shot = False
@@ -135,7 +152,7 @@ class Player(AnimatedSprite):
         self.active_powerups = []
         self.powerup_icon_size = 20
         self.powerup_icon_spacing = 5
-        self.powerup_icon_base_y = 45  # Position below power bar
+        self.powerup_icon_base_y = 55  # Increased from 45 to 55 for more space below power bar
 
     def load_sprites(self) -> None:
         """Loads animation frames using the utility function."""
@@ -153,8 +170,60 @@ class Player(AnimatedSprite):
         if not self.is_alive:
             return
             
-        # Call parent update for animation and movement
-        super().update()
+        # Update hit animation if active
+        if self.is_hit_animating:
+            current_time = pygame.time.get_ticks()
+            elapsed = current_time - self.hit_animation_start
+            
+            if elapsed < self.hit_animation_duration:
+                # Calculate rotation progress (0 to 360 degrees)
+                progress = elapsed / self.hit_animation_duration
+                self.rotation_angle = progress * 360
+                
+                # Store center before rotation
+                center = self.rect.center
+                
+                # Rotate image only if original_image exists
+                if self.original_image is not None:
+                    # Rotate image
+                    self.image = pygame.transform.rotate(self.original_image, self.rotation_angle)
+                    
+                    # Keep the same center
+                    self.rect = self.image.get_rect(center=center)
+                    
+                    # Update mask for collision detection
+                    self.mask = pygame.mask.from_surface(self.image)
+                    
+                    # Maintain alpha value during animation if invincible
+                    if self.is_invincible and hasattr(self.image, 'get_alpha') and self.image.get_alpha() is not None:
+                        self.image.set_alpha(self.image.get_alpha())
+            else:
+                # End animation
+                self.is_hit_animating = False
+                self.image = self.frames[self.frame_index]
+                self.mask = pygame.mask.from_surface(self.image)
+                
+                # Maintain invincibility fade effect after animation ends
+                if self.is_invincible and hasattr(self.image, 'set_alpha'):
+                    # Get the current alpha from our fade calculation
+                    current_time = pygame.time.get_ticks()
+                    elapsed = current_time - self.invincibility_timer
+                    cycle_position = (elapsed % 1500) / 1500.0
+                    fade_factor = 0.5 + 0.5 * math.sin(cycle_position * 2 * math.pi)
+                    alpha = int(40 + 180 * fade_factor)
+                    self.image.set_alpha(alpha)
+        else:
+            # Call parent update for animation and movement
+            super().update()
+            
+            # Apply fade effect to the new frame if invincible
+            if self.is_invincible and hasattr(self.image, 'set_alpha'):
+                current_time = pygame.time.get_ticks()
+                elapsed = current_time - self.invincibility_timer
+                cycle_position = (elapsed % 1500) / 1500.0
+                fade_factor = 0.5 + 0.5 * math.sin(cycle_position * 2 * math.pi)
+                alpha = int(40 + 180 * fade_factor)
+                self.image.set_alpha(alpha)
         
         # Check if power level has changed
         if self.power_level != self.previous_power_level:
@@ -204,6 +273,14 @@ class Player(AnimatedSprite):
             else:
                 self.shoot() # shoot() already handles the cooldown
 
+        # Update shield meter if shield is active
+        if self.has_shield:
+            current_time = pygame.time.get_ticks()
+            time_remaining = max(0, self.shield_expiry - current_time)
+            self.shield_value = time_remaining
+        else:
+            self.shield_value = 0
+
     def start_firing(self) -> None:
         """Begins continuous firing."""
         self.is_firing = True
@@ -228,7 +305,7 @@ class Player(AnimatedSprite):
                     self.speed_x = PLAYER_SPEED / 2
                     
                 # Special powerup controls
-                elif event.key == pygame.K_SPACE and self.has_scatter_bomb and self.scatter_bomb_charges > 0:
+                elif event.key == pygame.K_b and self.has_scatter_bomb and self.scatter_bomb_charges > 0:
                     self._fire_scatter_bomb()
                 elif event.key == pygame.K_LSHIFT and self.has_pulse_beam:
                     self.is_charging = True
@@ -349,18 +426,22 @@ class Player(AnimatedSprite):
         # Get sprite groups
         all_sprites_group = self.groups()[0] if self.groups() else None
         if all_sprites_group and self.game_ref:
-            # Create the pulse beam
-            beam = PulseBeam(self.rect.center, charge_percent, 
-                           all_sprites_group, self.bullets)
-            
-            # Play sound
-            if hasattr(self.game_ref, 'sound_manager'):
-                try:
-                    self.game_ref.sound_manager.play("laser", "player")
-                except Exception as e:
-                    logger.warning(f"Failed to play laser sound: {e}")
-            
-            logger.info(f"Fired pulse beam with charge {charge_percent:.2f}")
+            try:
+                # Create the pulse beam and explicitly add to bullets group
+                beam = PulseBeam(self.rect.center, charge_percent, all_sprites_group)
+                # Ensure it's in the bullets group for collision detection
+                self.bullets.add(beam)
+                
+                # Play sound
+                if hasattr(self.game_ref, 'sound_manager'):
+                    try:
+                        self.game_ref.sound_manager.play("laser", "player")
+                    except Exception as e:
+                        logger.warning(f"Failed to play laser sound: {e}")
+                
+                logger.info(f"Fired pulse beam with charge {charge_percent:.2f}")
+            except Exception as e:
+                logger.error(f"Error creating pulse beam: {e}")
             
         # Reset charge
         self.pulse_beam_charge = 0
@@ -372,6 +453,13 @@ class Player(AnimatedSprite):
             
         # Reduce available charges
         self.scatter_bomb_charges -= 1
+        
+        # If no charges left, remove from active powerups
+        if self.scatter_bomb_charges <= 0:
+            self.has_scatter_bomb = False
+            if ("SCATTER_BOMB", 6) in self.active_powerups:
+                self.active_powerups.remove(("SCATTER_BOMB", 6))
+            logger.info("Scatter Bomb depleted")
         
         # Get sprite groups
         all_sprites_group = self.groups()[0] if self.groups() else None
@@ -422,6 +510,17 @@ class Player(AnimatedSprite):
             self.invincibility_timer = pygame.time.get_ticks()
             self.blink_counter = 0
             self.visible = True  # Start visible
+            
+            # Start hit animation
+            self.is_hit_animating = True
+            self.hit_animation_start = pygame.time.get_ticks()
+            # Make sure we have a valid image to rotate
+            if self.image:
+                self.original_image = self.image.copy()
+            else:
+                self.original_image = self.frames[self.frame_index].copy()
+            self.rotation_angle = 0
+            
             logger.info("Player invincibility activated for 3 seconds")
             return True
         except Exception as e:
@@ -518,9 +617,46 @@ class Player(AnimatedSprite):
                 (r, g, b),
                 (meter_x, meter_y, filled_width, meter_height)
             )
-    
+
+        # Draw shield meter if shield is active
+        if self.has_shield:
+            # Calculate shield percentage remaining
+            shield_percent = self.shield_value / self.shield_max_value
+            
+            # Draw shield meter background
+            pygame.draw.rect(
+                surface,
+                (50, 50, 80),  # Dark blue-gray background
+                (self.shield_meter_position[0], 
+                 self.shield_meter_position[1], 
+                 self.shield_meter_width, 
+                 self.shield_meter_height)
+            )
+            
+            # Draw shield meter fill
+            filled_width = int(self.shield_meter_width * shield_percent)
+            pygame.draw.rect(
+                surface,
+                (0, 140, 255),  # Shield blue
+                (self.shield_meter_position[0], 
+                 self.shield_meter_position[1], 
+                 filled_width, 
+                 self.shield_meter_height)
+            )
+            
+            # Draw shield icon
+            shield_icon_size = 12
+            pygame.draw.circle(
+                surface,
+                (0, 100, 255),  # Shield color
+                (self.shield_meter_position[0] - 10, 
+                 self.shield_meter_position[1] + self.shield_meter_height // 2),
+                shield_icon_size // 2,
+                2  # Line width
+            )
+
     def draw_powerup_icons(self, surface: pygame.Surface) -> None:
-        """Draw icons for active powerups."""
+        """Draw icons for active powerups with improved clarity."""
         if not self.active_powerups:
             return
             
@@ -537,7 +673,48 @@ class Player(AnimatedSprite):
             (255, 0, 128),    # MEGA_BLAST: Pink (not shown)
         ]
         
+        # Powerup names for display (shorter versions)
+        display_names = {
+            "TRIPLE_SHOT": "3X",
+            "RAPID_FIRE": "RAPID",
+            "SHIELD": "SHIELD",
+            "HOMING_MISSILES": "HOMING",
+            "PULSE_BEAM": "BEAM",
+            "POWER_RESTORE": "POWER",
+            "SCATTER_BOMB": "BOMB",
+            "TIME_WARP": "TIME",
+            "MEGA_BLAST": "MEGA"
+        }
+        
+        # Improved icon size and spacing
+        self.powerup_icon_size = 28
+        self.powerup_icon_spacing = 6
+        
+        # Draw header text
+        small_font = pygame.font.SysFont(None, 16)
+        header_text = small_font.render("ACTIVE POWERUPS:", True, (200, 200, 200))
+        surface.blit(header_text, (self.power_bar_position[0], self.powerup_icon_base_y - 18))
+        
+        # Draw outline container for all icons
+        total_width = len(self.active_powerups) * (self.powerup_icon_size + self.powerup_icon_spacing) - self.powerup_icon_spacing + 10
+        pygame.draw.rect(
+            surface,
+            (60, 60, 70),  # Darker background
+            (self.power_bar_position[0] - 5, self.powerup_icon_base_y - 5,
+            total_width, self.powerup_icon_size + 25),  # Extra height for time indicators
+            0,  # Fill
+            3   # Rounded corners
+        )
+        
+        # Draw time remaining legend
+        legend_text = small_font.render("Time:", True, (180, 180, 180))
+        surface.blit(legend_text, (self.power_bar_position[0] + 2, 
+                                  self.powerup_icon_base_y + self.powerup_icon_size + 3))
+
         # Icons for each type
+        current_time = pygame.time.get_ticks()
+        font = pygame.font.SysFont(None, 14)
+        
         for i, (powerup_name, powerup_idx) in enumerate(self.active_powerups):
             # Position
             icon_x = self.power_bar_position[0] + i * (self.powerup_icon_size + self.powerup_icon_spacing)
@@ -546,29 +723,95 @@ class Player(AnimatedSprite):
             # Create icon
             color = colors[powerup_idx]
             
-            # Draw icon background
+            # Draw icon background with gradient (lighter at top)
+            for j in range(self.powerup_icon_size):
+                # Calculate gradient factor
+                gradient_factor = 1.0 - (j / self.powerup_icon_size) * 0.4
+                bg_color = tuple(int(c * gradient_factor) for c in (50, 50, 50))
+                pygame.draw.line(
+                    surface,
+                    bg_color,
+                    (icon_x, icon_y + j),
+                    (icon_x + self.powerup_icon_size, icon_y + j)
+                )
+            
+            # Draw icon inner with gradient
+            for j in range(self.powerup_icon_size - 4):
+                # Calculate gradient factor
+                gradient_factor = 1.0 - (j / (self.powerup_icon_size - 4)) * 0.4
+                icon_color = tuple(int(min(255, c * gradient_factor)) for c in color)
+                pygame.draw.line(
+                    surface,
+                    icon_color,
+                    (icon_x + 2, icon_y + j + 2),
+                    (icon_x + self.powerup_icon_size - 2, icon_y + j + 2)
+                )
+                
+            # Draw icon border (highlight)
             pygame.draw.rect(
                 surface,
-                (50, 50, 50),
-                (icon_x, icon_y, self.powerup_icon_size, self.powerup_icon_size)
+                (200, 200, 200),
+                (icon_x, icon_y, self.powerup_icon_size, self.powerup_icon_size),
+                1  # Border width
             )
             
-            # Draw icon inner
-            pygame.draw.rect(
-                surface,
-                color,
-                (icon_x + 2, icon_y + 2, self.powerup_icon_size - 4, self.powerup_icon_size - 4)
-            )
+            # Determine time remaining for timed powerups
+            time_remaining = None
+            if powerup_name == "TRIPLE_SHOT" and self.has_triple_shot:
+                time_remaining = max(0, (self.triple_shot_expiry - current_time) // 1000)
+            elif powerup_name == "RAPID_FIRE" and self.has_rapid_fire:
+                time_remaining = max(0, (self.rapid_fire_expiry - current_time) // 1000)
+            elif powerup_name == "SHIELD" and self.has_shield:
+                time_remaining = max(0, (self.shield_expiry - current_time) // 1000)
+            elif powerup_name == "HOMING_MISSILES" and self.has_homing_missiles:
+                time_remaining = max(0, (self.homing_missiles_expiry - current_time) // 1000)
+            elif powerup_name == "PULSE_BEAM" and self.has_pulse_beam:
+                time_remaining = max(0, (self.pulse_beam_expiry - current_time) // 1000)
+            elif powerup_name == "TIME_WARP" and self.has_time_warp:
+                time_remaining = max(0, (self.time_warp_expiry - current_time) // 1000)
             
-            # Draw count for scatter bomb
+            # For SCATTER_BOMB, show charges and key hint instead of time
             if powerup_name == "SCATTER_BOMB":
-                font = pygame.font.SysFont(None, 14)
-                count_text = font.render(str(self.scatter_bomb_charges), True, (0, 0, 0))
-                text_rect = count_text.get_rect(center=(
+                # Simplify the display - just show BOMB and the number
+                charge_text = font.render(f"BOMB {self.scatter_bomb_charges}", True, (255, 255, 255))
+                shadow_text = font.render(f"BOMB {self.scatter_bomb_charges}", True, (0, 0, 0))
+                text_rect = charge_text.get_rect(center=(
                     icon_x + self.powerup_icon_size // 2, 
                     icon_y + self.powerup_icon_size // 2
                 ))
-                surface.blit(count_text, text_rect)
+                # Draw text shadow
+                shadow_rect = shadow_text.get_rect(center=(
+                    icon_x + self.powerup_icon_size // 2 + 1, 
+                    icon_y + self.powerup_icon_size // 2 + 1
+                ))
+                surface.blit(shadow_text, shadow_rect)
+                surface.blit(charge_text, text_rect)
+                continue  # Skip drawing the powerup name since we've combined it with the charge count
+            
+            # Draw powerup name
+            display_name = display_names.get(powerup_name, powerup_name[:5])
+            name_text = font.render(display_name, True, (255, 255, 255))
+            shadow_text = font.render(display_name, True, (0, 0, 0))
+            name_rect = name_text.get_rect(center=(
+                icon_x + self.powerup_icon_size // 2,
+                icon_y + self.powerup_icon_size // 2
+            ))
+            # Draw text shadow
+            shadow_rect = shadow_text.get_rect(center=(
+                icon_x + self.powerup_icon_size // 2 + 1,
+                icon_y + self.powerup_icon_size // 2 + 1
+            ))
+            surface.blit(shadow_text, shadow_rect)
+            surface.blit(name_text, name_rect)
+            
+            # Draw time remaining indicator below the icon (for timed powerups)
+            if time_remaining is not None:
+                time_text = font.render(f"{time_remaining}s", True, (255, 255, 255))
+                time_rect = time_text.get_rect(center=(
+                    icon_x + self.powerup_icon_size // 2,
+                    icon_y + self.powerup_icon_size + 12
+                ))
+                surface.blit(time_text, time_rect)
 
     def _shoot_triple(self) -> None:
         """Shoots three bullets in a spread pattern (triple shot powerup)."""
@@ -628,12 +871,32 @@ class Player(AnimatedSprite):
             if current_time - self.invincibility_timer > INVINCIBILITY_DURATION:
                 self.is_invincible = False
                 self.visible = True  # Ensure player is visible when invincibility ends
+                
+                # Reset alpha to full opacity for current image and all frames
+                if hasattr(self.image, 'set_alpha'):
+                    self.image.set_alpha(255)
+                
+                # Also reset all animation frames to full opacity
+                for frame in self.frames:
+                    if hasattr(frame, 'set_alpha'):
+                        frame.set_alpha(255)
             else:
-                # Make player blink by toggling visibility every few frames
-                self.blink_counter += 1
-                if self.blink_counter >= 4:  # Toggle every 4 frames
-                    self.visible = not self.visible
-                    self.blink_counter = 0
+                # Calculate fade effect - smooth sine wave between 40 and 220 alpha
+                # The frequency is slow enough to make it a smooth fade
+                elapsed = current_time - self.invincibility_timer
+                # 1.5 second cycle for fade in/out
+                cycle_position = (elapsed % 1500) / 1500.0
+                # Sine wave oscillation from 0 to 1
+                fade_factor = 0.5 + 0.5 * math.sin(cycle_position * 2 * math.pi)
+                # Map to alpha range 40-220 (never completely invisible or fully visible)
+                alpha = int(40 + 180 * fade_factor)
+                
+                # Apply alpha to the image
+                if hasattr(self.image, 'set_alpha'):
+                    self.image.set_alpha(alpha)
+                
+                # Always keep visible flag true so image is drawn (with varying alpha)
+                self.visible = True
 
     def _check_powerup_expirations(self) -> None:
         """Checks and handles powerup expirations."""
