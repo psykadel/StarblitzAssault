@@ -7,7 +7,7 @@ import math
 from typing import TYPE_CHECKING, Tuple, List, Optional, Dict, Any
 
 # Import the Bullet class
-from src.projectile import Bullet, PulseBeam, ScatterProjectile
+from src.projectile import Bullet, LaserBeam, ScatterProjectile
 # Import the sprite loading utility
 from src.sprite_loader import load_sprite_sheet, DEFAULT_CROP_BORDER_PIXELS
 # Import base animated sprite
@@ -142,6 +142,12 @@ class Player(AnimatedSprite):
         self.max_pulse_beam_charge = 100
         self.is_charging = False
         
+        self.has_laser_beam = False
+        self.laser_beam_expiry = 0
+        self.laser_beam_charge = 0
+        self.max_laser_beam_charge = 100
+        self.is_charging_laser = False
+        
         self.has_scatter_bomb = False
         self.scatter_bomb_charges = 0
         
@@ -244,10 +250,10 @@ class Player(AnimatedSprite):
         
         # Check all powerup expirations
         self._check_powerup_expirations()
-        
-        # Check charging pulse beam if active
-        if self.has_pulse_beam and self.is_charging:
-            self._charge_pulse_beam()
+            
+        # Check charging laser beam if active
+        if self.has_laser_beam and self.is_charging_laser:
+            self._charge_laser_beam()
         
         # Use playfield boundaries for horizontal movement
         if self.rect.left < 0:
@@ -307,9 +313,9 @@ class Player(AnimatedSprite):
                 # Special powerup controls
                 elif event.key == pygame.K_b and self.has_scatter_bomb and self.scatter_bomb_charges > 0:
                     self._fire_scatter_bomb()
-                elif event.key == pygame.K_LSHIFT and self.has_pulse_beam:
-                    self.is_charging = True
-                    self.pulse_beam_charge = 0
+                elif event.key == pygame.K_LSHIFT and self.has_laser_beam:
+                    self.is_charging_laser = True
+                    self.laser_beam_charge = 0
 
             if event.type == pygame.KEYUP:
                 # Stop movement only if the released key matches the current direction
@@ -323,9 +329,9 @@ class Player(AnimatedSprite):
                     self.speed_x = 0
                     
                 # Release charged beam
-                elif event.key == pygame.K_LSHIFT and self.has_pulse_beam and self.is_charging:
-                    self._fire_pulse_beam()
-                    self.is_charging = False
+                elif event.key == pygame.K_LSHIFT and self.has_laser_beam and self.is_charging_laser:
+                    self._fire_laser_beam()
+                    self.is_charging_laser = False
         except Exception as e:
             logger.error(f"Error handling input: {e}")
             # Reset speeds to prevent getting stuck moving
@@ -415,20 +421,68 @@ class Player(AnimatedSprite):
                                 logger.warning(f"Failed to create pulse beam charging particle: {e}")
                                 break
     
+    def _charge_laser_beam(self) -> None:
+        """Charge up the laser beam while key is held."""
+        if self.laser_beam_charge < self.max_laser_beam_charge:
+            self.laser_beam_charge += 2  # Charge rate
+            
+            # Create charging particles if we have a game reference
+            if self.game_ref and hasattr(self.game_ref, 'particles'):
+                particles_group = getattr(self.game_ref, 'particles', None)
+                if particles_group:
+                    # Only create particles every few frames
+                    if self.laser_beam_charge % 5 == 0:
+                        charge_percent = self.laser_beam_charge / self.max_laser_beam_charge
+                        
+                        # Calculate color based on charge (green to bright green)
+                        r = min(100, int(0 + 100 * charge_percent))
+                        g = min(255, int(180 + 75 * charge_percent))
+                        b = min(100, int(0 + 100 * charge_percent))
+                        
+                        from src.powerup import PowerupParticle
+                        # Create particles around the front of the ship
+                        for _ in range(2):
+                            pos_x = self.rect.right + random.randint(-5, 5)
+                            pos_y = self.rect.centery + random.randint(-10, 10)
+                            
+                            # Random velocity
+                            vel_x = random.uniform(-0.5, 1.5)
+                            vel_y = random.uniform(-1.0, 1.0)
+                            
+                            # Random size based on charge
+                            size = random.randint(2, int(2 + 5 * charge_percent))
+                            
+                            try:
+                                # Create particle
+                                PowerupParticle(
+                                    (pos_x, pos_y), (vel_x, vel_y),
+                                    (r, g, b), size, 
+                                    random.randint(10, 20),
+                                    0.01, 0.9,
+                                    particles_group
+                                )
+                            except Exception as e:
+                                logger.warning(f"Failed to create laser beam charging particle: {e}")
+                                break
+    
     def _fire_pulse_beam(self) -> None:
-        """Fire the charged pulse beam."""
-        if not self.has_pulse_beam or self.pulse_beam_charge < 10:
+        """Deprecated, replaced by _fire_laser_beam."""
+        logger.warning("Pulse beam has been replaced by laser beam")
+
+    def _fire_laser_beam(self) -> None:
+        """Fire the charged laser beam."""
+        if not self.has_laser_beam or self.laser_beam_charge < 10:
             return
             
         # Calculate charge percentage
-        charge_percent = min(1.0, self.pulse_beam_charge / self.max_pulse_beam_charge)
+        charge_percent = min(1.0, self.laser_beam_charge / self.max_laser_beam_charge)
         
         # Get sprite groups
         all_sprites_group = self.groups()[0] if self.groups() else None
         if all_sprites_group and self.game_ref:
             try:
-                # Create the pulse beam and explicitly add to bullets group
-                beam = PulseBeam(self.rect.center, charge_percent, all_sprites_group)
+                # Create the laser beam and explicitly add to bullets group
+                beam = LaserBeam(self.rect.center, charge_percent, all_sprites_group)
                 # Ensure it's in the bullets group for collision detection
                 self.bullets.add(beam)
                 
@@ -439,12 +493,12 @@ class Player(AnimatedSprite):
                     except Exception as e:
                         logger.warning(f"Failed to play laser sound: {e}")
                 
-                logger.info(f"Fired pulse beam with charge {charge_percent:.2f}")
+                logger.info(f"Fired laser beam with charge {charge_percent:.2f}")
             except Exception as e:
-                logger.error(f"Error creating pulse beam: {e}")
+                logger.error(f"Error creating laser beam: {e}")
             
         # Reset charge
-        self.pulse_beam_charge = 0
+        self.laser_beam_charge = 0
     
     def _fire_scatter_bomb(self) -> None:
         """Fire a scatter bomb that creates projectiles in all directions."""
@@ -593,9 +647,9 @@ class Player(AnimatedSprite):
                 shield_rect = shield_surface.get_rect(center=self.rect.center)
                 surface.blit(shield_surface, shield_rect)
             
-        # Draw pulse beam charge meter if charging
-        if self.has_pulse_beam and self.is_charging and self.pulse_beam_charge > 0:
-            charge_percent = self.pulse_beam_charge / self.max_pulse_beam_charge
+        # Draw laser beam charge meter if charging
+        if self.has_laser_beam and self.is_charging_laser and self.laser_beam_charge > 0:
+            charge_percent = self.laser_beam_charge / self.max_laser_beam_charge
             
             # Meter dimensions
             meter_width = 40
@@ -603,10 +657,10 @@ class Player(AnimatedSprite):
             meter_x = self.rect.right + 5
             meter_y = self.rect.centery - meter_height // 2
             
-            # Calculate color based on charge
-            r = min(255, int(100 + 155 * charge_percent))
-            g = min(255, int(100 + 155 * charge_percent))
-            b = 255
+            # Calculate color based on charge (green to bright green)
+            r = min(100, int(0 + 100 * charge_percent))
+            g = min(255, int(180 + 75 * charge_percent))
+            b = min(100, int(0 + 100 * charge_percent))
             
             # Background
             pygame.draw.rect(
@@ -709,7 +763,7 @@ class Player(AnimatedSprite):
             "RAPID_FIRE": "RAPID FIRE",
             "SHIELD": "SHIELD",
             "HOMING_MISSILES": "HOMING MISSILES",
-            "PULSE_BEAM": "PULSE BEAM",
+            "LASER_BEAM": "LASER BEAM",
             "POWER_RESTORE": "POWER RESTORE",
             "SCATTER_BOMB": "SCATTER BOMB",
             "TIME_WARP": "TIME WARP",
@@ -718,15 +772,15 @@ class Player(AnimatedSprite):
         
         # Colors as fallback (same as before)
         colors = [
-            (255, 220, 0),    # TRIPLE_SHOT: Golden
-            (0, 255, 255),    # RAPID_FIRE: Cyan
-            (0, 100, 255),    # SHIELD: Blue
-            (255, 0, 255),    # HOMING_MISSILES: Magenta
-            (255, 255, 255),  # PULSE_BEAM: White
-            (0, 255, 0),      # POWER_RESTORE: Green (not shown)
-            (255, 128, 0),    # SCATTER_BOMB: Orange
-            (128, 0, 255),    # TIME_WARP: Purple
-            (255, 0, 128),    # MEGA_BLAST: Pink (not shown)
+            (255, 220, 0),    # 0: TRIPLE_SHOT: Golden
+            (0, 255, 255),    # 1: RAPID_FIRE: Cyan
+            (0, 100, 255),    # 2: SHIELD: Blue
+            (255, 0, 255),    # 3: HOMING_MISSILES: Magenta
+            (0, 255, 0),      # 4: LASER_BEAM: Green
+            (255, 255, 255),  # 5: POWER_RESTORE: White
+            (255, 128, 0),    # 6: SCATTER_BOMB: Orange
+            (128, 0, 255),    # 7: TIME_WARP: Purple
+            (255, 0, 128),    # 8: MEGA_BLAST: Pink
         ]
         
         # Set a smaller icon size
@@ -796,8 +850,8 @@ class Player(AnimatedSprite):
                 time_remaining = max(0, (self.shield_expiry - current_time) // 1000)
             elif powerup_name == "HOMING_MISSILES" and self.has_homing_missiles:
                 time_remaining = max(0, (self.homing_missiles_expiry - current_time) // 1000)
-            elif powerup_name == "PULSE_BEAM" and self.has_pulse_beam:
-                time_remaining = max(0, (self.pulse_beam_expiry - current_time) // 1000)
+            elif powerup_name == "LASER_BEAM" and self.has_laser_beam:
+                time_remaining = max(0, (self.laser_beam_expiry - current_time) // 1000)
             elif powerup_name == "TIME_WARP" and self.has_time_warp:
                 time_remaining = max(0, (self.time_warp_expiry - current_time) // 1000)
             
@@ -937,41 +991,41 @@ class Player(AnimatedSprite):
             logger.info("Time Warp powerup expired")
             # Remove from active powerups
             self.active_powerups = [p for p in self.active_powerups if p[0] != "TIME_WARP"]
-        
-        # Handle pulse beam expiry
-        if self.has_pulse_beam and current_time > self.pulse_beam_expiry:
-            self.has_pulse_beam = False
-            logger.info("Pulse Beam powerup expired")
-            # Remove from active powerups
-            self.active_powerups = [p for p in self.active_powerups if p[0] != "PULSE_BEAM"]
-                
-        # Check if charging pulse beam
-        if self.is_charging and self.has_pulse_beam:
-            self._charge_pulse_beam()
+            
+        # Check if charging laser beam
+        if self.is_charging_laser and self.has_laser_beam:
+            self._charge_laser_beam()
 
     def add_powerup(self, powerup_name: str, powerup_idx: int) -> None:
         """Add a powerup to the active powerups list, preventing duplicates."""
         # Check if this powerup is already active
-        for existing in self.active_powerups:
-            if existing[0] == powerup_name:
-                # Update the existing powerup's expiry time instead of adding a duplicate
-                if powerup_name == "TRIPLE_SHOT":
-                    self.triple_shot_expiry = pygame.time.get_ticks() + POWERUP_DURATION
-                elif powerup_name == "RAPID_FIRE":
-                    self.rapid_fire_expiry = pygame.time.get_ticks() + POWERUP_DURATION
-                elif powerup_name == "SHIELD":
-                    self.shield_expiry = pygame.time.get_ticks() + POWERUP_DURATION
-                elif powerup_name == "HOMING_MISSILES":
-                    self.homing_missiles_expiry = pygame.time.get_ticks() + POWERUP_DURATION
-                elif powerup_name == "PULSE_BEAM":
-                    self.pulse_beam_expiry = pygame.time.get_ticks() + POWERUP_DURATION
-                elif powerup_name == "TIME_WARP":
-                    self.time_warp_expiry = pygame.time.get_ticks() + POWERUP_DURATION
+        is_active = False
+        for i, (name, idx) in enumerate(self.active_powerups):
+            if name == powerup_name:
+                is_active = True
+                # Refresh duration for timed powerups
+                if powerup_name in ["TRIPLE_SHOT", "RAPID_FIRE", "SHIELD", "HOMING_MISSILES", "LASER_BEAM", "TIME_WARP"]:
+                    if powerup_name == "TRIPLE_SHOT":
+                        self.triple_shot_expiry = pygame.time.get_ticks() + POWERUP_DURATION
+                    elif powerup_name == "RAPID_FIRE":
+                        self.rapid_fire_expiry = pygame.time.get_ticks() + POWERUP_DURATION
+                    elif powerup_name == "SHIELD":
+                        self.shield_expiry = pygame.time.get_ticks() + POWERUP_DURATION
+                    elif powerup_name == "HOMING_MISSILES":
+                        self.homing_missiles_expiry = pygame.time.get_ticks() + POWERUP_DURATION
+                    elif powerup_name == "LASER_BEAM":
+                        self.laser_beam_expiry = pygame.time.get_ticks() + POWERUP_DURATION
+                    elif powerup_name == "TIME_WARP":
+                        self.time_warp_expiry = pygame.time.get_ticks() + POWERUP_DURATION
+                    logger.info(f"Refreshed duration for {powerup_name}")
                 elif powerup_name == "SCATTER_BOMB":
-                    # For scatter bomb, add more charges instead of extending time
+                    # Add charges for scatter bomb
                     self.scatter_bomb_charges += 3
-                # Powerup already exists, don't add it again
-                return
+                    logger.info(f"Added charges to {powerup_name}, now {self.scatter_bomb_charges}")
+                # No need to add again, break the loop
+                break
                 
-        # If we get here, the powerup isn't active yet, so add it
-        self.active_powerups.append((powerup_name, powerup_idx))
+        # If the powerup wasn't found in the active list, add it
+        if not is_active:
+            self.active_powerups.append((powerup_name, powerup_idx))
+            logger.info(f"Added new powerup: {powerup_name}")

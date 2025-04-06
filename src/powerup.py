@@ -31,7 +31,7 @@ POWERUP_TYPES = [
     "RAPID_FIRE",        # 1: Increased fire rate
     "SHIELD",            # 2: Temporary invulnerability
     "HOMING_MISSILES",   # 3: Bullets track enemies
-    "PULSE_BEAM",        # 4: Charged powerful beam attack
+    "LASER_BEAM",        # 4: Charged powerful green laser attack
     "POWER_RESTORE",     # 5: Restore player's health/power level
     "SCATTER_BOMB",      # 6: Explodes into multiple projectiles
     "TIME_WARP",         # 7: Slow down enemies and bullets
@@ -303,7 +303,7 @@ class Powerup(AnimatedSprite):
             (0, 255, 255),    # RAPID_FIRE: Cyan
             (0, 100, 255),    # SHIELD: Blue
             (255, 0, 255),    # HOMING_MISSILES: Magenta
-            (255, 255, 255),  # PULSE_BEAM: White
+            (255, 255, 255),  # LASER_BEAM: White
             (0, 255, 0),      # POWER_RESTORE: Green
             (255, 128, 0),    # SCATTER_BOMB: Orange
             (128, 0, 255),    # TIME_WARP: Purple
@@ -377,7 +377,7 @@ class Powerup(AnimatedSprite):
             (0, 255, 255),    # RAPID_FIRE: Cyan
             (0, 100, 255),    # SHIELD: Blue
             (255, 0, 255),    # HOMING_MISSILES: Magenta
-            (255, 255, 255),  # PULSE_BEAM: White
+            (255, 255, 255),  # LASER_BEAM: White
             (0, 255, 0),      # POWER_RESTORE: Green
             (255, 128, 0),    # SCATTER_BOMB: Orange
             (128, 0, 255),    # TIME_WARP: Purple
@@ -453,7 +453,7 @@ class Powerup(AnimatedSprite):
             (0, 255, 255),    # RAPID_FIRE: Cyan
             (0, 100, 255),    # SHIELD: Blue
             (255, 0, 255),    # HOMING_MISSILES: Magenta
-            (255, 255, 255),  # PULSE_BEAM: White
+            (255, 255, 255),  # LASER_BEAM: White
             (0, 255, 0),      # POWER_RESTORE: Green
             (255, 128, 0),    # SCATTER_BOMB: Orange
             (128, 0, 255),    # TIME_WARP: Purple

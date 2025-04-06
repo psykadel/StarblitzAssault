@@ -47,15 +47,15 @@ class TripleShotPowerup(Powerup):
             
         # Get color based on powerup type
         colors = [
-            (255, 220, 0),    # TRIPLE_SHOT: Golden
-            (0, 255, 255),    # RAPID_FIRE: Cyan
-            (0, 100, 255),    # SHIELD: Blue
-            (255, 0, 255),    # HOMING_MISSILES: Magenta
-            (255, 255, 255),  # PULSE_BEAM: White
-            (0, 255, 0),      # POWER_RESTORE: Green
-            (255, 128, 0),    # SCATTER_BOMB: Orange
-            (128, 0, 255),    # TIME_WARP: Purple
-            (255, 0, 128),    # MEGA_BLAST: Pink
+            (255, 220, 0),    # 0: TRIPLE_SHOT: Golden
+            (0, 255, 255),    # 1: RAPID_FIRE: Cyan
+            (0, 100, 255),    # 2: SHIELD: Blue
+            (255, 0, 255),    # 3: HOMING_MISSILES: Magenta
+            (0, 255, 0),      # 4: LASER_BEAM: Green
+            (255, 255, 255),  # 5: POWER_RESTORE: White
+            (255, 128, 0),    # 6: SCATTER_BOMB: Orange
+            (128, 0, 255),    # 7: TIME_WARP: Purple
+            (255, 0, 128),    # 8: MEGA_BLAST: Pink
         ]
         color = colors[self.powerup_type % len(colors)]
         
@@ -104,7 +104,10 @@ class RapidFirePowerup(Powerup):
         player.has_rapid_fire = True
         
         # Add to active powerups list
-        player.active_powerups.append(("RAPID_FIRE", 1))
+        if hasattr(player, 'add_powerup'):
+            player.add_powerup("RAPID_FIRE", 1)
+        else:
+            player.active_powerups.append(("RAPID_FIRE", 1))
         
         # Create collection effect
         self._create_collection_effect(player.rect.center)
@@ -132,7 +135,10 @@ class ShieldPowerup(Powerup):
         player.has_shield = True
         
         # Add to active powerups list
-        player.active_powerups.append(("SHIELD", 2))
+        if hasattr(player, 'add_powerup'):
+            player.add_powerup("SHIELD", 2)
+        else:
+            player.active_powerups.append(("SHIELD", 2))
         
         # Create collection effect
         self._create_collection_effect(player.rect.center)
@@ -169,7 +175,10 @@ class HomingMissilesPowerup(Powerup):
         player.has_homing_missiles = True
         
         # Add to active powerups list
-        player.active_powerups.append(("HOMING_MISSILES", 3))
+        if hasattr(player, 'add_powerup'):
+            player.add_powerup("HOMING_MISSILES", 3)
+        else:
+            player.active_powerups.append(("HOMING_MISSILES", 3))
         
         # Create collection effect
         self._create_collection_effect(player.rect.center)
@@ -179,8 +188,8 @@ class HomingMissilesPowerup(Powerup):
         # or a new HomingMissile class, and player.update would check for expiry
 
 
-class PulseBeamPowerup(Powerup):
-    """Pulse beam powerup - charge and release a powerful beam."""
+class LaserBeamPowerup(Powerup):
+    """Laser beam powerup - charge and release a powerful green beam."""
     
     def __init__(self, x: float, y: float, *groups, 
                  particles_group: Optional[pygame.sprite.Group] = None,
@@ -188,29 +197,30 @@ class PulseBeamPowerup(Powerup):
         super().__init__(4, x, y, *groups, particles_group=particles_group)
         
     def apply_effect(self, player) -> None:
-        """Apply the pulse beam effect to the player."""
+        """Apply the laser beam effect to the player."""
         super().apply_effect(player)  # Call base implementation for power
         
-        # Give player the ability to charge a pulse beam
-        player.has_pulse_beam = True
+        # Give player the ability to charge a laser beam
+        player.has_laser_beam = True
         
-        # Initialize pulse beam variables
-        player.pulse_beam_charge = 0
-        player.max_pulse_beam_charge = 100
-        player.is_charging = False
+        # Initialize laser beam variables
+        player.laser_beam_charge = 0
+        player.max_laser_beam_charge = 100
+        player.is_charging_laser = False
         
         # Set expiry time
-        player.pulse_beam_expiry = pygame.time.get_ticks() + POWERUP_DURATION
+        player.laser_beam_expiry = pygame.time.get_ticks() + POWERUP_DURATION
         
         # Add to active powerups list
-        player.active_powerups.append(("PULSE_BEAM", 4))
+        if hasattr(player, 'add_powerup'):
+            player.add_powerup("LASER_BEAM", 4)
+        else:
+            player.active_powerups.append(("LASER_BEAM", 4))
         
         # Create collection effect
         self._create_collection_effect(player.rect.center)
         
-        logger.info("Pulse Beam activated for 10 seconds")
-        # Note: The pulse beam firing would be implemented in 
-        # additional methods on the Player class
+        logger.info("Laser Beam activated for 10 seconds")
 
 
 class PowerRestorePowerup(Powerup):
@@ -259,7 +269,10 @@ class ScatterBombPowerup(Powerup):
         player.scatter_bomb_charges = 3
         
         # Add to active powerups list
-        player.active_powerups.append(("SCATTER_BOMB", 6))
+        if hasattr(player, 'add_powerup'):
+            player.add_powerup("SCATTER_BOMB", 6)
+        else:
+            player.active_powerups.append(("SCATTER_BOMB", 6))
         
         # Create collection effect
         self._create_collection_effect(player.rect.center)
@@ -293,7 +306,10 @@ class TimeWarpPowerup(Powerup):
         player.time_warp_expiry = pygame.time.get_ticks() + POWERUP_DURATION
         
         # Add to active powerups list
-        player.active_powerups.append(("TIME_WARP", 7))
+        if hasattr(player, 'add_powerup'):
+            player.add_powerup("TIME_WARP", 7)
+        else:
+            player.active_powerups.append(("TIME_WARP", 7))
         
         # Create collection effect
         self._create_collection_effect(player.rect.center)
@@ -373,7 +389,7 @@ def create_powerup(powerup_type: int, x: float, y: float, *groups,
         RapidFirePowerup,
         ShieldPowerup,
         HomingMissilesPowerup,
-        PulseBeamPowerup,
+        LaserBeamPowerup,
         PowerRestorePowerup,
         ScatterBombPowerup,
         TimeWarpPowerup,

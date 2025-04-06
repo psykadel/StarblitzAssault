@@ -45,7 +45,7 @@ from config.game_config import (
 logger = get_logger(__name__)
 
 # Define background speeds
-BG_LAYER_SPEEDS = [0.5, 1.0, 1.5] # Slowest to fastest
+BG_LAYER_SPEEDS = [0.5, 1.0, 1.5, 2.0] # Slowest to fastest (added a fourth speed)
 
 # Enemy pattern types
 PATTERN_VERTICAL = PATTERN_TYPES["VERTICAL"]
@@ -183,14 +183,18 @@ class Game:
         # Initialize background layers
         self.background_layers = []
         # Use the three different starfield images with different scroll speeds for parallax
-        starfield_images = ["starfield1.png", "starfield2.png", "starfield3.png"]
+        # Adding starfield3.png again for the fourth layer
+        starfield_images = ["starfield1.png", "starfield2.png", "starfield3.png", "starfield3.png"]
         
         # Randomize vertical offsets to avoid repeating patterns
         vertical_offsets = [random.randint(-50, 50) for _ in range(len(starfield_images))]
+        # Make the fourth layer have a more distinct vertical offset
+        if len(vertical_offsets) >= 4:
+            vertical_offsets[3] = random.randint(30, 80)  # More pronounced positive offset for distant stars effect
         
         # Different initial horizontal offsets for each layer
         # These will be recalculated more accurately after loading the images
-        initial_offsets = [0, 100, 200]  # Default fallback offsets
+        initial_offsets = [0, 100, 200, 300]  # Default fallback offsets (added a fourth offset)
         
         for i, (image_name, speed) in enumerate(zip(starfield_images, BG_LAYER_SPEEDS)):
             bg_image_path = os.path.join(BACKGROUNDS_DIR, image_name)
@@ -213,9 +217,11 @@ class Game:
                         if i == 0:
                             offset = 0
                         elif i == 1:
-                            offset = bg_image_width / 3  # One third of the way
+                            offset = bg_image_width / 4  # One quarter of the way
+                        elif i == 2:
+                            offset = bg_image_width * 2 / 4  # Two quarters of the way
                         else:
-                            offset = bg_image_width * 2 / 3  # Two thirds of the way
+                            offset = bg_image_width * 3 / 4  # Three quarters of the way
                     else:
                         offset = initial_offsets[i]
                         
@@ -1087,40 +1093,36 @@ class Game:
             # Apply the powerup effect
             powerup.apply_effect(self.player)
             
+            # Get powerup name and color for notification
+            powerup_name = powerup.type_name.replace("_", " ") # Replace underscores with spaces
+            
+            # Colors for notification text (ensure order matches POWERUP_TYPES)
+            notification_colors = [
+                (255, 220, 0),    # 0: TRIPLE SHOT
+                (0, 255, 255),    # 1: RAPID FIRE
+                (0, 100, 255),    # 2: SHIELD
+                (255, 0, 255),    # 3: HOMING MISSILES
+                (0, 255, 0),      # 4: LASER BEAM
+                (255, 255, 255),  # 5: POWER RESTORE
+                (255, 128, 0),    # 6: SCATTER BOMB
+                (128, 0, 255),    # 7: TIME WARP
+                (255, 0, 128),    # 8: MEGA BLAST
+            ]
+            notification_color = notification_colors[powerup.powerup_type % len(notification_colors)]
+            
+            # Create text notification sprite
+            PowerupNotification(
+                f"{powerup_name} Activated!",
+                notification_color,
+                self.player.rect.center,
+                self.notifications # Add to the notifications group
+            )
+            
             # Play powerup sound - use try/except to handle any missing sounds
             try:
                 self.sound_manager.play("powerup", "player")
             except Exception as e:
                 logger.warning(f"Failed to play powerup sound: {e}")
-            
-            # Create a notification of what powerup was collected
-            # Get color based on powerup type
-            colors = [
-                (255, 220, 0),    # TRIPLE_SHOT: Golden
-                (0, 255, 255),    # RAPID_FIRE: Cyan
-                (0, 100, 255),    # SHIELD: Blue
-                (255, 0, 255),    # HOMING_MISSILES: Magenta
-                (255, 255, 255),  # PULSE_BEAM: White
-                (0, 255, 0),      # POWER_RESTORE: Green
-                (255, 128, 0),    # SCATTER_BOMB: Orange
-                (128, 0, 255),    # TIME_WARP: Purple
-                (255, 0, 128),    # MEGA_BLAST: Pink
-            ]
-            color = colors[powerup.powerup_type % len(colors)]
-            
-            # Format the powerup name nicely (remove underscores, title case)
-            powerup_name = powerup.type_name.replace("_", " ").title()
-            
-            # Create the notification
-            notification = PowerupNotification(
-                f"{powerup_name}!", 
-                color, 
-                (self.player.rect.centerx + 50, self.player.rect.centery - 30),  # Position near player
-                self.all_sprites,  # Add to all_sprites so it renders correctly
-                self.notifications
-            )
-            
-            logger.info(f"Player collected {powerup.type_name} powerup")
 
         # We'll still detect collisions but damage handling is in take_damage
         # which checks for invincibility

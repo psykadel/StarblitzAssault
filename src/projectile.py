@@ -306,11 +306,11 @@ class ScatterProjectile(pygame.sprite.Sprite):
             self.kill()
 
 
-class PulseBeam(pygame.sprite.Sprite):
-    """Powerful beam attack that extends across the screen."""
+class LaserBeam(pygame.sprite.Sprite):
+    """Green laser beam attack that fires rapid green laser lines."""
     
     def __init__(self, player_pos: Tuple[int, int], charge_level: float, *groups) -> None:
-        """Initialize a pulse beam.
+        """Initialize a laser beam.
         
         Args:
             player_pos: Position of the player firing the beam
@@ -324,103 +324,173 @@ class PulseBeam(pygame.sprite.Sprite):
         beam_start_x = player_pos[0] + 20  # Start a bit in front of player
         beam_length = screen_width - beam_start_x
         
-        # Calculate beam height based on charge level
-        min_height = 10
-        max_height = 50
-        beam_height = min_height + int((max_height - min_height) * charge_level)
+        # Laser line properties based on charge level
+        min_height = 3
+        max_height = 15
+        self.laser_height = min_height + int((max_height - min_height) * charge_level)
         
-        # Create beam surface
-        self.image = pygame.Surface((beam_length, beam_height), pygame.SRCALPHA)
+        # Number of laser lines based on charge level - more lines for more impressive effect
+        min_lines = 5
+        max_lines = 15
+        self.num_laser_lines = min_lines + int((max_lines - min_lines) * charge_level)
         
-        # Calculate beam color based on charge level
-        base_color = (100, 200, 255)  # Blue base
-        full_charge_color = (255, 255, 255)  # Bright white
+        # Spacing between laser lines - tighter spacing for higher charge
+        self.spacing = max(2, int(15 * (1 - charge_level) + 3))
         
-        r = base_color[0] + int((full_charge_color[0] - base_color[0]) * charge_level)
-        g = base_color[1] + int((full_charge_color[1] - base_color[1]) * charge_level)
-        b = base_color[2] + int((full_charge_color[2] - base_color[2]) * charge_level)
+        # Create beam surface - add extra padding for glow effects
+        padding = 30
+        max_beam_height = self.laser_height * self.num_laser_lines + self.spacing * (self.num_laser_lines - 1) + padding * 2
+        self.image = pygame.Surface((beam_length, max_beam_height), pygame.SRCALPHA)
         
-        beam_color = (r, g, b)
+        # Bright green laser color
+        base_color = (20, 200, 20)  # More saturated green base
+        full_charge_color = (150, 255, 150)  # Brighter green
         
-        # Create beam gradient with dynamic pulse effect
-        self.pulse_offset = 0  # Store pulse state to animate in update
-        self._draw_beam(beam_length, beam_height, r, g, b)
+        self.r = base_color[0] + int((full_charge_color[0] - base_color[0]) * charge_level)
+        self.g = base_color[1] + int((full_charge_color[1] - base_color[1]) * charge_level)
+        self.b = base_color[2] + int((full_charge_color[2] - base_color[2]) * charge_level)
+        
+        # Animation variables
+        self.pulse_offset = 0
+        self.animation_offset = 0
+        self.animation_speed = 0.8 + charge_level * 2.0  # Even faster with higher charge
+        self.beam_length = beam_length
+        self.padding = padding
+        
+        # Draw the initial laser lines
+        self._draw_laser_lines()
         
         # Set up rect and mask
         self.rect = self.image.get_rect(midleft=(beam_start_x, player_pos[1]))
         self.mask = pygame.mask.from_surface(self.image)
         
         # Set lifetime based on charge level
-        min_lifetime = 10
-        max_lifetime = 30
+        min_lifetime = 30
+        max_lifetime = 60
         self.lifetime = min_lifetime + int((max_lifetime - min_lifetime) * charge_level)
         
         # Store damage value based on charge
-        self.damage = 1 + int(charge_level * 2)  # 1-3 damage
+        self.damage = 1 + int(charge_level * 3)  # 1-4 damage
         
-        # Store beam parameters for redrawing in update
-        self.beam_length = beam_length
-        self.beam_height = beam_height
-        self.beam_r = r
-        self.beam_g = g
-        self.beam_b = b
-        
-        logger.debug(f"Created pulse beam with charge {charge_level:.2f}, damage {self.damage}")
+        logger.debug(f"Created laser beam with charge {charge_level:.2f}, damage {self.damage}")
     
-    def _draw_beam(self, beam_length, beam_height, r, g, b):
-        """Draw the beam with pulse effect."""
+    def _draw_laser_lines(self) -> None:
+        """Draw multiple pulsing laser lines with enhanced visual effects."""
         # Clear the surface
         self.image.fill((0, 0, 0, 0))
         
-        # Draw beam gradient with pulse effect
-        for x in range(beam_length):
-            # Fade intensity with distance
-            fade_factor = 1.0 - (x / beam_length) * 0.5
-            
-            # Pulse effect - use stored offset for animation
-            pulse = 0.75 + 0.25 * math.sin(x * 0.1 + self.pulse_offset)
-            
-            # Calculate color for this column
-            col_r = min(255, int(r * fade_factor * pulse))
-            col_g = min(255, int(g * fade_factor * pulse))
-            col_b = min(255, int(b * fade_factor * pulse))
-            
-            # Draw vertical line
-            pygame.draw.line(
-                self.image,
-                (col_r, col_g, col_b),
-                (x, 0),
-                (x, beam_height),
-                1
-            )
+        # Calculate vertical center of the beam
+        total_height = self.image.get_height()
+        center_y = total_height // 2
         
-        # Make beam edges more diffuse/glowy
-        for y in range(beam_height):
-            edge_fade = min(1.0, abs(y - beam_height / 2) / (beam_height / 2))
-            edge_fade = 1.0 - (edge_fade ** 2)  # Non-linear falloff
+        # Calculate starting y-position for first laser line
+        start_y = center_y - (self.num_laser_lines * self.laser_height + 
+                             (self.num_laser_lines - 1) * self.spacing) // 2
+        
+        # Add a global pulsing glow effect
+        glow_surf = pygame.Surface((self.beam_length, total_height), pygame.SRCALPHA)
+        glow_alpha = 30 + int(20 * math.sin(self.animation_offset * 0.5))
+        glow_color = (self.r//3, self.g//2, self.r//3, glow_alpha)
+        glow_surf.fill(glow_color)
+        self.image.blit(glow_surf, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+        
+        # Draw each laser line
+        for i in range(self.num_laser_lines):
+            # Y position for this line
+            y_pos = start_y + i * (self.laser_height + self.spacing)
             
-            for x in range(0, beam_length, 2):  # Skip pixels for optimization
-                pixel_color = self.image.get_at((x, y))
-                faded_color = (
-                    pixel_color[0],
-                    pixel_color[1],
-                    pixel_color[2],
-                    int(255 * edge_fade)
+            # Phase shift for this line to create wave effect
+            phase_shift = i * 0.7
+            
+            # Length modulation for wave-like effect
+            length_mod = 0.85 + 0.15 * math.sin(self.animation_offset + phase_shift)
+            line_length = int(self.beam_length * length_mod)
+            
+            # Brightness modulation
+            brightness_mod = 0.8 + 0.2 * math.sin(self.animation_offset * 2.0 + phase_shift)
+            r = int(self.r * brightness_mod)
+            g = int(self.g * brightness_mod)
+            b = int(self.b * brightness_mod)
+            
+            # Draw the laser line - core
+            pygame.draw.rect(
+                self.image,
+                (r, g, b),
+                (0, y_pos, line_length, self.laser_height)
+            )
+            
+            # Taper the end of each line for a more laser-like look
+            taper_length = min(80, int(line_length * 0.2))
+            for x in range(line_length - taper_length, line_length):
+                # Calculate fade based on position
+                fade = 1.0 - ((x - (line_length - taper_length)) / taper_length)
+                # Apply alpha based on fade
+                alpha = int(255 * fade)
+                # Mix in a white color at the tip for a more energized look
+                taper_r = int(r + (255 - r) * (1 - fade))
+                taper_g = int(g + (255 - g) * (1 - fade))
+                taper_b = int(b + (255 - b) * (1 - fade))
+                
+                pygame.draw.line(
+                    self.image,
+                    (taper_r, taper_g, taper_b, alpha),
+                    (x, y_pos),
+                    (x, y_pos + self.laser_height),
+                    1
                 )
-                self.image.set_at((x, y), faded_color)
+            
+            # Add glow effect with larger width for better visibility
+            glow_height = self.laser_height * 4
+            glow_surf = pygame.Surface((line_length, glow_height), pygame.SRCALPHA)
+            
+            # Add a brighter inner glow
+            for y in range(glow_height):
+                # Distance from center of glow
+                dist = abs(y - glow_height/2) / (glow_height/2)
+                # Alpha based on distance (falloff) - stronger glow
+                alpha = max(0, int(220 * (1 - dist**1.5) * brightness_mod))
+                # Only draw if visible
+                if alpha > 0:
+                    pygame.draw.line(
+                        glow_surf, 
+                        (min(255, r+50), min(255, g+50), min(255, b+50), alpha),
+                        (0, y), 
+                        (line_length, y)
+                    )
+            
+            # Draw random energy particles along the beam for added effect
+            for _ in range(5):
+                if random.random() < 0.7:
+                    particle_x = random.randint(0, line_length - 20)
+                    particle_y = random.randint(0, glow_height-1)
+                    particle_size = random.randint(2, 5)
+                    particle_alpha = random.randint(150, 230)
+                    pygame.draw.circle(
+                        glow_surf,
+                        (230, 255, 230, particle_alpha),
+                        (particle_x, particle_y),
+                        particle_size
+                    )
+            
+            # Blit glow (centered on laser line)
+            glow_y = y_pos - (glow_height - self.laser_height) // 2
+            self.image.blit(glow_surf, (0, glow_y), special_flags=pygame.BLEND_RGBA_ADD)
 
     def update(self) -> None:
         """Update the beam's lifetime and animation."""
         # Reduce lifetime
         self.lifetime -= 1
         
-        # Animate pulse effect
-        self.pulse_offset += 0.2
-        self._draw_beam(self.beam_length, self.beam_height, self.beam_r, self.beam_g, self.beam_b)
+        # Update animation
+        self.animation_offset += self.animation_speed
+        self.pulse_offset += 0.3
+        
+        # Redraw the laser lines with updated animation
+        self._draw_laser_lines()
         
         # Fade out near end of life
-        if self.lifetime < 10:
-            alpha = int(255 * (self.lifetime / 10.0))
+        if self.lifetime < 15:
+            alpha = int(255 * (self.lifetime / 15.0))
             self.image.set_alpha(alpha)
         
         # Remove when lifetime ends
