@@ -25,10 +25,14 @@ PLAYFIELD_BOTTOM_Y: int = SCREEN_HEIGHT - 75
 FPS: int = 60
 
 # Player settings
-PLAYER_SPEED: float = 5.0
+PLAYER_SPEED: float = 4.0
 PLAYER_SHOOT_DELAY: int = 200  # milliseconds
 PLAYER_SCALE_FACTOR: float = 0.25
 PLAYER_ANIMATION_SPEED_MS: int = 75  # Milliseconds per frame
+
+# Bullet settings
+BULLET_SPEED: float = 10.0
+BULLET_SIZE: Tuple[int, int] = (10, 4)
 
 # Enemy settings
 ENEMY_SPAWN_RATE: int = 1000  # milliseconds

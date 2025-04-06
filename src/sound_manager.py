@@ -1,165 +1,199 @@
-"""Sound management and playback system for the game."""
+"""Sound manager for the game."""
 
-import os
 import pygame
-import random
-from typing import Dict, Optional
-from config.game_config import SOUNDS_DIR, MUSIC_DIR, DEFAULT_SOUND_VOLUME, DEFAULT_MUSIC_VOLUME
+import os
+from typing import Dict, Optional, Tuple, Any
+
+from config.game_config import SOUNDS_DIR, DEFAULT_SOUND_VOLUME, MUSIC_DIR
 from src.logger import get_logger
 
 # Get a logger for this module
 logger = get_logger(__name__)
 
 class SoundManager:
-    """Manages loading, caching, and playing game sound effects and music."""
+    """Manages game sound effects and music."""
     
-    def __init__(self):
-        """Initialize the sound manager and load sounds."""
-        # Initialize the mixer with good settings for modern hardware
-        pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=512)
-        
-        # Dictionary to cache loaded sounds
-        self.sounds: Dict[str, pygame.mixer.Sound] = {}
-        
-        # Sound effects channels
-        self.channels = {
-            'player': pygame.mixer.Channel(0),  # Player weapons and effects
-            'enemy': pygame.mixer.Channel(1),   # Enemy sounds
-            'explosion': pygame.mixer.Channel(2), # Explosion sounds
-            'powerup': pygame.mixer.Channel(3),  # Powerup sounds
-            'ui': pygame.mixer.Channel(4)        # UI feedback sounds
+    def __init__(self) -> None:
+        """Initialize the sound manager."""
+        # Dictionary to store loaded sounds
+        self.sounds: Dict[str, Dict[str, pygame.mixer.Sound]] = {
+            "player": {},
+            "enemy": {}
         }
         
-        # Set volume levels for channels
-        for channel in self.channels.values():
-            channel.set_volume(0.5)  # Default volume for all channels
+        # Ensure pygame mixer is initialized
+        if not pygame.mixer.get_init():
+            pygame.mixer.init()
         
-        # Sound-specific volume settings - applied during sound loading
-        self.sound_volume_settings = {
-            'laser': 0.1,  # Very low volume for laser sound
-            'explosion1': 0.5,
-            'explosion2': 0.5,
-            'hit1': 0.5,
-            'powerup1': 0.5
-        }
+        # Create sounds directory if it doesn't exist
+        os.makedirs(SOUNDS_DIR, exist_ok=True)
         
-        # Current music track
-        self.current_music: Optional[str] = None
-        self.music_volume: float = 0.5  # Default music volume
+        # Current volume settings - these must be set BEFORE loading sounds
+        self.volume = DEFAULT_SOUND_VOLUME
+        self.music_volume = DEFAULT_SOUND_VOLUME
+        self.current_music = None
         
-        # Load sounds if they exist
+        # Load sound effects
         self._load_sounds()
+        
+    def _load_sounds(self) -> None:
+        """Load all sound files into memory."""
+        # Create silent fallbacks for all required sounds
+        self._create_silent_sound("laser", "player")
+        self._create_silent_sound("explosion1", "player")
+        self._create_silent_sound("hit1", "player")
+        self._create_silent_sound("powerup", "player")
+        
+        self._create_silent_sound("laser", "enemy")
+        self._create_silent_sound("explosion2", "enemy")
+        self._create_silent_sound("powerup", "enemy")  # Add enemy powerup sound
+        
+        # Try to load actual sound files - use .ogg files since that's what we have
+        self._try_load_sound("laser", "laser1.ogg", "player")
+        self._try_load_sound("explosion1", "explosion1.ogg", "player")
+        self._try_load_sound("hit1", "hit1.ogg", "player")
+        self._try_load_sound("powerup", "powerup1.ogg", "player")
+        
+        # Use player powerup sound for enemy too
+        self._try_load_sound("laser", "laser2.ogg", "enemy")
+        self._try_load_sound("explosion2", "explosion2.ogg", "enemy")
+        self._try_load_sound("powerup", "powerup1.ogg", "enemy")
     
-    def _load_sounds(self):
-        """Load sound files from the sounds directory."""
-        if not os.path.exists(SOUNDS_DIR):
-            print(f"Warning: Sounds directory not found at {SOUNDS_DIR}")
+    def _create_silent_sound(self, name: str, category: str) -> None:
+        """Create a silent sound as a fallback.
+        
+        Args:
+            name: Reference name for the sound
+            category: Category the sound belongs to
+        """
+        try:
+            # Create a silent sound (1 second of silence)
+            # Use a buffer with proper format for pygame: 44100Hz, 16-bit, mono
+            buffer_size = 44100 * 2  # 1 second of 16-bit mono audio
+            silence_buffer = bytearray(buffer_size)
+            silent_sound = pygame.mixer.Sound(buffer=bytes(silence_buffer))
+            silent_sound.set_volume(0.01)  # Set to very low volume instead of zero
+            self.sounds[category][name] = silent_sound
+            logger.debug(f"Created silent fallback for {category}/{name}")
+        except Exception as e:
+            logger.error(f"Failed to create silent sound: {e}")
+            # Create the smallest possible sound buffer as last resort
+            try:
+                minimal_buffer = bytearray(32)  # Smallest possible buffer
+                minimal_sound = pygame.mixer.Sound(buffer=bytes(minimal_buffer))
+                minimal_sound.set_volume(0)  # Mute it completely
+                self.sounds[category][name] = minimal_sound
+                logger.debug(f"Created minimal fallback for {category}/{name}")
+            except Exception as e2:
+                logger.error(f"Failed to create even minimal sound: {e2}")
+                # If we really can't create any sound, log it but don't crash
+    
+    def _try_load_sound(self, name: str, filename: str, category: str = "player") -> None:
+        """Try to load a sound file, using fallback if it doesn't exist.
+        
+        Args:
+            name: Reference name for the sound
+            filename: Filename of the sound file
+            category: Category the sound belongs to
+        """
+        # First try the exact filename
+        sound_path = os.path.join(SOUNDS_DIR, filename)
+        
+        # If not found, try with .ogg extension (many sound files are in .ogg format)
+        if not os.path.exists(sound_path):
+            # Get the filename without extension
+            basename = os.path.splitext(filename)[0]
+            ogg_filename = f"{basename}.ogg"
+            ogg_path = os.path.join(SOUNDS_DIR, ogg_filename)
+            
+            if os.path.exists(ogg_path):
+                sound_path = ogg_path
+                logger.info(f"Using OGG version of sound: {ogg_filename}")
+            else:
+                logger.warning(f"Sound file not found: {sound_path} or {ogg_path} - using silent fallback")
+                return
+            
+        try:
+            sound = pygame.mixer.Sound(sound_path)
+            # Set volume higher for sound effects to make them more audible
+            sound.set_volume(self.volume * 1.5)  # Increased volume for better audibility
+            self.sounds[category][name] = sound
+            logger.debug(f"Loaded sound: {os.path.basename(sound_path)} as {category}/{name}")
+        except pygame.error as e:
+            logger.error(f"Failed to load sound {filename}: {e} - using silent fallback")
+            
+    def play(self, name: str, category: str = "player") -> None:
+        """Play a sound effect.
+        
+        Args:
+            name: Name of the sound to play
+            category: Category the sound belongs to
+        """
+        # First make sure the category exists
+        if category not in self.sounds:
+            logger.warning(f"Sound category {category} not found")
             return
             
-        for filename in os.listdir(SOUNDS_DIR):
-            if filename.endswith(('.ogg', '.wav')):
+        # Check if the sound exists and is not None
+        if name in self.sounds[category] and self.sounds[category][name] is not None:
+            try:
+                # Temporarily boost volume for this play
+                current_volume = self.sounds[category][name].get_volume()
+                # Make sure laser sounds are much quieter
+                if name == "laser":
+                    self.sounds[category][name].set_volume(current_volume * 0.3)  # Reduced to 30% of current volume
+                else:
+                    self.sounds[category][name].set_volume(min(1.0, current_volume * 1.5))
+                    
+                self.sounds[category][name].play()
+                
+                # Reset to original volume after a short delay (we'll let mixer handle this)
+                return
+            except pygame.error as e:
+                logger.error(f"Failed to play sound {category}/{name}: {e}")
+                # Continue to try fallbacks
+        
+        # If we get here, either the sound doesn't exist or playing it failed
+        # Try to use a fallback
+        fallbacks = {
+            "powerup": "hit1",
+            "shield": "powerup",
+            "beam": "laser",
+            "scatter": "explosion1"
+        }
+        
+        # Check if we have a fallback
+        if name in fallbacks:
+            fallback_name = fallbacks[name]
+            if fallback_name in self.sounds[category] and self.sounds[category][fallback_name] is not None:
                 try:
-                    sound_path = os.path.join(SOUNDS_DIR, filename)
-                    sound_name = os.path.splitext(filename)[0]
-                    
-                    # Special case for laser1/2/3 - map them all to "laser"
-                    if sound_name in ['laser1', 'laser2', 'laser3']:
-                        sound_name = 'laser'
-                        # Only load once
-                        if 'laser' in self.sounds:
-                            continue
-                    
-                    # Load the sound
-                    self.sounds[sound_name] = pygame.mixer.Sound(sound_path)
-                    
-                    # Apply sound-specific volume if defined
-                    if sound_name in self.sound_volume_settings:
-                        self.sounds[sound_name].set_volume(self.sound_volume_settings[sound_name])
-                    
-                    print(f"Loaded sound: {sound_name}")
+                    self.sounds[category][fallback_name].play()
+                    logger.debug(f"Used fallback sound {fallback_name} for {name}")
+                    return
                 except pygame.error as e:
-                    print(f"Error loading sound {filename}: {e}")
-    
-    def play(self, sound_name: str, channel_name: str = 'player') -> bool:
-        """
-        Play a sound on the specified channel.
+                    logger.error(f"Failed to play fallback sound {category}/{fallback_name}: {e}")
         
-        Args:
-            sound_name: Name of the sound file (without extension)
-            channel_name: Name of the channel to play on
+        logger.warning(f"Sound {category}/{name} not found and no fallback available")
             
-        Returns:
-            bool: True if the sound played successfully, False otherwise
-        """
-        # Map laser1/2/3 to just "laser"
-        if sound_name in ['laser1', 'laser2', 'laser3']:
-            sound_name = 'laser'
-            
-        if sound_name not in self.sounds:
-            # Check if we have a generated sound
-            if sound_name.startswith('gen_'):
-                return False  # For now, we'll handle generated sounds separately
-            print(f"Warning: Sound '{sound_name}' not found")
-            return False
-            
-        if channel_name not in self.channels:
-            print(f"Warning: Channel '{channel_name}' not found")
-            return False
-            
-        # Just play the sound - volume is already set on the Sound object
-        self.channels[channel_name].play(self.sounds[sound_name])
-        return True
-    
-    def stop_all(self):
-        """Stop all playing sounds."""
-        pygame.mixer.stop()
-    
-    def stop_channel(self, channel_name: str):
-        """Stop sounds on a specific channel."""
-        if channel_name in self.channels:
-            self.channels[channel_name].stop()
-    
-    def set_volume(self, volume: float, channel_name: Optional[str] = None):
-        """
-        Set volume level for all channels or a specific channel.
+    def set_volume(self, volume: float) -> None:
+        """Set the volume for all sounds.
         
         Args:
             volume: Volume level (0.0 to 1.0)
-            channel_name: Channel to adjust or None for all channels
         """
-        volume = max(0.0, min(1.0, volume))  # Clamp between 0 and 1
+        # Clamp volume to valid range
+        self.volume = max(0.0, min(1.0, volume))
         
-        if channel_name is None:
-            # Set volume for all channels
-            for channel in self.channels.values():
-                channel.set_volume(volume)
-        elif channel_name in self.channels:
-            self.channels[channel_name].set_volume(volume)
-        else:
-            print(f"Warning: Channel '{channel_name}' not found")
+        # Update all loaded sounds
+        for category in self.sounds:
+            for sound in self.sounds[category].values():
+                sound.set_volume(self.volume)
     
-    def set_sound_volume(self, sound_name: str, volume: float):
-        """
-        Set volume for a specific sound.
-        
-        Args:
-            sound_name: Name of the sound
-            volume: Volume level (0.0 to 1.0)
-        """
-        if sound_name in self.sounds:
-            volume = max(0.0, min(1.0, volume))  # Clamp between 0 and 1
-            self.sounds[sound_name].set_volume(volume)
-            # Update the setting for future reference
-            self.sound_volume_settings[sound_name] = volume
-        else:
-            print(f"Warning: Sound '{sound_name}' not found")
-        
     def play_music(self, music_name: str, loops: int = -1, fade_ms: int = 1000) -> bool:
-        """
-        Play background music.
+        """Play background music.
         
         Args:
-            music_name: Filename (with extension) of the music file in the music directory
+            music_name: Filename of the music file
             loops: Number of times to repeat (-1 = infinite loop)
             fade_ms: Fade-in time in milliseconds
             
@@ -168,12 +202,15 @@ class SoundManager:
         """
         if not music_name:
             return False
+        
+        # Create music directory if it doesn't exist
+        os.makedirs(MUSIC_DIR, exist_ok=True)
             
         # Build the full path to the music file
         music_path = os.path.join(MUSIC_DIR, music_name)
         
         if not os.path.exists(music_path):
-            print(f"Warning: Music file not found: {music_path}")
+            logger.warning(f"Music file not found: {music_path}")
             return False
             
         try:
@@ -186,26 +223,14 @@ class SoundManager:
             pygame.mixer.music.play(loops=loops, fade_ms=fade_ms)
             
             self.current_music = music_name
-            print(f"Playing music: {music_name}")
+            logger.info(f"Playing music: {music_name}")
             return True
         except pygame.error as e:
-            print(f"Error playing music {music_name}: {e}")
+            logger.error(f"Error playing music {music_name}: {e}")
             return False
     
-    def stop_music(self, fade_ms: int = 1000):
-        """
-        Stop the currently playing music with a fade-out.
-        
-        Args:
-            fade_ms: Fade-out time in milliseconds
-        """
-        if pygame.mixer.music.get_busy():
-            pygame.mixer.music.fadeout(fade_ms)
-            self.current_music = None
-    
-    def set_music_volume(self, volume: float):
-        """
-        Set the volume level for music.
+    def set_music_volume(self, volume: float) -> None:
+        """Set the volume level for music.
         
         Args:
             volume: Volume level (0.0 to 1.0)
@@ -213,11 +238,21 @@ class SoundManager:
         self.music_volume = max(0.0, min(1.0, volume))  # Clamp between 0 and 1
         pygame.mixer.music.set_volume(self.music_volume)
     
-    def pause_music(self):
+    def pause_music(self) -> None:
         """Pause the currently playing music."""
         if pygame.mixer.music.get_busy():
             pygame.mixer.music.pause()
     
-    def unpause_music(self):
+    def unpause_music(self) -> None:
         """Unpause the currently paused music."""
-        pygame.mixer.music.unpause() 
+        pygame.mixer.music.unpause()
+    
+    def stop_music(self, fade_ms: int = 1000) -> None:
+        """Stop the currently playing music with a fade-out.
+        
+        Args:
+            fade_ms: Fade-out time in milliseconds
+        """
+        if pygame.mixer.music.get_busy():
+            pygame.mixer.music.fadeout(fade_ms)
+            self.current_music = None 

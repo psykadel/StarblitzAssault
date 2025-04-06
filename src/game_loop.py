@@ -18,6 +18,7 @@ from src.border import Border
 from src.explosion import Explosion # Import the Explosion class
 from src.power_particles import PowerParticleSystem # Import the power particles system
 from src.particle import Particle
+from src.powerup import PowerupParticle  # Import PowerupParticle for text notifications
 
 # Import config variables
 from config.game_config import (
@@ -68,6 +69,75 @@ PATTERN_VERTICAL = PatternType.VERTICAL
 PATTERN_HORIZONTAL = PatternType.HORIZONTAL
 PATTERN_DIAGONAL = PatternType.DIAGONAL
 PATTERN_V_FORMATION = PatternType.V_FORMATION
+
+# Text notification for powerups
+class PowerupNotification(pygame.sprite.Sprite):
+    """Animated text notification for powerup collection."""
+    
+    def __init__(self, text: str, color: Tuple[int, int, int], position: Tuple[int, int], *groups) -> None:
+        """Initialize a new text notification.
+        
+        Args:
+            text: The text to display
+            color: RGB color tuple for the text
+            position: Starting position (x, y)
+            groups: Sprite groups to add to
+        """
+        super().__init__(*groups)
+        
+        # Text properties
+        self.font = pygame.font.SysFont(None, 36)  # Larger font for better visibility
+        self.text = text
+        self.color = color
+        self.alpha = 255  # Start fully opaque
+        
+        # Create the initial text image with an outline for better visibility
+        self.original_surface = self.font.render(self.text, True, self.color)
+        
+        # Create a slightly larger surface with black outline
+        outline_size = 2
+        self.image = pygame.Surface((self.original_surface.get_width() + outline_size*2, 
+                                     self.original_surface.get_height() + outline_size*2), 
+                                     pygame.SRCALPHA)
+        
+        # Draw black outline
+        outline_surface = self.font.render(self.text, True, (0, 0, 0))
+        for dx in range(-outline_size, outline_size+1):
+            for dy in range(-outline_size, outline_size+1):
+                if dx != 0 or dy != 0:
+                    self.image.blit(outline_surface, (outline_size + dx, outline_size + dy))
+        
+        # Draw actual text on top
+        self.image.blit(self.original_surface, (outline_size, outline_size))
+        
+        self.rect = self.image.get_rect(center=position)
+        
+        # Movement and animation
+        self.pos_y = float(position[1])
+        self.speed_y = -1.5  # Move upward slightly faster
+        self.lifetime = 90  # 1.5 seconds at 60fps
+        self.age = 0
+        
+    def update(self) -> None:
+        """Update the notification's position and appearance."""
+        self.age += 1
+        if self.age >= self.lifetime:
+            self.kill()
+            return
+            
+        # Move upward
+        self.pos_y += self.speed_y
+        self.rect.centery = round(self.pos_y)
+        
+        # Fade out gradually
+        if self.age > self.lifetime * 0.5:  # Start fading halfway through lifetime
+            fade_progress = (self.age - (self.lifetime * 0.5)) / (self.lifetime * 0.5)
+            self.alpha = int(255 * (1 - fade_progress))
+            
+            # Create a new surface with the updated alpha
+            new_image = self.image.copy()
+            new_image.set_alpha(self.alpha)
+            self.image = new_image
 
 class Game:
     """Main game class managing the game loop, state, and events."""
@@ -181,9 +251,11 @@ class Game:
         self.enemy_bullets = pygame.sprite.Group() # Group for enemy bullets
         self.explosions = pygame.sprite.Group() # Group for explosion effects
         self.particles = pygame.sprite.Group() # Group for particles
+        self.powerups = pygame.sprite.Group()  # Group for powerups
+        self.notifications = pygame.sprite.Group()  # Group for text notifications
 
         # Initialize game components
-        self.player = Player(self.bullets, self.all_sprites)
+        self.player = Player(self.bullets, self.all_sprites, game_ref=self)
         # self.level_manager = LevelManager() # Not used yet
 
         # Load the game logo
@@ -245,8 +317,18 @@ class Game:
         self.score_font = pygame.font.SysFont(None, DEFAULT_FONT_SIZE)
         self.previous_player_power = self.player.power_level
 
+        # Powerup system
+        self.powerup_timer = 0
+        self.powerup_spawn_interval = 45000  # 45 seconds between powerups (was 15000)
+        self.last_powerup_time = pygame.time.get_ticks()
+        
+        # Don't spawn a powerup immediately
+        self.last_powerup_time = pygame.time.get_ticks() + 10000  # 10 second initial delay
+
     def run(self):
         """Starts and manages the main game loop."""
+        # No longer force spawn a powerup at start
+        
         while self.is_running:
             # Check for window resize events (optional but good for resizable window) - REMOVED
             # self.handle_resize()
@@ -321,6 +403,22 @@ class Game:
                     for i, enemy in enumerate(enemies):
                         enemy.topleft = (x_pos, PLAYFIELD_TOP_Y + (i + 1) * y_spacing)
                         
+                elif event.key == pygame.K_p:
+                    # Test mode - spawn all powerup types
+                    logger.info("Test mode - spawning all powerup types")
+                    
+                    # Spawn position - staggered offscreen
+                    y_spacing = (PLAYFIELD_BOTTOM_Y - PLAYFIELD_TOP_Y) / 10
+                    
+                    # Spawn one of each powerup type
+                    for i in range(9):  # 9 powerup types (0-8)
+                        # Spawn position staggered from top to bottom and right to left
+                        x_pos = SCREEN_WIDTH + 20 + (i * 40)  # Stagger right to left 
+                        y_pos = PLAYFIELD_TOP_Y + (i + 1) * y_spacing
+                        
+                        # Spawn the powerup
+                        self._spawn_powerup_of_type(i, x_pos, y_pos)
+                
             elif event.type == pygame.KEYUP:
                 if event.key == pygame.K_SPACE:
                     self.player.stop_firing()
@@ -740,14 +838,20 @@ class Game:
         current_time = pygame.time.get_ticks()
         if self.player.is_firing and current_time - self.last_laser_sound_time > PLAYER_SHOOT_DELAY:
             # Play laser sound when the player fires
-            self.sound_manager.play("laser", "player")
-            self.last_laser_sound_time = current_time
+            try:
+                self.sound_manager.play("laser", "player")
+                self.last_laser_sound_time = current_time
+            except Exception as e:
+                logger.warning(f"Failed to play laser sound: {e}")
             
         # Check for new enemy bullets by comparing counts
         current_enemy_bullet_count = len(self.enemy_bullets)
         if current_enemy_bullet_count > self.previous_enemy_bullet_count:
             # New enemy bullets were created
-            self.sound_manager.play("laser", "enemy")
+            try:
+                self.sound_manager.play("laser", "enemy")
+            except Exception as e:
+                logger.warning(f"Failed to play enemy laser sound: {e}")
         self.previous_enemy_bullet_count = current_enemy_bullet_count
         
         # Update background layers
@@ -766,13 +870,118 @@ class Game:
         self.enemy_bullets.update()
         self.explosions.update() # Update explosion animations
         self.particles.update() # Update particles
-        # self.level_manager.update() # Update level/spawn enemies later
+        self.powerups.update() # Update powerups
+        self.notifications.update() # Update text notifications
+        
+        # Check if it's time to spawn a powerup
+        self._check_powerup_spawn()
+        
+        # Apply time warp effect if active
+        if self.player.has_time_warp:
+            # Slow down enemies
+            for enemy in self.enemies:
+                if hasattr(enemy, 'speed_x'):
+                    # Preserve original speed on first application
+                    if not hasattr(enemy, 'original_speed_x'):
+                        enemy.original_speed_x = enemy.speed_x
+                        enemy.original_speed_y = getattr(enemy, 'speed_y', 0)
+                    
+                    # Apply slow effect (50% speed)
+                    enemy.speed_x = enemy.original_speed_x * 0.5
+                    if hasattr(enemy, 'speed_y'):
+                        enemy.speed_y = enemy.original_speed_y * 0.5
+            
+            # Slow down enemy bullets
+            for bullet in self.enemy_bullets:
+                if hasattr(bullet, 'velocity'):
+                    # Preserve original velocity on first application
+                    if not hasattr(bullet, 'original_velocity'):
+                        bullet.original_velocity = bullet.velocity
+                    
+                    # Apply slow effect (50% speed)
+                    bullet.velocity = (
+                        bullet.original_velocity[0] * 0.5,
+                        bullet.original_velocity[1] * 0.5
+                    )
+                elif hasattr(bullet, 'velocity_x'):
+                    # Preserve original velocity components on first application
+                    if not hasattr(bullet, 'original_velocity_x'):
+                        bullet.original_velocity_x = bullet.velocity_x
+                        bullet.original_velocity_y = bullet.velocity_y
+                    
+                    # Apply slow effect (50% speed)
+                    bullet.velocity_x = bullet.original_velocity_x * 0.5
+                    bullet.velocity_y = bullet.original_velocity_y * 0.5
+        else:
+            # Restore original speeds if time warp just ended
+            for enemy in self.enemies:
+                if hasattr(enemy, 'original_speed_x'):
+                    enemy.speed_x = enemy.original_speed_x
+                    if hasattr(enemy, 'original_speed_y'):
+                        enemy.speed_y = enemy.original_speed_y
+            
+            # Restore enemy bullet speeds
+            for bullet in self.enemy_bullets:
+                if hasattr(bullet, 'original_velocity'):
+                    bullet.velocity = bullet.original_velocity
+                elif hasattr(bullet, 'original_velocity_x'):
+                    bullet.velocity_x = bullet.original_velocity_x
+                    bullet.velocity_y = bullet.original_velocity_y
 
         # Check for collisions
         self._handle_collisions()
 
-        # Check for game over conditions later
-        pass
+    def _check_powerup_spawn(self):
+        """Check if it's time to spawn a powerup."""
+        current_time = pygame.time.get_ticks()
+        if current_time - self.last_powerup_time > self.powerup_spawn_interval:
+            self.last_powerup_time = current_time
+            self._spawn_powerup()
+    
+    def _spawn_powerup(self):
+        """Spawn a random powerup."""
+        # Choose a random powerup type
+        powerup_type = random.randint(0, 8)
+        
+        # Choose a spawn position just off the right side of the screen 
+        # at a random height within the play field
+        x = SCREEN_WIDTH + 20  # Spawn off-screen to the right
+        y = random.randint(PLAYFIELD_TOP_Y + 50, PLAYFIELD_BOTTOM_Y - 50)
+        
+        # Import here to avoid circular imports
+        from src.powerup_types import create_powerup
+        
+        # Create the powerup
+        powerup = create_powerup(
+            powerup_type, x, y,
+            self.all_sprites, self.powerups,
+            particles_group=self.particles,
+            game_ref=self  # Pass game reference to powerup
+        )
+        
+        
+        logger.info(f"Spawned powerup of type {powerup.type_name} at position ({x}, {y})")
+
+    def _spawn_powerup_of_type(self, powerup_type: int, x: float, y: float) -> None:
+        """Spawn a powerup of a specific type at a specified position.
+        
+        Args:
+            powerup_type: Type of powerup to spawn (0-8)
+            x: X-coordinate for spawn position
+            y: Y-coordinate for spawn position
+        """
+        # Import here to avoid circular imports
+        from src.powerup_types import create_powerup
+        
+        # Create the powerup
+        powerup = create_powerup(
+            powerup_type, x, y,
+            self.all_sprites, self.powerups,
+            particles_group=self.particles,
+            game_ref=self  # Pass game reference to powerup
+        )
+        
+        logger.info(f"Spawned powerup of type {powerup.type_name} at position ({x}, {y})")
 
     def _handle_collisions(self):
         """Checks and handles collisions between game objects."""
@@ -795,16 +1004,65 @@ class Game:
             else:
                 self.score += 100  # Basic enemy
                 
-            # Play enemy explosion sound
-            self.sound_manager.play("explosion2", "enemy")
+            # Play enemy explosion sound - use try/except to handle any missing sounds
+            try:
+                self.sound_manager.play("explosion2", "enemy")
+            except Exception as e:
+                logger.warning(f"Failed to play explosion sound: {e}")
+                
             # Create explosion at enemy position
             explosion_size = (50, 50)  # Size for enemy explosion
             Explosion(enemy.rect.center, explosion_size, "enemy", self.explosions, particles_group=self.particles)
             logger.debug(f"Enemy destroyed at {enemy.rect.center}")
+            
+            # Much smaller chance to spawn a powerup when enemy is destroyed (5% chance, was 25%)
+            if random.random() < 0.05:
+                self._spawn_powerup()
 
         # Skip collision handling if player is not alive
         if not self.player.is_alive:
             return
+
+        # Collision: Player vs Powerups
+        powerup_hits = pygame.sprite.spritecollide(self.player, self.powerups, True, pygame.sprite.collide_mask)
+        for powerup in powerup_hits:
+            # Apply the powerup effect
+            powerup.apply_effect(self.player)
+            
+            # Play powerup sound - use try/except to handle any missing sounds
+            try:
+                self.sound_manager.play("powerup", "player")
+            except Exception as e:
+                logger.warning(f"Failed to play powerup sound: {e}")
+            
+            # Create a notification of what powerup was collected
+            # Get color based on powerup type
+            colors = [
+                (255, 220, 0),    # TRIPLE_SHOT: Golden
+                (0, 255, 255),    # RAPID_FIRE: Cyan
+                (0, 100, 255),    # SHIELD: Blue
+                (255, 0, 255),    # HOMING_MISSILES: Magenta
+                (255, 255, 255),  # PULSE_BEAM: White
+                (0, 255, 0),      # POWER_RESTORE: Green
+                (255, 128, 0),    # SCATTER_BOMB: Orange
+                (128, 0, 255),    # TIME_WARP: Purple
+                (255, 0, 128),    # MEGA_BLAST: Pink
+            ]
+            color = colors[powerup.powerup_type % len(colors)]
+            
+            # Format the powerup name nicely (remove underscores, title case)
+            powerup_name = powerup.type_name.replace("_", " ").title()
+            
+            # Create the notification
+            notification = PowerupNotification(
+                f"{powerup_name}!", 
+                color, 
+                (self.player.rect.centerx + 50, self.player.rect.centery - 30),  # Position near player
+                self.all_sprites,  # Add to all_sprites so it renders correctly
+                self.notifications
+            )
+            
+            logger.info(f"Player collected {powerup.type_name} powerup")
 
         # We'll still detect collisions but damage handling is in take_damage
         # which checks for invincibility
@@ -817,14 +1075,22 @@ class Game:
         if enemy_hits:
             # Play player explosion sound for each enemy hit
             for enemy in enemy_hits:
-                self.sound_manager.play("explosion2", "enemy")
+                try:
+                    self.sound_manager.play("explosion2", "enemy")
+                except Exception as e:
+                    logger.warning(f"Failed to play explosion sound: {e}")
+                    
                 # Create explosion at enemy position
                 explosion_size = (50, 50)
                 Explosion(enemy.rect.center, explosion_size, "enemy", self.explosions, particles_group=self.particles)
                 logger.debug(f"Enemy destroyed by collision at {enemy.rect.center}")
                 
             # Play hit sound for player
-            self.sound_manager.play("hit1", "player")
+            try:
+                self.sound_manager.play("hit1", "player")
+            except Exception as e:
+                logger.warning(f"Failed to play hit sound: {e}")
+                
             logger.warning("Player hit by enemy!")
             # Apply damage to player
             player_alive = self.player.take_damage()
@@ -846,7 +1112,10 @@ class Game:
                 )
             
             # Play hit sound
-            self.sound_manager.play("hit1", "player")
+            try:
+                self.sound_manager.play("hit1", "player")
+            except Exception as e:
+                logger.warning(f"Failed to play hit sound: {e}")
             
             # Check for game over
             if not player_survived:
@@ -872,6 +1141,14 @@ class Game:
         self.explosions.draw(self.screen)
         # Draw particles
         self.particles.draw(self.screen)
+        # Draw powerups
+        self.powerups.draw(self.screen)
+        # Draw text notifications
+        self.notifications.draw(self.screen)
+        
+        # Use player's custom draw method for shield and other visuals
+        if self.player.is_alive:
+            self.player.draw(self.screen)
         
         # Fill any gaps at screen edges with black to ensure borders are flush
         pygame.draw.rect(self.screen, BLACK, (0, 0, SCREEN_WIDTH, PLAYFIELD_TOP_Y))
@@ -884,6 +1161,9 @@ class Game:
         # Draw custom power bar
         if self.player.is_alive:
             self._draw_power_bar()
+            
+            # Draw powerup icons
+            self.player.draw_powerup_icons(self.screen)
             
             # Check if we should emit power change particles
             if self.player.should_emit_particles():
@@ -1060,13 +1340,15 @@ class Game:
         self.enemy_bullets.empty()
         self.explosions.empty()
         self.particles.empty()
+        self.powerups.empty()
+        self.notifications.empty()
         
         # Reset game timers
         pygame.time.set_timer(pygame.USEREVENT, 0)  # Disable any pending timers
         pygame.time.set_timer(WAVE_TIMER_EVENT, WAVE_DELAY_MS)  # Reset wave timer
         
         # Re-initialize player
-        self.player = Player(self.bullets, self.all_sprites)
+        self.player = Player(self.bullets, self.all_sprites, game_ref=self)
         self.previous_player_power = self.player.power_level
         self.last_laser_sound_time = 0
         self.previous_enemy_bullet_count = 0
@@ -1077,3 +1359,9 @@ class Game:
         src.enemy.ENEMY_SHOOTER_COOLDOWN_MS = ENEMY_SHOOTER_COOLDOWN_MS  # Reset to default
         
         logger.info("Game reset - starting new game")
+
+    def _preload_sounds(self):
+        """Preload sound effects."""
+        # These sounds don't need to be explicitly preloaded anymore
+        # as the SoundManager handles fallbacks gracefully
+        pass
