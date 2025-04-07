@@ -652,6 +652,9 @@ class Game:
         # Apply difficulty-based speed modifier
         speed_modifier = 1.0 + (self.difficulty_level - 1) * 0.15  # Increased from 0.1 to 0.15 (15% per level)
         
+        # Define border margin to keep enemies away from borders
+        border_margin = 50  # Pixels to keep away from top/bottom playfield borders
+        
         if pattern_type == PATTERN_VERTICAL:
             # Vertical formation - enemies in a vertical line
             # Calculate spacing based on playfield height and enemy count
@@ -692,14 +695,18 @@ class Game:
         # Calculate the playfield height for spacing
         playfield_height = PLAYFIELD_BOTTOM_Y - PLAYFIELD_TOP_Y
         
+        # Apply border margin to prevent spawning too close to borders
+        border_margin = 50
+        usable_height = playfield_height - (2 * border_margin)
+        
         # Fixed enemy height estimate
         enemy_height = 40
         
         # Total pattern height
         total_height = (count - 1) * spacing_y + enemy_height
         
-        # Center the pattern vertically
-        start_y = PLAYFIELD_TOP_Y + (playfield_height - total_height) // 2
+        # Center the pattern vertically within the usable area
+        start_y = PLAYFIELD_TOP_Y + border_margin + (usable_height - total_height) // 2
         
         # Fixed horizontal offset past right edge
         x_pos = SCREEN_WIDTH + 50
@@ -776,8 +783,14 @@ class Game:
         # Spacing between enemies horizontally
         spacing_x = 60
         
-        # Center the pattern vertically in the playfield
-        y_pos = (PLAYFIELD_TOP_Y + PLAYFIELD_BOTTOM_Y) // 2
+        # Apply border margin to prevent spawning too close to borders
+        border_margin = 50
+        
+        # Center the pattern vertically in the playfield with border margin
+        playfield_center_y = (PLAYFIELD_TOP_Y + PLAYFIELD_BOTTOM_Y) // 2
+        # Adjust center position if too close to borders
+        y_pos = max(PLAYFIELD_TOP_Y + border_margin, 
+                   min(PLAYFIELD_BOTTOM_Y - border_margin, playfield_center_y))
         
         # Base horizontal position
         base_x = SCREEN_WIDTH + 50
@@ -855,18 +868,20 @@ class Game:
         spacing_x = 50
         spacing_y = 50
         
-        # Start position (top of playfield)
+        # Apply border margin to prevent spawning too close to borders
+        border_margin = 50
+        
+        # Start position (respecting top margin)
         start_x = SCREEN_WIDTH + 50
+        start_y = PLAYFIELD_TOP_Y + border_margin
         
         # Adjust start_y based on count to keep the pattern within the playfield
-        available_height = PLAYFIELD_BOTTOM_Y - PLAYFIELD_TOP_Y - 40 # 40 is enemy height estimate
+        available_height = PLAYFIELD_BOTTOM_Y - PLAYFIELD_TOP_Y - (2 * border_margin) - 40  # 40 is enemy height estimate
         max_drop = (count - 1) * spacing_y
         
         if max_drop > available_height:
-            # Scale down spacing to fit
+            # Scale down spacing to fit within available height with margins
             spacing_y = available_height / (count - 1) if count > 1 else 0
-        
-        start_y = PLAYFIELD_TOP_Y + 20 # Start near top with a small margin
         
         # Create the enemies
         for i in range(count):
@@ -947,11 +962,19 @@ class Game:
         
         # Spacing between enemies
         spacing_x = 40
-        spacing_y = 40
         
-        # Center position
+        # Apply border margin to prevent spawning too close to borders
+        border_margin = 50
+        playfield_height = PLAYFIELD_BOTTOM_Y - PLAYFIELD_TOP_Y - (2 * border_margin)
+        
+        # Calculate maximum safe spacing to stay within borders
+        max_enemies_from_center = center_index
+        max_safe_spacing = playfield_height / (2 * max_enemies_from_center) if max_enemies_from_center > 0 else 40
+        spacing_y = min(40, max_safe_spacing)  # Use smaller of default or safe spacing
+        
+        # Center position with border margin
         center_x = SCREEN_WIDTH + 50
-        center_y = (PLAYFIELD_TOP_Y + PLAYFIELD_BOTTOM_Y) // 2
+        center_y = PLAYFIELD_TOP_Y + border_margin + (playfield_height // 2)
         
         # Create the enemies
         for i in range(count):
@@ -1656,14 +1679,12 @@ class Game:
             
         help_font = pygame.font.SysFont(None, 20)  # Slightly larger font
         controls = [
-            "CONTROLS",  # Removed colon
             "ARROWS - Move",  # Changed : to -
             "SPACE - Fire",
             "B - Scatter Bomb",
             # Removed SHIFT mechanic
             "M - Toggle Music",
-            "+/- - Volume",
-            "1-5 - Log Level"
+            "+/- - Volume"
         ]
         
         y_pos = SCREEN_HEIGHT - 10 - (len(controls) * 22)  # Increased spacing
@@ -1673,15 +1694,9 @@ class Game:
             self.screen.blit(shadow_surf, (11, y_pos + 1))
             
             # Text
-            if i == 0:  # First line (header)
-                color = (255, 255, 100)  # Brighter yellow for header
-                # Draw the header with a slightly larger font
-                header_font = pygame.font.SysFont(None, 22)
-                text_surf = header_font.render(text, True, color)
-            else:
-                # Brighter text colors for better readability
-                color = (230, 230, 230)  # Almost white for commands
-                text_surf = help_font.render(text, True, color)
+            # Brighter text colors for better readability
+            color = (230, 230, 230)  # Almost white for commands
+            text_surf = help_font.render(text, True, color)
                 
             self.screen.blit(text_surf, (10, y_pos))
             y_pos += 22  # Increased spacing
