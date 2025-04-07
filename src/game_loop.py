@@ -22,6 +22,18 @@ from src.particle import Particle
 from src.powerup import PowerupParticle  # Import PowerupParticle for text notifications
 from config.sprite_constants import PowerupType, ACTIVE_POWERUP_TYPES
 
+# Import enemy configuration constants
+# Enemy frequencies can be customized in config/enemy_constants.py.
+# - To adjust how frequently certain enemy types appear, modify BASE_ENEMY_FREQUENCIES
+# - To change when enemies unlock at different difficulty levels, modify ENEMY_UNLOCK_THRESHOLDS
+# - To alter how rapidly enemy frequencies change as difficulty increases, modify FREQUENCY_SCALING
+# - To set upper/lower bounds for enemy frequencies, modify MAX_FREQUENCIES and MIN_FREQUENCIES
+from config.enemy_constants import (
+    ENEMY_TYPES, 
+    ENEMY_TYPE_NAMES, 
+    get_enemy_weights
+)
+
 # Import config variables
 from config.game_config import (
     SCREEN_WIDTH,
@@ -67,13 +79,13 @@ class PatternType(IntEnum):
     VERTICAL = 0
     HORIZONTAL = 1
     DIAGONAL = 2
-    V_FORMATION = 3
+    V_SHAPE = 3  # Changed from V_FORMATION to V_SHAPE for consistency
 
 # Use IntEnum names for readability
 PATTERN_VERTICAL = PatternType.VERTICAL
 PATTERN_HORIZONTAL = PatternType.HORIZONTAL
 PATTERN_DIAGONAL = PatternType.DIAGONAL
-PATTERN_V_FORMATION = PatternType.V_FORMATION
+PATTERN_V_SHAPE = PatternType.V_SHAPE  # Changed from V_FORMATION to V_SHAPE
 
 # Text notification for powerups
 class PowerupNotification(pygame.sprite.Sprite):
@@ -538,76 +550,24 @@ class Game:
                 
                 count = random.randint(min_enemies, max_enemies)
                 
-                # Adjust enemy type weights based on difficulty
-                # As difficulty increases, reduce basic enemy chance and increase harder enemies
-                difficulty_factor = min(1.0, (self.difficulty_level - 1) / 9.0)  # 0.0 to 1.0 scale based on difficulty
+                # Get enemy weights based on current difficulty level
+                enemy_weights = get_enemy_weights(self.difficulty_level)
                 
-                # Base weights for easy difficulty (level 1)
-                basic_weight = max(5, 40 - int(self.difficulty_level * 3.5))  # Decreases with difficulty
-                shooter_weight = min(45, 30 + int(self.difficulty_level * 1.5))  # Increases with difficulty
-                wave_weight = min(20, 10 + int(self.difficulty_level))  # Increases with difficulty
-                spiral_weight = min(20, 10 + int(self.difficulty_level))  # Increases with difficulty
-                seeker_weight = min(25, 10 + int(self.difficulty_level * 1.5))  # Increases faster with difficulty
-                
-                # New enemy types start with lower weights and increase with difficulty
-                teleporter_weight = max(2, min(20, int(difficulty_factor * 20)))  # None at start, up to 20 at max
-                orbiter_weight = max(2, min(20, int(difficulty_factor * 22)))  # None at start, up to 22 at max
-                shielded_weight = max(1, min(25, int(difficulty_factor * 25)))  # None at start, up to 25 at max
-                
-                # Lock new enemy types behind minimum difficulty thresholds
-                if self.difficulty_level < 2.0:
-                    teleporter_weight = 0  # No teleporters until difficulty 2.0
-                if self.difficulty_level < 3.0:
-                    orbiter_weight = 0  # No orbiters until difficulty 3.0
-                if self.difficulty_level < 4.0:
-                    shielded_weight = 0  # No shielded enemies until difficulty 4.0
-                
-                enemy_type_weights = [
-                    basic_weight,      # Basic
-                    shooter_weight,    # Shooter
-                    wave_weight,       # Wave
-                    spiral_weight,     # Spiral
-                    seeker_weight,     # Seeker
-                    teleporter_weight, # Teleporter
-                    orbiter_weight,    # Orbiter
-                    shielded_weight    # Shielded
-                ]
-                
-                # Log weights if debug mode is enabled
+                # Log weights for debugging if needed
                 if self.wave_count % 5 == 0:  # Log every 5 waves
-                    logger.debug(f"Enemy weights: {enemy_type_weights}")
+                    logger.debug(f"Enemy weights: {enemy_weights}")
                 
-                # Normalize weights to ensure they sum to 100
-                total_weight = sum(enemy_type_weights)
-                enemy_type_weights = [int(w * 100 / total_weight) for w in enemy_type_weights]
-                
-                # Ensure minimum weight of 5 for all enemy types
-                for i in range(len(enemy_type_weights)):
-                    if enemy_type_weights[i] < 5:
-                        enemy_type_weights[i] = 5
-                
-                # Ensure all weights sum to 100 (adjust last weight if needed)
-                weight_sum = sum(enemy_type_weights)
-                enemy_type_weights[-1] += (100 - weight_sum)
-                
+                # Choose an enemy type based on the weights
                 enemy_type_index = random.choices(
-                    [0, 1, 2, 3, 4, 5, 6, 7],  # EnemyType1, EnemyShooter, EnemyType3, EnemyType4, EnemyType5, EnemyType6, EnemyType7, EnemyType8
-                    weights=enemy_type_weights,
+                    list(range(len(enemy_weights))),  # Options are 0-7 for all enemy types
+                    weights=enemy_weights,
                     k=1
                 )[0]
 
-                enemy_type_names = {
-                    0: "Basic",
-                    1: "Shooter",
-                    2: "Wave",
-                    3: "Spiral",
-                    4: "Seeker",
-                    5: "Teleporter",
-                    6: "Orbiter",
-                    7: "Shielded"
-                }
+                # Get enemy name for logging
+                enemy_name = ENEMY_TYPE_NAMES.get(enemy_type_index, f"Unknown({enemy_type_index})")
 
-                logger.info(f"Wave {self.wave_count} - Difficulty {self.difficulty_level:.1f}: Spawning {count} {enemy_type_names[enemy_type_index]} enemies with pattern {pattern_type}")
+                logger.info(f"Wave {self.wave_count} - Difficulty {self.difficulty_level:.1f}: Spawning {count} {enemy_name} enemies with pattern {pattern_type}")
                 self.spawn_enemy_wave(count, pattern_type=pattern_type, enemy_type_index=enemy_type_index)
                 
                 # Play wave spawn sound
@@ -670,7 +630,7 @@ class Game:
             # Diagonal formation - enemies in a diagonal line
             self._spawn_diagonal_pattern(count, enemy_type_index, speed_modifier)
             
-        elif pattern_type == PATTERN_V_FORMATION:
+        elif pattern_type == PATTERN_V_SHAPE:  # Changed from PATTERN_V_FORMATION to PATTERN_V_SHAPE
             # V formation - enemies in a V shape
             self._spawn_v_pattern(count, enemy_type_index, speed_modifier)
             
