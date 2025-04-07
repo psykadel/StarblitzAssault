@@ -52,7 +52,9 @@ from config.game_config import (
     WHITE,
     RED,
     DEFAULT_FONT_SIZE,
-    ENEMY_SHOOTER_COOLDOWN_MS
+    ENEMY_SHOOTER_COOLDOWN_MS,
+    DEBUG_FORCE_ENEMY_TYPE,
+    DEBUG_ENEMY_TYPE_INDEX
 )
 
 # Import setup_logger to allow changing log level at runtime
@@ -525,6 +527,29 @@ class Game:
                         # Spawn the powerup
                         self._spawn_powerup_of_type(i, x_pos, y_pos)
                 
+                elif event.key == pygame.K_d:
+                    # Debug mode - toggle force enemy type
+                    global DEBUG_FORCE_ENEMY_TYPE, DEBUG_ENEMY_TYPE_INDEX
+                    
+                    # If not already enabled, enable and set to enemy type 0
+                    if not DEBUG_FORCE_ENEMY_TYPE:
+                        DEBUG_FORCE_ENEMY_TYPE = True
+                        DEBUG_ENEMY_TYPE_INDEX = 0
+                        logger.info(f"DEBUG: Forcing enemy type {DEBUG_ENEMY_TYPE_INDEX} ({ENEMY_TYPE_NAMES.get(DEBUG_ENEMY_TYPE_INDEX)})")
+                    else:
+                        # If already enabled, cycle to next enemy type
+                        DEBUG_ENEMY_TYPE_INDEX = (DEBUG_ENEMY_TYPE_INDEX + 1) % 8
+                        # If we've cycled through all types, disable the feature
+                        if DEBUG_ENEMY_TYPE_INDEX == 0:
+                            DEBUG_FORCE_ENEMY_TYPE = False
+                            logger.info("DEBUG: Enemy type forcing disabled")
+                        else:
+                            logger.info(f"DEBUG: Forcing enemy type {DEBUG_ENEMY_TYPE_INDEX} ({ENEMY_TYPE_NAMES.get(DEBUG_ENEMY_TYPE_INDEX)})")
+                    
+                    # Show an on-screen notification
+                    text = f"DEBUG: Forcing {ENEMY_TYPE_NAMES.get(DEBUG_ENEMY_TYPE_INDEX)}" if DEBUG_FORCE_ENEMY_TYPE else "DEBUG: Normal enemy spawning"
+                    self.notifications.add(PowerupNotification(text, (255, 255, 0), (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2), self.notifications))
+                
             elif event.type == pygame.KEYUP:
                 if event.key == pygame.K_SPACE:
                     self.player.stop_firing()
@@ -557,12 +582,16 @@ class Game:
                 if self.wave_count % 5 == 0:  # Log every 5 waves
                     logger.debug(f"Enemy weights: {enemy_weights}")
                 
-                # Choose an enemy type based on the weights
-                enemy_type_index = random.choices(
-                    list(range(len(enemy_weights))),  # Options are 0-7 for all enemy types
-                    weights=enemy_weights,
-                    k=1
-                )[0]
+                # Choose an enemy type based on the weights or use debug enemy type
+                if DEBUG_FORCE_ENEMY_TYPE:
+                    enemy_type_index = DEBUG_ENEMY_TYPE_INDEX
+                    logger.info(f"DEBUG: Forcing enemy type {DEBUG_ENEMY_TYPE_INDEX}")
+                else:
+                    enemy_type_index = random.choices(
+                        list(range(len(enemy_weights))),  # Options are 0-7 for all enemy types
+                        weights=enemy_weights,
+                        k=1
+                    )[0]
 
                 # Get enemy name for logging
                 enemy_name = ENEMY_TYPE_NAMES.get(enemy_type_index, f"Unknown({enemy_type_index})")
@@ -1644,7 +1673,8 @@ class Game:
             "B - Scatter Bomb",
             # Removed SHIFT mechanic
             "M - Toggle Music",
-            "+/- - Volume"
+            "+/- - Volume",
+            "D - Debug Enemy Types"
         ]
         
         y_pos = SCREEN_HEIGHT - 10 - (len(controls) * 22)  # Increased spacing

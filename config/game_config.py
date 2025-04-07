@@ -80,4 +80,17 @@ PATTERN_TYPES = {
     "DIAGONAL": 2,    # Enemies in a diagonal line
     "V_SHAPE": 3      # Enemies in a V formation
 }
-PATTERN_COUNT: int = 4  # Total number of patterns 
+PATTERN_COUNT: int = 4  # Total number of patterns
+
+# Debug settings
+DEBUG_FORCE_ENEMY_TYPE: bool = False  # When True, uses DEBUG_ENEMY_TYPE_INDEX for all waves
+DEBUG_ENEMY_TYPE_INDEX: int = 7  # Enemy type to use when DEBUG_FORCE_ENEMY_TYPE is True (0-7)
+# Enemy type reference:
+# 0: Basic (EnemyType1) - Simple movement pattern
+# 1: Shooter (EnemyType2) - Basic enemy that shoots straight bullets
+# 2: Wave (EnemyType3) - Moves in wave pattern, fires wave projectiles
+# 3: Spiral (EnemyType4) - Erratic movement, fires spiral projectiles
+# 4: Seeker (EnemyType5) - Tracks player, fires homing projectiles
+# 5: Teleporter (EnemyType6) - Teleports around, fires bouncing projectiles
+# 6: Orbiter (EnemyType7) - Orbits around points, fires in patterns
+# 7: Shielded (EnemyType8) - Has shield that absorbs damage, multiple attack modes 
