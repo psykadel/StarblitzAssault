@@ -10,9 +10,6 @@ import math
 from src.logger import get_logger
 from config.config import SCREEN_WIDTH
 
-if TYPE_CHECKING:
-    from src.config import SCREEN_WIDTH
-
 class BackgroundLayer:
     """Represents a single horizontally scrolling background layer."""
 

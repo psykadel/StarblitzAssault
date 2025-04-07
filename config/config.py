@@ -113,9 +113,32 @@ PATTERN_COUNT: int = len(PATTERN_TYPES)  # Total number of patterns
 # DIFFICULTY SYSTEM
 #------------------------------------------------------------------------------
 # Base difficulty settings
-DIFFICULTY_STARTING_LEVEL: float = 1.0
-DIFFICULTY_MAX_LEVEL: float = 10.0
-DIFFICULTY_INCREASE_RATE: float = 0.2
+DIFFICULTY_STARTING_LEVEL: float = 1.0  # Starting difficulty level
+DIFFICULTY_MAX_LEVEL: float = 10.0      # Maximum difficulty cap
+DIFFICULTY_INCREASE_RATE: float = 0.2   # How much difficulty increases per wave
+
+# Wave enemies scaling
+DIFFICULTY_MIN_ENEMIES_BASE: int = 4    # Minimum enemies at difficulty 1
+DIFFICULTY_MAX_ENEMIES_BASE: int = 7    # Maximum enemies at difficulty 1
+DIFFICULTY_MIN_ENEMIES_SCALE: float = 1/1.5  # How fast min enemies increases (1 enemy per 1.5 difficulty levels)
+DIFFICULTY_MAX_ENEMIES_SCALE: float = 1.0    # How fast max enemies increases (1 enemy per difficulty level)
+DIFFICULTY_MIN_ENEMIES_CAP: int = 10    # Maximum possible minimum enemies
+DIFFICULTY_MAX_ENEMIES_CAP: int = 15    # Maximum possible maximum enemies
+
+# Wave timing settings
+DIFFICULTY_WAVE_DELAY_BASE: int = 7000  # Milliseconds between waves at difficulty 1
+DIFFICULTY_WAVE_DELAY_MIN: int = 3000   # Minimum possible delay between waves
+DIFFICULTY_WAVE_DELAY_REDUCTION: int = 400  # Milliseconds reduced per difficulty level
+DIFFICULTY_WAVE_DELAY_VARIATION: float = 0.2  # Random variation percentage (±20%)
+DIFFICULTY_WAVE_DELAY_FLOOR: int = 2000 # Absolute minimum delay regardless of difficulty
+DIFFICULTY_WAVE_DELAY_CEILING: int = 8000  # Absolute maximum delay regardless of difficulty
+
+# Enemy cooldown reduction
+DIFFICULTY_COOLDOWN_SCALE: float = 0.1  # Cooldown reduction per difficulty level (10%)
+DIFFICULTY_COOLDOWN_MAX_REDUCTION: float = 0.7  # Maximum cooldown reduction (70%)
+
+# Enemy speed increases
+DIFFICULTY_SPEED_SCALE: float = 0.15  # Speed increase per difficulty level (15%)
 
 # Base frequencies for each enemy type at difficulty level 1
 # Values are percentages (should sum to 100)
@@ -190,7 +213,7 @@ DEFAULT_FONT_NAME: Optional[str] = None  # Use default pygame font
 #------------------------------------------------------------------------------
 # SOUND SETTINGS
 #------------------------------------------------------------------------------
-DEFAULT_SOUND_VOLUME: float = 0.5
+DEFAULT_SOUND_VOLUME: float = 0.4
 DEFAULT_MUSIC_VOLUME: float = 0.3
 
 #------------------------------------------------------------------------------

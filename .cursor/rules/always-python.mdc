@@ -20,7 +20,7 @@ alwaysApply: true
 - List dependencies explicitly in `requirements.txt`.
 - Permanent tests in `tests/`.
 - Temporary tests in `.tests/`.
-- Configuration in `config/` or via environment variables.
+- Configuration (constants) in `config/config.py` or via environment variables.
 - Move unused files to `.unused`.
 - Store static files in `static/`, templates in `templates/`.
 
@@ -96,14 +96,14 @@ your_project/
 │  ├─ images/
 │  ├─ music/
 │  ├─ sounds/
-│  ├─ sprites/
-│  ├─ backgrounds_generator.py
-│  ├─ images_generator.py
-│  ├─ music_generator.py
-│  └─ sounds_generator.py
+│  ├─ sprites/                 - sprite sheets
+│  ├─ backgrounds_generator.py - runnable for generating backgrounds (if needed)
+│  ├─ images_generator.py      - runnable for generating images (if needed)
+│  ├─ music_generator.py       - runnable for generating music (if needed)
+│  └─ sounds_generator.py      - runnable for generating sounds (if needed)
 ├─ config/
+│  └─ config.py                - all game constants, well organized for use
 ├─ src/
-│  ├─ config.py
 │  ├─ player.py
 │  ├─ enemy.py
 │  ├─ levels.py
