@@ -1,12 +1,13 @@
-"""Projectiles for the game."""
+"""Projectile classes for the game."""
 
 import pygame
 import math
 import random
-from typing import Tuple, Optional, List, Any
+from typing import Optional, Tuple, List
+import os # For file path handling
 
 from src.logger import get_logger
-from config.game_config import BULLET_SPEED, BULLET_SIZE
+from config.config import BULLET_SPEED, BULLET_SIZE
 
 # Get a logger for this module
 logger = get_logger(__name__)

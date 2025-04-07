@@ -12,30 +12,17 @@ from typing import List, Dict, Tuple, Optional, Any, Set
 # Import game components
 from src.player import Player, MAX_POWER_LEVEL
 from src.background import BackgroundLayer, BackgroundDecorations # Import BackgroundDecorations
-from src.enemy import EnemyType1, EnemyType2, EnemyType3, EnemyType4, EnemyType5, EnemyType6, EnemyType7, EnemyType8 # Import the specific enemy class
+from src.enemy import EnemyType1, EnemyType2, EnemyType3, EnemyType4, EnemyType5, EnemyType6, get_enemy_weights # Import the specific enemy class and get_enemy_weights function
 from src.sound_manager import SoundManager
 from src.logger import get_logger
 from src.border import Border
 from src.explosion import Explosion # Import the Explosion class
 from src.power_particles import PowerParticleSystem # Import the power particles system
 from src.particle import Particle
-from src.powerup import PowerupParticle  # Import PowerupParticle for text notifications
-from config.sprite_constants import PowerupType, ACTIVE_POWERUP_TYPES
+from src.powerup import PowerupParticle, PowerupType, ACTIVE_POWERUP_TYPES  # Import PowerupParticle for text notifications
 
-# Import enemy configuration constants
-# Enemy frequencies can be customized in config/enemy_constants.py.
-# - To adjust how frequently certain enemy types appear, modify BASE_ENEMY_FREQUENCIES
-# - To change when enemies unlock at different difficulty levels, modify ENEMY_UNLOCK_THRESHOLDS
-# - To alter how rapidly enemy frequencies change as difficulty increases, modify FREQUENCY_SCALING
-# - To set upper/lower bounds for enemy frequencies, modify MAX_FREQUENCIES and MIN_FREQUENCIES
-from config.enemy_constants import (
-    ENEMY_TYPES, 
-    ENEMY_TYPE_NAMES, 
-    get_enemy_weights
-)
-
-# Import config variables
-from config.game_config import (
+# Import config settings
+from config.config import (
     SCREEN_WIDTH,
     SCREEN_HEIGHT,
     FPS,
@@ -54,7 +41,9 @@ from config.game_config import (
     DEFAULT_FONT_SIZE,
     ENEMY_SHOOTER_COOLDOWN_MS,
     DEBUG_FORCE_ENEMY_TYPE,
-    DEBUG_ENEMY_TYPE_INDEX
+    DEBUG_ENEMY_TYPE_INDEX,
+    ENEMY_TYPES,
+    ENEMY_TYPE_NAMES
 )
 
 # Import setup_logger to allow changing log level at runtime
@@ -489,12 +478,10 @@ class Game:
                         EnemyType4(self.player, self.enemy_bullets, self.all_sprites, self.enemies),
                         EnemyType5(self.player, self.enemy_bullets, self.all_sprites, self.enemies),
                         EnemyType6(self.player, self.enemy_bullets, self.all_sprites, self.enemies),
-                        EnemyType7(self.player, self.enemy_bullets, self.all_sprites, self.enemies),
-                        EnemyType8(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
                     ]
                     
                     # Position them vertically stacked with descriptive text
-                    enemy_names = ["Basic", "Shooter", "Wave", "Spiral", "Seeker", "Teleporter", "Orbiter", "Shielded"]
+                    enemy_names = ["Basic", "Shooter", "Wave", "Spiral", "Seeker", "Teleporter"]
                     font = pygame.font.SysFont(None, 24)
                     
                     for i, (enemy, name) in enumerate(zip(enemies, enemy_names)):
@@ -538,7 +525,7 @@ class Game:
                         logger.info(f"DEBUG: Forcing enemy type {DEBUG_ENEMY_TYPE_INDEX} ({ENEMY_TYPE_NAMES.get(DEBUG_ENEMY_TYPE_INDEX)})")
                     else:
                         # If already enabled, cycle to next enemy type
-                        DEBUG_ENEMY_TYPE_INDEX = (DEBUG_ENEMY_TYPE_INDEX + 1) % 8
+                        DEBUG_ENEMY_TYPE_INDEX = (DEBUG_ENEMY_TYPE_INDEX + 1) % 6
                         # If we've cycled through all types, disable the feature
                         if DEBUG_ENEMY_TYPE_INDEX == 0:
                             DEBUG_FORCE_ENEMY_TYPE = False
@@ -588,7 +575,7 @@ class Game:
                     logger.info(f"DEBUG: Forcing enemy type {DEBUG_ENEMY_TYPE_INDEX}")
                 else:
                     enemy_type_index = random.choices(
-                        list(range(len(enemy_weights))),  # Options are 0-7 for all enemy types
+                        list(range(len(enemy_weights))),  # Options are 0-5 for all enemy types
                         weights=enemy_weights,
                         k=1
                     )[0]
@@ -678,7 +665,7 @@ class Game:
             spacing_y: Vertical spacing between enemies
             enemy_type_index: Type of enemy to spawn (0: EnemyType1, 1: EnemyType2, 
                               2: EnemyType3, 3: EnemyType4, 4: EnemyType5,
-                              5: EnemyType6, 6: EnemyType7, 7: EnemyType8)
+                              5: EnemyType6)
             speed_modifier: Multiplier for enemy speed based on difficulty
         """
         # Calculate the playfield height for spacing
@@ -715,10 +702,6 @@ class Game:
                 enemy = EnemyType5(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
             elif enemy_type_index == 5:
                 enemy = EnemyType6(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
-            elif enemy_type_index == 6:
-                enemy = EnemyType7(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
-            elif enemy_type_index == 7:
-                enemy = EnemyType8(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
             else:
                 enemy = EnemyType1(self.all_sprites, self.enemies)
             
@@ -748,16 +731,9 @@ class Game:
                 enemy.last_shot_time = pygame.time.get_ticks()  # Reset timer
                 enemy.last_teleport_time = pygame.time.get_ticks()  # Reset teleport timer
                 enemy.teleport_delay = max(1000, int(enemy.teleport_delay / speed_modifier))
-            elif isinstance(enemy, EnemyType7):
-                # Rotating formation enemy with wave bullets
-                enemy.last_shot_time = pygame.time.get_ticks()  # Reset timer
-                enemy.last_pattern_change = pygame.time.get_ticks()  # Reset pattern change timer
-            elif isinstance(enemy, EnemyType8):
-                # Phasing shield enemy with multiple attack modes
-                enemy.last_shot_time = pygame.time.get_ticks()  # Reset timer
-                enemy.last_mode_change = pygame.time.get_ticks()  # Reset mode change timer
-                enemy.last_direction_change = pygame.time.get_ticks()  # Reset direction change timer
-                
+            else:
+                enemy = EnemyType1(self.all_sprites, self.enemies)
+            
             # Use the property setter instead of direct rect access
             enemy.topleft = (x_pos, y_pos)
 
@@ -799,10 +775,6 @@ class Game:
                 enemy = EnemyType5(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
             elif enemy_type_index == 5:
                 enemy = EnemyType6(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
-            elif enemy_type_index == 6:
-                enemy = EnemyType7(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
-            elif enemy_type_index == 7:
-                enemy = EnemyType8(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
             else:
                 enemy = EnemyType1(self.all_sprites, self.enemies)
                 
@@ -832,15 +804,8 @@ class Game:
                 enemy.last_shot_time = pygame.time.get_ticks()  # Reset timer
                 enemy.last_teleport_time = pygame.time.get_ticks()  # Reset teleport timer
                 enemy.teleport_delay = max(1000, int(enemy.teleport_delay / speed_modifier))
-            elif isinstance(enemy, EnemyType7):
-                # Rotating formation enemy with wave bullets
-                enemy.last_shot_time = pygame.time.get_ticks()  # Reset timer
-                enemy.last_pattern_change = pygame.time.get_ticks()  # Reset pattern change timer
-            elif isinstance(enemy, EnemyType8):
-                # Phasing shield enemy with multiple attack modes
-                enemy.last_shot_time = pygame.time.get_ticks()  # Reset timer
-                enemy.last_mode_change = pygame.time.get_ticks()  # Reset mode change timer
-                enemy.last_direction_change = pygame.time.get_ticks()  # Reset direction change timer
+            else:
+                enemy = EnemyType1(self.all_sprites, self.enemies)
                 
             # Use the property setter instead of direct rect access
             enemy.topleft = (x_pos, y_pos)
@@ -888,10 +853,6 @@ class Game:
                 enemy = EnemyType5(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
             elif enemy_type_index == 5:
                 enemy = EnemyType6(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
-            elif enemy_type_index == 6:
-                enemy = EnemyType7(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
-            elif enemy_type_index == 7:
-                enemy = EnemyType8(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
             else:
                 enemy = EnemyType1(self.all_sprites, self.enemies)
             
@@ -921,16 +882,9 @@ class Game:
                 enemy.last_shot_time = pygame.time.get_ticks()  # Reset timer
                 enemy.last_teleport_time = pygame.time.get_ticks()  # Reset teleport timer
                 enemy.teleport_delay = max(1000, int(enemy.teleport_delay / speed_modifier))
-            elif isinstance(enemy, EnemyType7):
-                # Rotating formation enemy with wave bullets
-                enemy.last_shot_time = pygame.time.get_ticks()  # Reset timer
-                enemy.last_pattern_change = pygame.time.get_ticks()  # Reset pattern change timer
-            elif isinstance(enemy, EnemyType8):
-                # Phasing shield enemy with multiple attack modes
-                enemy.last_shot_time = pygame.time.get_ticks()  # Reset timer
-                enemy.last_mode_change = pygame.time.get_ticks()  # Reset mode change timer
-                enemy.last_direction_change = pygame.time.get_ticks()  # Reset direction change timer
-                
+            else:
+                enemy = EnemyType1(self.all_sprites, self.enemies)
+            
             # Use the property setter instead of direct rect access
             enemy.topleft = (x_pos, y_pos)
 
@@ -987,10 +941,6 @@ class Game:
                 enemy = EnemyType5(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
             elif enemy_type_index == 5:
                 enemy = EnemyType6(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
-            elif enemy_type_index == 6:
-                enemy = EnemyType7(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
-            elif enemy_type_index == 7:
-                enemy = EnemyType8(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
             else:
                 enemy = EnemyType1(self.all_sprites, self.enemies)
             
@@ -1020,16 +970,9 @@ class Game:
                 enemy.last_shot_time = pygame.time.get_ticks()  # Reset timer
                 enemy.last_teleport_time = pygame.time.get_ticks()  # Reset teleport timer
                 enemy.teleport_delay = max(1000, int(enemy.teleport_delay / speed_modifier))
-            elif isinstance(enemy, EnemyType7):
-                # Rotating formation enemy with wave bullets
-                enemy.last_shot_time = pygame.time.get_ticks()  # Reset timer
-                enemy.last_pattern_change = pygame.time.get_ticks()  # Reset pattern change timer
-            elif isinstance(enemy, EnemyType8):
-                # Phasing shield enemy with multiple attack modes
-                enemy.last_shot_time = pygame.time.get_ticks()  # Reset timer
-                enemy.last_mode_change = pygame.time.get_ticks()  # Reset mode change timer
-                enemy.last_direction_change = pygame.time.get_ticks()  # Reset direction change timer
-                
+            else:
+                enemy = EnemyType1(self.all_sprites, self.enemies)
+            
             # Use the property setter instead of direct rect access
             enemy.topleft = (x_pos, y_pos)
 
@@ -1223,35 +1166,15 @@ class Game:
     def _handle_collisions(self):
         """Checks and handles collisions between game objects."""
         # Collision: Player Bullets vs Enemies
-        # Instead of using groupcollide (which automatically kills), we need to handle EnemyType8 specially
         # First, get all bullet-enemy collisions without killing them yet
         bullet_enemy_dict = pygame.sprite.groupcollide(self.bullets, self.enemies, False, False, pygame.sprite.collide_mask)
         
         for bullet, enemies_hit in bullet_enemy_dict.items():
             for enemy in enemies_hit:
-                # Handle special case for enemies with shields
-                if isinstance(enemy, EnemyType8) and enemy.has_shield:
-                    # Check if bullet hits shield
-                    should_kill_enemy = enemy.hit()  # Returns False if shielded
-                    
-                    # Shield visual feedback
-                    try:
-                        self.sound_manager.play("shield", "enemy")
-                    except Exception as e:
-                        logger.warning(f"Failed to play shield sound: {e}")
-                    
-                    # Always remove the bullet
-                    bullet.kill()
-                    
-                    # Only destroy enemy if shield was down and returned True
-                    if should_kill_enemy:
-                        enemy.kill()
-                        self._process_enemy_destruction(enemy)
-                else:
-                    # Regular enemy (no shield), destroy both
-                    bullet.kill()
-                    enemy.kill()
-                    self._process_enemy_destruction(enemy)
+                # Regular enemy hit handling
+                bullet.kill()
+                enemy.kill()
+                self._process_enemy_destruction(enemy)
         
         # Skip collision handling if player is not alive
         if not self.player.is_alive:
@@ -1356,22 +1279,18 @@ class Game:
     def _process_enemy_destruction(self, enemy):
         """Handle common logic for enemy destruction."""
         # Add score for destroying enemy based on enemy type
-        if isinstance(enemy, EnemyType8):
-            self.score += 350  # Shielded enemy (most difficult)
-        elif isinstance(enemy, EnemyType7):
-            self.score += 325  # Rotating formation enemy
-        elif isinstance(enemy, EnemyType6):
+        if isinstance(enemy, EnemyType6):
             self.score += 300  # Teleporting enemy
         elif isinstance(enemy, EnemyType5):
-            self.score += 275  # Advanced enemy
+            self.score += 250  # Seeker enemy
         elif isinstance(enemy, EnemyType4):
-            self.score += 250  # Erratic movement enemy
+            self.score += 200  # Spiral enemy
         elif isinstance(enemy, EnemyType3):
-            self.score += 200  # Oscillating enemy
+            self.score += 150  # Wave enemy
         elif isinstance(enemy, EnemyType2):
-            self.score += 150  # Basic shooter enemy
+            self.score += 100  # Basic shooter enemy
         else:
-            self.score += 100  # Basic enemy
+            self.score += 50   # Basic enemy
             
         # Play enemy explosion sound - use try/except to handle any missing sounds
         try:
@@ -1406,13 +1325,11 @@ class Game:
 
         # Draw most sprites
         for sprite in self.all_sprites:
-            # Skip EnemyType8 with shield - we'll draw them separately
-            if not (isinstance(sprite, EnemyType8) and getattr(sprite, 'has_shield', False)):
-                self.screen.blit(sprite.image, sprite.rect)
-                
-                # Draw any enemy labels (for test mode) - use getattr to avoid linter errors
-                if getattr(sprite, 'label_text', None) and getattr(sprite, 'label_rect', None):
-                    self.screen.blit(getattr(sprite, 'label_text'), getattr(sprite, 'label_rect'))
+            self.screen.blit(sprite.image, sprite.rect)
+            
+            # Draw any enemy labels (for test mode) - use getattr to avoid linter errors
+            if getattr(sprite, 'label_text', None) and getattr(sprite, 'label_rect', None):
+                self.screen.blit(getattr(sprite, 'label_text'), getattr(sprite, 'label_rect'))
         
         # Draw enemy bullets
         self.enemy_bullets.draw(self.screen)
@@ -1428,11 +1345,6 @@ class Game:
         
         # Draw text notifications
         self.notifications.draw(self.screen)
-        
-        # Special rendering for EnemyType8 with shield - must be drawn after other sprites
-        for sprite in self.enemies:
-            if isinstance(sprite, EnemyType8) and getattr(sprite, 'has_shield', False):
-                sprite.draw(self.screen)
         
         # Use player's custom draw method for shield and other visuals
         if self.player.is_alive:

@@ -7,7 +7,8 @@ from typing import TYPE_CHECKING, Tuple, List, Dict, Optional
 import random
 import math
 
-from config.game_config import SCREEN_WIDTH
+from src.logger import get_logger
+from config.config import SCREEN_WIDTH
 
 if TYPE_CHECKING:
     from src.config import SCREEN_WIDTH

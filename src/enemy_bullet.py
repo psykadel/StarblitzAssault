@@ -1,15 +1,15 @@
+"""Enemy bullet types for the game."""
 import pygame
 import math
 import random
-
-from config.game_config import SCREEN_WIDTH, SCREEN_HEIGHT
+from config.config import SCREEN_WIDTH, SCREEN_HEIGHT
 
 ENEMY_BULLET_SPEED = 5
 BULLET_SIZE = (8, 8)
 
 
 class EnemyBullet(pygame.sprite.Sprite):
-    """Bullet fired by an enemy towards the player."""
+    """Basic bullet fired by enemies toward the player."""
     def __init__(self, start_pos: tuple, target_pos: tuple, *groups) -> None:
         super().__init__(*groups)
         self.image = pygame.Surface(BULLET_SIZE, pygame.SRCALPHA)
@@ -42,7 +42,7 @@ class EnemyBullet(pygame.sprite.Sprite):
 
 class BouncingBullet(pygame.sprite.Sprite):
     """Bullet that bounces off screen boundaries."""
-    def __init__(self, start_pos: tuple, *groups) -> None:
+    def __init__(self, start_pos: tuple, angle: float, *groups) -> None:
         super().__init__(*groups)
         
         # Create a larger blue bullet
@@ -57,8 +57,7 @@ class BouncingBullet(pygame.sprite.Sprite):
         self.rect = self.image.get_rect(center=start_pos)
         self.mask = pygame.mask.from_surface(self.image)
         
-        # Set random initial direction, but always moving left overall
-        angle = random.uniform(-60, 60)  # -60 to 60 degrees
+        # Use the provided angle instead of a random one
         speed = ENEMY_BULLET_SPEED * 0.8  # Slightly slower
         
         # Convert angle to radians and calculate velocity components

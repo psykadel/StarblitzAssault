@@ -1,13 +1,14 @@
-"""Utility for loading sprite sheets."""
+"""Utility functions for loading sprite sheets."""
 
 import pygame
 import os
+import logging
+from typing import List, Tuple, Optional
 import math
-from typing import List, Optional, Tuple, Dict, Any
 import sys
 
 from src.logger import get_logger
-from config.game_config import DEFAULT_SPRITE_SHEET_GRID
+from config.config import DEFAULT_SPRITE_SHEET_GRID
 
 # Get a logger for this module
 logger = get_logger(__name__)

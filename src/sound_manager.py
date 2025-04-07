@@ -2,9 +2,10 @@
 
 import pygame
 import os
+import logging
 from typing import Dict, Optional, Tuple, Any
 
-from config.game_config import SOUNDS_DIR, DEFAULT_SOUND_VOLUME, MUSIC_DIR
+from config.config import SOUNDS_DIR, DEFAULT_SOUND_VOLUME, MUSIC_DIR
 from src.logger import get_logger
 
 # Get a logger for this module

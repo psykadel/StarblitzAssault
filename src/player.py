@@ -16,16 +16,17 @@ from src.animated_sprite import AnimatedSprite
 from src.logger import get_logger
 
 # Import config variables
-from config.game_config import (
+from config.config import (
     SPRITES_DIR, PLAYER_SPEED, PLAYER_SHOOT_DELAY, SCREEN_WIDTH,
     SCREEN_HEIGHT, PLAYFIELD_TOP_Y, PLAYFIELD_BOTTOM_Y,
-    PLAYER_SCALE_FACTOR, PLAYER_ANIMATION_SPEED_MS, BULLET_SPEED
+    PLAYER_SCALE_FACTOR, PLAYER_ANIMATION_SPEED_MS, BULLET_SPEED,
+    WHITE, RED, GREEN, YELLOW
 )
 
 # Import powerup constants
 from src.powerup import POWERUP_DURATION
 # Import the new constants
-from config.sprite_constants import PowerupType
+from src.powerup import PowerupType
 
 # Get a logger for this module
 logger = get_logger(__name__)
@@ -674,7 +675,7 @@ class Player(AnimatedSprite):
                 # Use the same function that powerups use to load their sprites
                 from src.sprite_loader import load_sprite_sheet
                 from src.powerup import POWERUP_SCALE_FACTOR
-                from config.game_config import SPRITES_DIR
+                from config.config import SPRITES_DIR
                 
                 # Powerup icons probably look best centered
                 self.powerup_sprites = load_sprite_sheet(

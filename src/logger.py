@@ -2,10 +2,11 @@
 
 import os
 import logging
+import sys
 from typing import Optional
 
 # Import the LOG_LEVEL from game config
-from config.game_config import LOG_LEVEL
+from config.config import LOG_LEVEL
 
 # Configure the root logger
 def setup_logger(log_level: int = LOG_LEVEL) -> None:

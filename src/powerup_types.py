@@ -1,16 +1,17 @@
-"""Specialized powerup types for Starblitz Assault."""
+"""Implementation of powerup type behaviors."""
 
 import pygame
-import math
 import random
-from typing import Optional, Tuple, List, Dict, Any
+import math
+from typing import Dict, Any, Optional, Tuple, List
 
 from src.powerup import Powerup, POWERUP_DURATION, PowerupParticle
 from src.projectile import Bullet, ScatterProjectile
 from src.logger import get_logger
-from config.game_config import PLAYER_SHOOT_DELAY
-from config.sprite_constants import PowerupType
+from config.config import PLAYER_SHOOT_DELAY
+from src.powerup import PowerupType
 
+# Get a logger for this module
 logger = get_logger(__name__)
 
 class TripleShotPowerup(Powerup):

@@ -3,21 +3,36 @@
 import pygame
 import math
 import random
+from enum import IntEnum, auto
 from typing import Optional, Tuple, List, Dict, Any
 
 from src.animated_sprite import AnimatedSprite
 from src.sprite_loader import load_sprite_sheet
 from src.particle import ParticleSystem
 from src.logger import get_logger
-from config.sprite_constants import PowerupType
 
 # Import config variables
-from config.game_config import (
+from config.config import (
     SPRITES_DIR, SCREEN_WIDTH, SCREEN_HEIGHT
 )
 
 # Get a logger for this module
 logger = get_logger(__name__)
+
+# Define PowerupType enum (moved from config/sprite_constants.py)
+class PowerupType(IntEnum):
+    """Maps powerup names to their sprite index in powerups.png (0-based)."""
+    TRIPLE_SHOT = 0
+    RAPID_FIRE = 1
+    SHIELD = 2
+    HOMING_MISSILES = 3
+    POWER_RESTORE = 4 # Index shift: was 5
+    SCATTER_BOMB = 5  # Index shift: was 6
+    TIME_WARP = 6     # Index shift: was 7
+    MEGA_BLAST = 7    # Index shift: was 8
+
+# Create a list of active powerup types for easy iteration/random selection
+ACTIVE_POWERUP_TYPES = list(PowerupType)
 
 # Constants for powerups
 POWERUP_SCALE_FACTOR = 0.15  # Reduced even further to make powerups extremely small
