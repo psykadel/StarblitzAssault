@@ -5,6 +5,10 @@ import os
 import pygame
 import logging
 
+# Logging settings
+# Can be set to logging.DEBUG, logging.INFO, logging.WARNING, logging.ERROR, or logging.CRITICAL
+LOG_LEVEL: int = logging.WARNING
+
 # Base directories
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ASSETS_DIR = os.path.join(BASE_DIR, 'assets')
@@ -65,10 +69,6 @@ DEFAULT_FONT_NAME: Optional[str] = None  # Use default pygame font
 # Sound settings
 DEFAULT_SOUND_VOLUME: float = 0.5
 DEFAULT_MUSIC_VOLUME: float = 0.3
-
-# Logging settings
-# Can be set to logging.DEBUG, logging.INFO, logging.WARNING, logging.ERROR, or logging.CRITICAL
-LOG_LEVEL: int = logging.INFO
 
 # Event types
 WAVE_TIMER_EVENT_ID: int = pygame.USEREVENT + 1

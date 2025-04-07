@@ -12,7 +12,7 @@ from typing import List, Dict, Tuple, Optional, Any, Set
 # Import game components
 from src.player import Player, MAX_POWER_LEVEL
 from src.background import BackgroundLayer, BackgroundDecorations # Import BackgroundDecorations
-from src.enemy import EnemyType1, EnemyShooter, EnemyType3, EnemyType4, EnemyType5, EnemyType6, EnemyType7, EnemyType8 # Import the specific enemy class
+from src.enemy import EnemyType1, EnemyType2, EnemyType3, EnemyType4, EnemyType5, EnemyType6, EnemyType7, EnemyType8 # Import the specific enemy class
 from src.sound_manager import SoundManager
 from src.logger import get_logger
 from src.border import Border
@@ -482,7 +482,7 @@ class Game:
                     # Spawn one of each enemy type
                     enemies = [
                         EnemyType1(self.all_sprites, self.enemies),
-                        EnemyShooter(self.player, self.enemy_bullets, self.all_sprites, self.enemies),
+                        EnemyType2(self.player, self.enemy_bullets, self.all_sprites, self.enemies),
                         EnemyType3(self.player, self.enemy_bullets, self.all_sprites, self.enemies),
                         EnemyType4(self.player, self.enemy_bullets, self.all_sprites, self.enemies),
                         EnemyType5(self.player, self.enemy_bullets, self.all_sprites, self.enemies),
@@ -571,7 +571,7 @@ class Game:
                 self.spawn_enemy_wave(count, pattern_type=pattern_type, enemy_type_index=enemy_type_index)
                 
                 # Play wave spawn sound
-                self.sound_manager.play("powerup1", "enemy")
+                self.sound_manager.play("explosion2", "enemy")
                 
                 # Calculate next wave delay based on difficulty (quicker waves at higher difficulty)
                 # Base delay decreases as difficulty increases
@@ -647,7 +647,7 @@ class Game:
         Args:
             count: Number of enemies to spawn
             spacing_y: Vertical spacing between enemies
-            enemy_type_index: Type of enemy to spawn (0: EnemyType1, 1: EnemyShooter, 
+            enemy_type_index: Type of enemy to spawn (0: EnemyType1, 1: EnemyType2, 
                               2: EnemyType3, 3: EnemyType4, 4: EnemyType5,
                               5: EnemyType6, 6: EnemyType7, 7: EnemyType8)
             speed_modifier: Multiplier for enemy speed based on difficulty
@@ -677,7 +677,7 @@ class Game:
             
             # Create the enemy based on the specified type
             if enemy_type_index == 1:
-                enemy = EnemyShooter(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
+                enemy = EnemyType2(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
             elif enemy_type_index == 2:
                 enemy = EnemyType3(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
             elif enemy_type_index == 3:
@@ -697,7 +697,7 @@ class Game:
             enemy.speed_x *= speed_modifier
             
             # Adjust shooting cooldowns based on enemy type
-            if isinstance(enemy, EnemyShooter):
+            if isinstance(enemy, EnemyType2):
                 # Basic shooter - uses ENEMY_SHOOTER_COOLDOWN_MS directly
                 enemy.last_shot_time = pygame.time.get_ticks()  # Reset timer
             elif isinstance(enemy, EnemyType3):
@@ -761,7 +761,7 @@ class Game:
             
             # Create the enemy based on the specified type
             if enemy_type_index == 1:
-                enemy = EnemyShooter(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
+                enemy = EnemyType2(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
             elif enemy_type_index == 2:
                 enemy = EnemyType3(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
             elif enemy_type_index == 3:
@@ -781,7 +781,7 @@ class Game:
             enemy.speed_x *= speed_modifier
             
             # Adjust shooting cooldowns based on enemy type
-            if isinstance(enemy, EnemyShooter):
+            if isinstance(enemy, EnemyType2):
                 # Basic shooter - uses ENEMY_SHOOTER_COOLDOWN_MS directly
                 enemy.last_shot_time = pygame.time.get_ticks()  # Reset timer
             elif isinstance(enemy, EnemyType3):
@@ -850,7 +850,7 @@ class Game:
             
             # Create the enemy based on the specified type
             if enemy_type_index == 1:
-                enemy = EnemyShooter(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
+                enemy = EnemyType2(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
             elif enemy_type_index == 2:
                 enemy = EnemyType3(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
             elif enemy_type_index == 3:
@@ -870,7 +870,7 @@ class Game:
             enemy.speed_x *= speed_modifier
             
             # Adjust shooting cooldowns based on enemy type
-            if isinstance(enemy, EnemyShooter):
+            if isinstance(enemy, EnemyType2):
                 # Basic shooter - uses ENEMY_SHOOTER_COOLDOWN_MS directly
                 enemy.last_shot_time = pygame.time.get_ticks()  # Reset timer
             elif isinstance(enemy, EnemyType3):
@@ -949,7 +949,7 @@ class Game:
             
             # Create the enemy based on the specified type
             if enemy_type_index == 1:
-                enemy = EnemyShooter(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
+                enemy = EnemyType2(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
             elif enemy_type_index == 2:
                 enemy = EnemyType3(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
             elif enemy_type_index == 3:
@@ -969,7 +969,7 @@ class Game:
             enemy.speed_x *= speed_modifier
             
             # Adjust shooting cooldowns based on enemy type
-            if isinstance(enemy, EnemyShooter):
+            if isinstance(enemy, EnemyType2):
                 # Basic shooter - uses ENEMY_SHOOTER_COOLDOWN_MS directly
                 enemy.last_shot_time = pygame.time.get_ticks()  # Reset timer
             elif isinstance(enemy, EnemyType3):
@@ -1339,7 +1339,7 @@ class Game:
             self.score += 250  # Erratic movement enemy
         elif isinstance(enemy, EnemyType3):
             self.score += 200  # Oscillating enemy
-        elif isinstance(enemy, EnemyShooter):
+        elif isinstance(enemy, EnemyType2):
             self.score += 150  # Basic shooter enemy
         else:
             self.score += 100  # Basic enemy

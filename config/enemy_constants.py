@@ -5,7 +5,7 @@ from typing import Dict, List, Tuple
 # Enemy type identifiers - used to reference enemy types consistently across the codebase
 ENEMY_TYPES = {
     "BASIC": 0,       # Basic enemy (EnemyType1)
-    "SHOOTER": 1,     # Enemy that shoots bullets at player (EnemyShooter) 
+    "SHOOTER": 1,     # Enemy that shoots bullets at player (EnemyType2) 
     "WAVE": 2,        # Enemy that moves in wave pattern and fires wave projectiles (EnemyType3)
     "SPIRAL": 3,      # Enemy with erratic movement and spiral projectiles (EnemyType4)
     "SEEKER": 4,      # Enemy that tracks player and fires homing projectiles (EnemyType5)

@@ -60,8 +60,6 @@ class SoundManager:
         # Use player powerup sound for enemy too
         self._try_load_sound("laser", "laser2.ogg", "enemy")
         self._try_load_sound("explosion2", "explosion2.ogg", "enemy")
-        self._try_load_sound("powerup", "powerup1.ogg", "enemy")
-        self._try_load_sound("shield", "powerup1.ogg", "enemy")  # Shield shares powerup sound
     
     def _create_silent_sound(self, name: str, category: str) -> None:
         """Create a silent sound as a fallback.

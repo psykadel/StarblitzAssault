@@ -85,7 +85,7 @@ class EnemyType1(Enemy):
         self.set_speed(ENEMY1_SPEED_X, 0)  # No vertical movement for now
 
 # New enemy class that shoots bullets towards the player
-class EnemyShooter(Enemy):
+class EnemyType2(Enemy):
     """Enemy that shoots bullets at the player."""
     
     def __init__(self, player_ref, bullet_group, *groups) -> None:
@@ -103,7 +103,7 @@ class EnemyShooter(Enemy):
         )
         
         if not self.frames:
-            logger.error("EnemyShooter frames list is empty after loading!")
+            logger.error("EnemyType2 frames list is empty after loading!")
             self.kill()
             return
             
