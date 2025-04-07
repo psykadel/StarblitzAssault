@@ -19,9 +19,9 @@ from config.config import (
     SCREEN_HEIGHT,
     PLAYFIELD_TOP_Y,
     PLAYFIELD_BOTTOM_Y,
-    ENEMY1_SCALE_FACTOR,
-    ENEMY1_ANIMATION_SPEED_MS,
-    ENEMY1_SPEED_X,
+    ENEMY_SCALE_FACTOR,
+    ENEMY_ANIMATION_SPEED_MS,
+    ENEMY_SPEED_X,
     ENEMY_SHOOTER_COOLDOWN_MS,
     ENEMY_TYPES,
     ENEMY_TYPE_NAMES,
@@ -85,7 +85,7 @@ class Enemy(AnimatedSprite):
     """Base class for all enemy types."""
     def __init__(self, *groups) -> None:
         """Initializes a generic enemy sprite."""
-        super().__init__(ENEMY1_ANIMATION_SPEED_MS, *groups)
+        super().__init__(ENEMY_ANIMATION_SPEED_MS, *groups)
 
     def update(self) -> None:
         """Updates the enemy's position and animation."""
@@ -112,7 +112,7 @@ class EnemyType1(Enemy):
         self.frames = load_sprite_sheet(
             filename="enemy1.png",
             sprite_dir=SPRITES_DIR,
-            scale_factor=ENEMY1_SCALE_FACTOR,
+            scale_factor=ENEMY_SCALE_FACTOR,
             alignment='right'
         )
 
@@ -135,7 +135,7 @@ class EnemyType1(Enemy):
         self._pos_y = float(self.rect.y)
 
         # Set movement speed
-        self.set_speed(ENEMY1_SPEED_X, 0)  # No vertical movement for now
+        self.set_speed(ENEMY_SPEED_X, 0)  # No vertical movement for now
 
 # New enemy class that shoots bullets towards the player
 class EnemyType2(Enemy):
@@ -151,7 +151,7 @@ class EnemyType2(Enemy):
         self.frames = load_sprite_sheet(
             filename="enemy2.png",
             sprite_dir=SPRITES_DIR,
-            scale_factor=ENEMY1_SCALE_FACTOR,
+            scale_factor=ENEMY_SCALE_FACTOR,
             alignment='right'
         )
         
@@ -172,7 +172,7 @@ class EnemyType2(Enemy):
         self._pos_y = float(self.rect.y)
         
         # Set movement speed
-        self.set_speed(ENEMY1_SPEED_X, 0)
+        self.set_speed(ENEMY_SPEED_X, 0)
 
     def update(self) -> None:
         # Call the parent class update for animation and basic movement
@@ -215,7 +215,7 @@ class EnemyType3(Enemy):
         self.frames = load_sprite_sheet(
             filename="enemy3.png",
             sprite_dir=SPRITES_DIR,
-            scale_factor=ENEMY1_SCALE_FACTOR,
+            scale_factor=ENEMY_SCALE_FACTOR,
             alignment='right'
         )
         
@@ -236,7 +236,7 @@ class EnemyType3(Enemy):
         self._pos_y = float(self.rect.y)
         
         # Set movement speed (slightly slower than standard)
-        self.set_speed(ENEMY1_SPEED_X * 0.8, 0)
+        self.set_speed(ENEMY_SPEED_X * 0.8, 0)
 
     def update(self) -> None:
         # Store the original base_y if this is the first update
@@ -294,7 +294,7 @@ class EnemyType4(Enemy):
         self.frames = load_sprite_sheet(
             filename="enemy4.png",
             sprite_dir=SPRITES_DIR,
-            scale_factor=ENEMY1_SCALE_FACTOR,
+            scale_factor=ENEMY_SCALE_FACTOR,
             alignment='right'
         )
         
@@ -315,7 +315,7 @@ class EnemyType4(Enemy):
         self._pos_y = float(self.rect.y)
         
         # Set initial movement speed (horizontal component is fixed)
-        self.set_speed(ENEMY1_SPEED_X * 1.2, random.uniform(-2, 2))
+        self.set_speed(ENEMY_SPEED_X * 1.2, random.uniform(-2, 2))
 
     def update(self) -> None:
         # Call the parent class update for animation and basic movement
@@ -392,7 +392,7 @@ class EnemyType5(Enemy):
         self.frames = load_sprite_sheet(
             filename="enemy5.png",
             sprite_dir=SPRITES_DIR,
-            scale_factor=ENEMY1_SCALE_FACTOR,
+            scale_factor=ENEMY_SCALE_FACTOR,
             alignment='right'
         )
         
@@ -413,7 +413,7 @@ class EnemyType5(Enemy):
         self._pos_y = float(self.rect.y)
         
         # Set initial movement speed
-        self.set_speed(ENEMY1_SPEED_X * 0.7, 0)  # Slower horizontal movement
+        self.set_speed(ENEMY_SPEED_X * 0.7, 0)  # Slower horizontal movement
 
     def update(self) -> None:
         # Track player's vertical position
@@ -498,7 +498,7 @@ class EnemyType6(Enemy):
         self.frames = load_sprite_sheet(
             filename="enemy6.png",
             sprite_dir=SPRITES_DIR,
-            scale_factor=ENEMY1_SCALE_FACTOR,
+            scale_factor=ENEMY_SCALE_FACTOR,
             alignment='right'
         )
         
@@ -520,8 +520,8 @@ class EnemyType6(Enemy):
         self._pos_y = float(self.rect.y)
         
         # Set initial movement speed
-        self.set_speed(ENEMY1_SPEED_X * 0.6 * self.direction_x, 
-                       ENEMY1_SPEED_X * 0.4 * self.direction_y)
+        self.set_speed(ENEMY_SPEED_X * 0.6 * self.direction_x, 
+                       ENEMY_SPEED_X * 0.4 * self.direction_y)
 
     def update(self) -> None:
         # Handle teleport visual effect
@@ -594,8 +594,8 @@ class EnemyType6(Enemy):
         self.direction_y *= -1  # Reverse vertical direction
         
         # Update movement speeds
-        self.set_speed(ENEMY1_SPEED_X * 0.6 * self.direction_x, 
-                      ENEMY1_SPEED_X * 0.4 * self.direction_y)
+        self.set_speed(ENEMY_SPEED_X * 0.6 * self.direction_x, 
+                      ENEMY_SPEED_X * 0.4 * self.direction_y)
         
         logger.debug(f"Enemy teleported to {self.rect.center}")
     

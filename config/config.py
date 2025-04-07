@@ -42,7 +42,7 @@ FPS: int = 60
 
 # Player settings
 PLAYER_SPEED: float = 4.0
-PLAYER_SHOOT_DELAY: int = 200  # milliseconds
+PLAYER_SHOOT_DELAY: int = 200  # Milliseconds
 PLAYER_SCALE_FACTOR: float = 0.25
 PLAYER_ANIMATION_SPEED_MS: int = 75  # Milliseconds per frame
 
@@ -63,9 +63,9 @@ DEFAULT_CROP_BORDER_PIXELS: int = 2
 # Basic enemy settings
 ENEMY_SPAWN_RATE: int = 1000  # milliseconds
 WAVE_DELAY_MS: int = 5000  # Time between enemy waves (milliseconds)
-ENEMY1_SCALE_FACTOR: float = 0.20
-ENEMY1_ANIMATION_SPEED_MS: int = 100  # Animation speed
-ENEMY1_SPEED_X: float = -3.0  # Pixels per frame (moving left)
+ENEMY_SCALE_FACTOR: float = 0.20
+ENEMY_ANIMATION_SPEED_MS: int = 100  # Animation speed
+ENEMY_SPEED_X: float = -3.0  # Pixels per frame (moving left)
 ENEMY_SHOOTER_COOLDOWN_MS: int = 1500  # milliseconds between shots
 
 # Enemy type identifiers - used to reference enemy types consistently across the codebase
@@ -108,6 +108,26 @@ PATTERN_TYPES = {
     "V_SHAPE": 3      # Enemies in a V formation
 }
 PATTERN_COUNT: int = len(PATTERN_TYPES)  # Total number of patterns
+
+#------------------------------------------------------------------------------
+# BACKGROUND DECORATION SETTINGS
+#------------------------------------------------------------------------------
+# Total number of decoration files in the assets/backgrounds folder
+MAX_DECORATION_FILES: int = 6  # Files are named decoration1.png through decoration6.png
+
+# Number of decorations to show in the background
+DECORATION_COUNT: int = 5  # Number of decorations to display (increased from 3)
+
+# Appearance settings
+DECORATION_ALPHA: int = 80  # Alpha value (0-255) for decoration transparency
+DECORATION_MIN_SIZE: int = 120  # Minimum size for decorations
+DECORATION_MAX_SIZE: int = 180  # Maximum size for decorations
+
+# Spacing settings
+DECORATION_MIN_SPACING: int = 1000  # Minimum spacing between decorations
+DECORATION_MAX_SPACING: int = 1500  # Maximum spacing between decorations
+DECORATION_RESPAWN_MIN_SPACING: int = 600  # Minimum spacing when respawning
+DECORATION_RESPAWN_MAX_SPACING: int = 1000  # Maximum spacing when respawning
 
 #------------------------------------------------------------------------------
 # DIFFICULTY SYSTEM

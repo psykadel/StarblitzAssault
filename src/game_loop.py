@@ -61,7 +61,9 @@ from config.config import (
     DIFFICULTY_WAVE_DELAY_CEILING,
     DIFFICULTY_COOLDOWN_SCALE,
     DIFFICULTY_COOLDOWN_MAX_REDUCTION,
-    DIFFICULTY_SPEED_SCALE
+    DIFFICULTY_SPEED_SCALE,
+    DECORATION_COUNT,
+    MAX_DECORATION_FILES
 )
 
 # Import setup_logger to allow changing log level at runtime
@@ -282,12 +284,17 @@ class Game:
 
         # Initialize background decorations
         decoration_paths = []
-        for i in range(1, 7):  # decoration1.png to decoration6.png
+        for i in range(1, MAX_DECORATION_FILES + 1):
             decoration_path = os.path.join(BACKGROUNDS_DIR, f"decoration{i}.png")
             if os.path.exists(decoration_path):
                 decoration_paths.append(decoration_path)
             else:
                 logger.warning(f"Decoration image not found: {decoration_path}")
+        
+        # Update DECORATION_COUNT based on available files
+        actual_decoration_count = min(DECORATION_COUNT, len(decoration_paths))
+        if actual_decoration_count == 0:
+            logger.warning("No decoration files found. Background decorations will be disabled.")
         
         # Create the decorations layer with a middle-ground scroll speed (between layer speeds)
         self.bg_decorations = BackgroundDecorations(
@@ -297,7 +304,7 @@ class Game:
             screen_height=self.current_screen_height,
             playfield_top=PLAYFIELD_TOP_Y,
             playfield_bottom=PLAYFIELD_BOTTOM_Y,
-            decoration_count=3  # Reduced to make them very rare
+            decoration_count=actual_decoration_count  # Use the number of available decoration files
         )
 
         # Initialize border layers
