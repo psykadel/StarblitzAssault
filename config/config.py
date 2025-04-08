@@ -134,6 +134,14 @@ DECORATION_BOTTOM_PADDING: int = 60  # Minimum distance from bottom of playfield
 # Visual settings
 POWERUP_ALPHA: int = 90  # Alpha value (0-255) for powerup sprite transparency
 
+# Spawn settings
+POWERUP_MIN_SPAWN_INTERVAL_MS: int = 7500  # Minimum spawn interval in milliseconds
+POWERUP_MAX_SPAWN_INTERVAL_MS: int = 45000  # Maximum spawn interval in milliseconds
+
+# Frequency scaling with difficulty
+POWERUP_DIFFICULTY_SCALING: float = 0.85  # Multiplier to reduce spawn interval per difficulty level (< 1.0 means more frequent)
+POWERUP_MIN_DIFFICULTY_INTERVAL_MS: int = 12500  # Minimum spawn interval at max difficulty in milliseconds
+
 #------------------------------------------------------------------------------
 # DIFFICULTY SYSTEM
 #------------------------------------------------------------------------------

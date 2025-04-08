@@ -1,67 +1,62 @@
-"""Main game loop and event handling."""
+"""Main game loop and game state management."""
 
 import pygame
-import os # Import os
-import random # Import random for random range
-import math # Import math for trig functions
-import logging # Import logging for log level constants
-from pygame._sdl2.video import Window
-from enum import IntEnum
-from typing import List, Dict, Tuple, Optional, Any, Set
+import os
+import random
+import math
+import time
+import logging
+from typing import Dict, List, Tuple, Optional
+from enum import IntEnum  # Add IntEnum import
+
+# Import additional pygame modules
+from pygame.locals import QUIT  # No longer need VIDEORESIZE
 
 # Import game components
 from src.player import Player, MAX_POWER_LEVEL
-from src.background import BackgroundLayer, BackgroundDecorations # Import BackgroundDecorations
-from src.enemy import EnemyType1, EnemyType2, EnemyType3, EnemyType4, EnemyType5, EnemyType6, get_enemy_weights # Import the specific enemy class and get_enemy_weights function
-from src.sound_manager import SoundManager
-from src.logger import get_logger
+from src.enemy import (
+    EnemyType1, EnemyType2, EnemyType3, EnemyType4, EnemyType5, EnemyType6,
+    get_enemy_weights
+)
+from src.projectile import Bullet, ScatterProjectile
+from src.explosion import Explosion
 from src.border import Border
-from src.explosion import Explosion # Import the Explosion class
-from src.power_particles import PowerParticleSystem # Import the power particles system
-from src.particle import Particle
-from src.powerup import PowerupParticle, PowerupType, ACTIVE_POWERUP_TYPES  # Import PowerupParticle for text notifications
+from src.logger import get_logger, setup_logger
+from src.background import BackgroundLayer, BackgroundDecorations
+from src.power_particles import PowerParticleSystem
+from src.powerup import PowerupParticle, PowerupType, ACTIVE_POWERUP_TYPES
+from src.sound_manager import SoundManager
 
-# Import config settings
+# Import configuration constants
 from config.config import (
-    SCREEN_WIDTH,
-    SCREEN_HEIGHT,
-    FPS,
-    PLAYFIELD_TOP_Y,
-    PLAYFIELD_BOTTOM_Y,
-    BLACK,
-    WHITE,
-    RED,
-    GREEN,
-    BLUE,
-    YELLOW,
-    ASSETS_DIR,
-    BACKGROUNDS_DIR,
-    SPRITES_DIR,
-    SOUNDS_DIR,
-    MUSIC_DIR,
-    WAVE_TIMER_EVENT_ID,
-    WAVE_DELAY_MS,
-    PATTERN_TYPES,
-    DEFAULT_FONT_SIZE,
-    ENEMY_SHOOTER_COOLDOWN_MS,
-    DEBUG_FORCE_ENEMY_TYPE,
-    DEBUG_ENEMY_TYPE_INDEX,
-    ENEMY_TYPES,
-    ENEMY_TYPE_NAMES,
-    DECORATION_FILES,
-    DECORATION_TOP_PADDING,
-    DECORATION_BOTTOM_PADDING,
-    DECORATION_MIN_HORIZONTAL_SPACING,
+    SCREEN_WIDTH, SCREEN_HEIGHT, 
+    PLAYFIELD_TOP_Y, PLAYFIELD_BOTTOM_Y,
+    FPS, WAVE_TIMER_EVENT_ID, WAVE_DELAY_MS,
     PLAYER_SPEED,
     PLAYER_SHOOT_DELAY,
-    LOGO_ALPHA
+    LOGO_ALPHA,
+    POWERUP_MIN_SPAWN_INTERVAL_MS,
+    POWERUP_MAX_SPAWN_INTERVAL_MS,
+    POWERUP_DIFFICULTY_SCALING,
+    POWERUP_MIN_DIFFICULTY_INTERVAL_MS,
+    DIFFICULTY_MAX_LEVEL,
+    ENEMY_SHOOTER_COOLDOWN_MS,
+    ENEMY_TYPES, ENEMY_TYPE_NAMES,
+    PATTERN_TYPES, WHITE, BLACK,
+    DEFAULT_FONT_SIZE,
+    DEBUG_FORCE_ENEMY_TYPE, DEBUG_ENEMY_TYPE_INDEX,
+    BACKGROUNDS_DIR,
+    DECORATION_FILES
 )
-
-# Import setup_logger to allow changing log level at runtime
-from src.logger import setup_logger
 
 # Get logger for this module
 logger = get_logger(__name__)
+
+# Shortcuts for pattern types for better readability
+PATTERN_VERTICAL = PATTERN_TYPES["VERTICAL"]
+PATTERN_HORIZONTAL = PATTERN_TYPES["HORIZONTAL"]
+PATTERN_DIAGONAL = PATTERN_TYPES["DIAGONAL"]
+PATTERN_V_SHAPE = PATTERN_TYPES["V_SHAPE"]
 
 # Define background speeds
 BG_LAYER_SPEEDS = [0.5, 1.0, 1.5, 2.0] # Slowest to fastest (added a fourth speed)
@@ -394,8 +389,11 @@ class Game:
 
         # Powerup system
         self.powerup_timer = 0
-        self.powerup_spawn_interval = 45000  # 45 seconds between powerups (was 15000)
+        # Calculate initial spawn interval based on difficulty
+        self.powerup_spawn_interval = self._calculate_powerup_interval()
         self.last_powerup_time = pygame.time.get_ticks()
+        # Track the last spawned powerup type to avoid repeats
+        self.last_powerup_type = None
         
         # Don't spawn a powerup immediately
         self.last_powerup_time = pygame.time.get_ticks() + 10000  # 10 second initial delay
@@ -1128,15 +1126,70 @@ class Game:
         current_time = pygame.time.get_ticks()
         if current_time - self.last_powerup_time > self.powerup_spawn_interval:
             self.last_powerup_time = current_time
+            # Update the spawn interval for next time based on current difficulty
+            self.powerup_spawn_interval = self._calculate_powerup_interval()
             self._spawn_powerup()
+    
+    def _calculate_powerup_interval(self) -> int:
+        """Calculate powerup spawn interval based on current difficulty level.
+        
+        As difficulty increases, powerups spawn more frequently.
+        
+        Returns:
+            Spawn interval in milliseconds
+        """
+        # Import the constants
+        from config.config import (
+            POWERUP_MIN_SPAWN_INTERVAL_MS, 
+            POWERUP_MAX_SPAWN_INTERVAL_MS,
+            POWERUP_DIFFICULTY_SCALING,
+            POWERUP_MIN_DIFFICULTY_INTERVAL_MS
+        )
+        
+        # Start with max interval at difficulty 1.0
+        base_interval = POWERUP_MAX_SPAWN_INTERVAL_MS
+        
+        # Calculate reduction based on difficulty level
+        difficulty_factor = self.difficulty_level - 1.0  # Zero at difficulty 1.0
+        
+        # Apply scaling: interval gets smaller as difficulty increases
+        # Use exponential scaling to make the progression feel good
+        interval = base_interval * (POWERUP_DIFFICULTY_SCALING ** difficulty_factor)
+        
+        # Ensure we don't go below the minimum interval
+        interval = max(POWERUP_MIN_DIFFICULTY_INTERVAL_MS, interval)
+        
+        # Add some randomness (±15%)
+        variation = interval * 0.15
+        interval = random.uniform(interval - variation, interval + variation)
+        
+        # Ensure final interval is within valid range
+        interval = max(POWERUP_MIN_SPAWN_INTERVAL_MS, min(interval, POWERUP_MAX_SPAWN_INTERVAL_MS))
+        
+        logger.debug(f"Calculated powerup interval: {interval/1000:.1f}s at difficulty {self.difficulty_level:.1f}")
+        return int(interval)
     
     def _spawn_powerup(self):
         """Spawn a random powerup."""
-        # Choose a random powerup type using the Enum values
-        # random.choice works directly on the Enum list
-        chosen_powerup_enum = random.choice(ACTIVE_POWERUP_TYPES)
-        powerup_type_index = chosen_powerup_enum.value # Get the integer value
-        powerup_type_name = chosen_powerup_enum.name # Get the name
+        # Import for type checking
+        from src.powerup import PowerupType
+        
+        # Filter out the last powerup type to avoid repetition
+        available_types = list(ACTIVE_POWERUP_TYPES)
+        if self.last_powerup_type is not None:
+            try:
+                available_types.remove(self.last_powerup_type)
+            except ValueError:
+                # Last type not in available types (shouldn't happen)
+                pass
+        
+        # Choose a random powerup type from the filtered list
+        chosen_powerup_enum = random.choice(available_types)
+        powerup_type_index = chosen_powerup_enum.value  # Get the integer value
+        powerup_type_name = chosen_powerup_enum.name    # Get the name
+        
+        # Remember this type to avoid repeating next time
+        self.last_powerup_type = chosen_powerup_enum
         
         # Choose a spawn position just off the right side of the screen 
         # at a random height within the play field
@@ -1153,7 +1206,6 @@ class Game:
             particles_group=self.particles,
             game_ref=self  # Pass game reference to powerup
         )
-        
         
         logger.info(f"Spawned powerup of type {powerup_type_name} at position ({x}, {y})")
 
@@ -1323,10 +1375,6 @@ class Game:
         Explosion(enemy.rect.center, explosion_size, "enemy", self.explosions, particles_group=self.particles)
         logger.debug(f"Enemy destroyed at {enemy.rect.center}")
         
-        # Much smaller chance to spawn a powerup when enemy is destroyed (5% chance)
-        if random.random() < 0.05:
-            self._spawn_powerup()
-            
         # Ensure the enemy is removed from all sprite groups
         if enemy in self.enemies:
             enemy.kill()
