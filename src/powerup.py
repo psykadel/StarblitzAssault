@@ -13,7 +13,7 @@ from src.logger import get_logger
 
 # Import config variables
 from config.config import (
-    SPRITES_DIR, SCREEN_WIDTH, SCREEN_HEIGHT
+    SPRITES_DIR, SCREEN_WIDTH, SCREEN_HEIGHT, POWERUP_ALPHA
 )
 
 # Get a logger for this module
@@ -250,40 +250,20 @@ class Powerup(AnimatedSprite):
                 alignment='center' # Center align powerups
             )
             
-            # Log details for debugging
-            logger.info(f"Loaded powerup sprite sheet with {len(all_frames)} frames. Expecting 9.")
+            # Apply alpha transparency from config to all frames
+            for i, frame in enumerate(all_frames):
+                frame_with_alpha = frame.copy()
+                frame_with_alpha.fill((255, 255, 255, POWERUP_ALPHA), None, pygame.BLEND_RGBA_MULT)
+                all_frames[i] = frame_with_alpha
             
-            # Check if we got the expected number of frames
-            if len(all_frames) < 9:
-                 logger.error(f"Powerup sprite sheet has insufficient frames: {len(all_frames)}. Expected 9.")
-                 raise ValueError("Insufficient frames in powerup sprite sheet")
-
-            # Assuming 9 powerups, frames 0-8 correspond to types 0-8
-            # We return ALL frames, the AnimatedSprite will handle cycling
-            # If a specific powerup should NOT animate, it can override update or use specific frames
-            return all_frames 
-
-        except Exception as e:
-            logger.error(f"Error loading powerup sprite sheet: {e}")
-        
-        # Return a fallback colored rectangle if we couldn't load the proper sprite
-        fallback = pygame.Surface((30, 30), pygame.SRCALPHA)
-        colors = [
-            (255, 0, 0), (0, 255, 0), (0, 0, 255),
-            (255, 255, 0), (255, 0, 255), (0, 255, 255),
-            (255, 128, 0), (128, 0, 255), (0, 255, 128)
-        ]
-        # Use the provided type index, not self.powerup_type as it might not be set yet
-        # Use the integer value of the enum member for indexing
-        color = colors[int(powerup_type) % len(colors)] 
-        pygame.draw.rect(fallback, color, (0, 0, 30, 30))
-        # Use the name from the enum member
-        logger.warning(f"Using fallback colored rectangle for powerup type {powerup_type.name}")
-        # Return a list containing the fallback, matching expected return type
-        # Provide fallback frames based on the number of defined Enum members
-        # Ensure the list has enough elements for indexing, even if they are the same fallback
-        num_powerup_types = len(PowerupType)
-        return [fallback.copy() for _ in range(num_powerup_types)] # Use copies
+            return all_frames
+            
+        except (Exception, pygame.error) as e:
+            logger.error(f"Error loading powerup frames: {e}")
+            # Return fallback frame
+            fallback = pygame.Surface((32, 32), pygame.SRCALPHA)
+            fallback.fill((255, 0, 255)) # Magenta for error
+            return [fallback]
     
     @property
     def position(self) -> Tuple[float, float]:

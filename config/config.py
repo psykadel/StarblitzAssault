@@ -34,6 +34,9 @@ SCREEN_HEIGHT: int = 600
 PLAYFIELD_TOP_Y: int = 75
 PLAYFIELD_BOTTOM_Y: int = SCREEN_HEIGHT - 75
 
+# UI transparency settings
+LOGO_ALPHA: int = 128  # Alpha value (0-255) for game logo transparency
+
 #------------------------------------------------------------------------------
 # GAME MECHANICS SETTINGS
 #------------------------------------------------------------------------------
@@ -113,52 +116,31 @@ PATTERN_COUNT: int = len(PATTERN_TYPES)  # Total number of patterns
 # BACKGROUND DECORATION SETTINGS
 #------------------------------------------------------------------------------
 # Total number of decoration files in the assets/backgrounds folder
-MAX_DECORATION_FILES: int = 6  # Files are named decoration1.png through decoration6.png
-
-# Number of decorations to show in the background
-DECORATION_COUNT: int = 5  # Number of decorations to display (increased from 3)
+DECORATION_FILES: int = 6  # Files are named decoration1.png through decoration6.png
 
 # Appearance settings
-DECORATION_ALPHA: int = 80  # Alpha value (0-255) for decoration transparency
+DECORATION_ALPHA: int = 70  # Alpha value (0-255) for decoration transparency
 DECORATION_MIN_SIZE: int = 120  # Minimum size for decorations
 DECORATION_MAX_SIZE: int = 180  # Maximum size for decorations
 
-# Spacing settings
-DECORATION_MIN_SPACING: int = 1000  # Minimum spacing between decorations
-DECORATION_MAX_SPACING: int = 1500  # Maximum spacing between decorations
-DECORATION_RESPAWN_MIN_SPACING: int = 600  # Minimum spacing when respawning
-DECORATION_RESPAWN_MAX_SPACING: int = 1000  # Maximum spacing when respawning
+# Spacing and positioning settings
+DECORATION_MIN_HORIZONTAL_SPACING: int = 1000  # Minimum horizontal spacing between decorations
+DECORATION_TOP_PADDING: int = 30  # Minimum distance from top of playfield 
+DECORATION_BOTTOM_PADDING: int = 60  # Minimum distance from bottom of playfield
+
+#------------------------------------------------------------------------------
+# POWERUP SETTINGS
+#------------------------------------------------------------------------------
+# Visual settings
+POWERUP_ALPHA: int = 90  # Alpha value (0-255) for powerup sprite transparency
 
 #------------------------------------------------------------------------------
 # DIFFICULTY SYSTEM
 #------------------------------------------------------------------------------
 # Base difficulty settings
-DIFFICULTY_STARTING_LEVEL: float = 1.0  # Starting difficulty level
-DIFFICULTY_MAX_LEVEL: float = 10.0      # Maximum difficulty cap
-DIFFICULTY_INCREASE_RATE: float = 0.2   # How much difficulty increases per wave
-
-# Wave enemies scaling
-DIFFICULTY_MIN_ENEMIES_BASE: int = 4    # Minimum enemies at difficulty 1
-DIFFICULTY_MAX_ENEMIES_BASE: int = 7    # Maximum enemies at difficulty 1
-DIFFICULTY_MIN_ENEMIES_SCALE: float = 1/1.5  # How fast min enemies increases (1 enemy per 1.5 difficulty levels)
-DIFFICULTY_MAX_ENEMIES_SCALE: float = 1.0    # How fast max enemies increases (1 enemy per difficulty level)
-DIFFICULTY_MIN_ENEMIES_CAP: int = 10    # Maximum possible minimum enemies
-DIFFICULTY_MAX_ENEMIES_CAP: int = 15    # Maximum possible maximum enemies
-
-# Wave timing settings
-DIFFICULTY_WAVE_DELAY_BASE: int = 7000  # Milliseconds between waves at difficulty 1
-DIFFICULTY_WAVE_DELAY_MIN: int = 3000   # Minimum possible delay between waves
-DIFFICULTY_WAVE_DELAY_REDUCTION: int = 400  # Milliseconds reduced per difficulty level
-DIFFICULTY_WAVE_DELAY_VARIATION: float = 0.2  # Random variation percentage (±20%)
-DIFFICULTY_WAVE_DELAY_FLOOR: int = 2000 # Absolute minimum delay regardless of difficulty
-DIFFICULTY_WAVE_DELAY_CEILING: int = 8000  # Absolute maximum delay regardless of difficulty
-
-# Enemy cooldown reduction
-DIFFICULTY_COOLDOWN_SCALE: float = 0.1  # Cooldown reduction per difficulty level (10%)
-DIFFICULTY_COOLDOWN_MAX_REDUCTION: float = 0.7  # Maximum cooldown reduction (70%)
-
-# Enemy speed increases
-DIFFICULTY_SPEED_SCALE: float = 0.15  # Speed increase per difficulty level (15%)
+DIFFICULTY_STARTING_LEVEL: float = 1.0
+DIFFICULTY_MAX_LEVEL: float = 10.0
+DIFFICULTY_INCREASE_RATE: float = 0.2
 
 # Base frequencies for each enemy type at difficulty level 1
 # Values are percentages (should sum to 100)
@@ -233,7 +215,7 @@ DEFAULT_FONT_NAME: Optional[str] = None  # Use default pygame font
 #------------------------------------------------------------------------------
 # SOUND SETTINGS
 #------------------------------------------------------------------------------
-DEFAULT_SOUND_VOLUME: float = 0.4
+DEFAULT_SOUND_VOLUME: float = 0.5
 DEFAULT_MUSIC_VOLUME: float = 0.3
 
 #------------------------------------------------------------------------------

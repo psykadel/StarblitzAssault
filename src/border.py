@@ -4,8 +4,7 @@ import pygame
 import os
 from typing import Optional
 
-# Import config variables
-from config.config import SCREEN_WIDTH, SCREEN_HEIGHT, BACKGROUNDS_DIR
+from src.config import SCREEN_WIDTH, SCREEN_HEIGHT, BACKGROUNDS_DIR
 
 
 class Border:

@@ -26,44 +26,35 @@ from config.config import (
     SCREEN_WIDTH,
     SCREEN_HEIGHT,
     FPS,
-    BLACK,
-    BACKGROUNDS_DIR,
-    ENEMY_SPAWN_RATE,
     PLAYFIELD_TOP_Y,
     PLAYFIELD_BOTTOM_Y,
-    PLAYER_SPEED,
-    PLAYER_SHOOT_DELAY,
+    BLACK,
+    WHITE,
+    RED,
+    GREEN,
+    BLUE,
+    YELLOW,
+    ASSETS_DIR,
+    BACKGROUNDS_DIR,
+    SPRITES_DIR,
+    SOUNDS_DIR,
+    MUSIC_DIR,
     WAVE_TIMER_EVENT_ID,
     WAVE_DELAY_MS,
     PATTERN_TYPES,
-    WHITE,
-    RED,
     DEFAULT_FONT_SIZE,
     ENEMY_SHOOTER_COOLDOWN_MS,
     DEBUG_FORCE_ENEMY_TYPE,
     DEBUG_ENEMY_TYPE_INDEX,
     ENEMY_TYPES,
     ENEMY_TYPE_NAMES,
-    DIFFICULTY_STARTING_LEVEL,
-    DIFFICULTY_MAX_LEVEL,
-    DIFFICULTY_INCREASE_RATE,
-    DIFFICULTY_MIN_ENEMIES_BASE,
-    DIFFICULTY_MAX_ENEMIES_BASE,
-    DIFFICULTY_MIN_ENEMIES_SCALE,
-    DIFFICULTY_MAX_ENEMIES_SCALE,
-    DIFFICULTY_MIN_ENEMIES_CAP,
-    DIFFICULTY_MAX_ENEMIES_CAP,
-    DIFFICULTY_WAVE_DELAY_BASE,
-    DIFFICULTY_WAVE_DELAY_MIN,
-    DIFFICULTY_WAVE_DELAY_REDUCTION,
-    DIFFICULTY_WAVE_DELAY_VARIATION,
-    DIFFICULTY_WAVE_DELAY_FLOOR,
-    DIFFICULTY_WAVE_DELAY_CEILING,
-    DIFFICULTY_COOLDOWN_SCALE,
-    DIFFICULTY_COOLDOWN_MAX_REDUCTION,
-    DIFFICULTY_SPEED_SCALE,
-    DECORATION_COUNT,
-    MAX_DECORATION_FILES
+    DECORATION_FILES,
+    DECORATION_TOP_PADDING,
+    DECORATION_BOTTOM_PADDING,
+    DECORATION_MIN_HORIZONTAL_SPACING,
+    PLAYER_SPEED,
+    PLAYER_SHOOT_DELAY,
+    LOGO_ALPHA
 )
 
 # Import setup_logger to allow changing log level at runtime
@@ -178,9 +169,9 @@ class Game:
         self.is_paused = False
         
         # Difficulty progression
-        self.difficulty_level = DIFFICULTY_STARTING_LEVEL  # Starting difficulty (will increase over time)
-        self.max_difficulty = DIFFICULTY_MAX_LEVEL   # Maximum difficulty cap
-        self.difficulty_increase_rate = DIFFICULTY_INCREASE_RATE  # Significantly increased from 0.05 to 0.2
+        self.difficulty_level = 1.0  # Starting difficulty (will increase over time)
+        self.max_difficulty = 10.0   # Maximum difficulty cap
+        self.difficulty_increase_rate = 0.2  # Significantly increased from 0.05 to 0.2
         self.game_start_time = pygame.time.get_ticks()  # Track game duration
         
         # Consider adding mixer init for sounds later: pygame.mixer.init()
@@ -284,16 +275,15 @@ class Game:
 
         # Initialize background decorations
         decoration_paths = []
-        for i in range(1, MAX_DECORATION_FILES + 1):
+        for i in range(1, DECORATION_FILES + 1):
             decoration_path = os.path.join(BACKGROUNDS_DIR, f"decoration{i}.png")
             if os.path.exists(decoration_path):
                 decoration_paths.append(decoration_path)
             else:
                 logger.warning(f"Decoration image not found: {decoration_path}")
         
-        # Update DECORATION_COUNT based on available files
-        actual_decoration_count = min(DECORATION_COUNT, len(decoration_paths))
-        if actual_decoration_count == 0:
+        # Check if we have any decoration files
+        if len(decoration_paths) == 0:
             logger.warning("No decoration files found. Background decorations will be disabled.")
         
         # Create the decorations layer with a middle-ground scroll speed (between layer speeds)
@@ -303,8 +293,7 @@ class Game:
             screen_width=self.current_screen_width,
             screen_height=self.current_screen_height,
             playfield_top=PLAYFIELD_TOP_Y,
-            playfield_bottom=PLAYFIELD_BOTTOM_Y,
-            decoration_count=actual_decoration_count  # Use the number of available decoration files
+            playfield_bottom=PLAYFIELD_BOTTOM_Y
         )
 
         # Initialize border layers
@@ -347,6 +336,12 @@ class Game:
             logo_height = int(SCREEN_HEIGHT * 0.3)  # 30% of screen height (50% bigger than before)
             logo_width = int(logo_height * (self.logo.get_width() / self.logo.get_height()))
             self.logo = pygame.transform.scale(self.logo, (logo_width, logo_height))
+            
+            # Apply alpha transparency from config
+            logo_with_alpha = self.logo.copy()
+            logo_with_alpha.fill((255, 255, 255, LOGO_ALPHA), None, pygame.BLEND_RGBA_MULT)
+            self.logo = logo_with_alpha
+            
             logger.info(f"Loaded game logo: {logo_path}")
         except (pygame.error, FileNotFoundError) as e:
             logger.error(f"Failed to load game logo: {e}")
@@ -579,11 +574,11 @@ class Game:
                 # Select a random pattern type
                 pattern_type = random.randint(0, 3)  # 0-3 for our four pattern types
                 
-                # Scale number of enemies based on difficulty
-                min_enemies = DIFFICULTY_MIN_ENEMIES_BASE + int((self.difficulty_level - 1) / (1/DIFFICULTY_MIN_ENEMIES_SCALE))
-                max_enemies = DIFFICULTY_MAX_ENEMIES_BASE + int((self.difficulty_level - 1) / (1/DIFFICULTY_MAX_ENEMIES_SCALE))
-                min_enemies = min(min_enemies, DIFFICULTY_MIN_ENEMIES_CAP)
-                max_enemies = min(max_enemies, DIFFICULTY_MAX_ENEMIES_CAP)
+                # Scale number of enemies based on difficulty (4-7 base, up to 8-12 at max difficulty)
+                min_enemies = 4 + int((self.difficulty_level - 1) / 1.5)  # Increases by 1 every 1.5 difficulty levels (faster)
+                max_enemies = 7 + int((self.difficulty_level - 1) / 1)    # Increases by 1 every difficulty level (faster)
+                min_enemies = min(min_enemies, 10)  # Higher cap (was 8)
+                max_enemies = min(max_enemies, 15)  # Higher cap (was 12)
                 
                 count = random.randint(min_enemies, max_enemies)
                 
@@ -616,14 +611,14 @@ class Game:
                 
                 # Calculate next wave delay based on difficulty (quicker waves at higher difficulty)
                 # Base delay decreases as difficulty increases
-                base_delay = max(DIFFICULTY_WAVE_DELAY_MIN, DIFFICULTY_WAVE_DELAY_BASE - int(self.difficulty_level * DIFFICULTY_WAVE_DELAY_REDUCTION))
+                base_delay = max(3000, 7000 - int(self.difficulty_level * 400))
                 
-                # Add random variation
-                variation = int(base_delay * DIFFICULTY_WAVE_DELAY_VARIATION)
+                # Add random variation (±20%)
+                variation = int(base_delay * 0.2)  # 20% of base delay
                 next_wave_delay = random.randint(base_delay - variation, base_delay + variation)
                 
                 # Ensure minimum and maximum bounds
-                next_wave_delay = max(DIFFICULTY_WAVE_DELAY_FLOOR, min(next_wave_delay, DIFFICULTY_WAVE_DELAY_CEILING))
+                next_wave_delay = max(2000, min(next_wave_delay, 8000))
                 
                 # Set timer for next wave
                 pygame.time.set_timer(WAVE_TIMER_EVENT, next_wave_delay)
@@ -633,17 +628,16 @@ class Game:
         """Updates the difficulty level based on game progression."""
         # Increase difficulty with each wave, but cap at maximum
         self.difficulty_level = min(self.max_difficulty, 
-                                   DIFFICULTY_STARTING_LEVEL + (self.wave_count * self.difficulty_increase_rate))
+                                   1.0 + (self.wave_count * self.difficulty_increase_rate))
         
         # Calculate modified cooldown times based on difficulty
-        # Faster shooting at higher difficulty
-        cooldown_reduction = min(DIFFICULTY_COOLDOWN_MAX_REDUCTION, 
-                                (self.difficulty_level - 1) * DIFFICULTY_COOLDOWN_SCALE)
+        # Faster shooting at higher difficulty (up to 70% reduction)
+        cooldown_reduction = min(0.7, (self.difficulty_level - 1) * 0.1)  # Increased from 0.05 to 0.1 per level, max 70% (was 50%)
         
         # Override global cooldown with difficulty-adjusted value (using monkey patching)
         import src.enemy
         src.enemy.ENEMY_SHOOTER_COOLDOWN_MS = int(ENEMY_SHOOTER_COOLDOWN_MS * (1.0 - cooldown_reduction))
-        
+
         # Display difficulty level in the console for debugging
         if self.wave_count % 5 == 0:  # Log every 5 waves
             logger.info(f"Difficulty increased to: {self.difficulty_level:.1f} (Wave {self.wave_count})")
@@ -652,7 +646,7 @@ class Game:
     def spawn_enemy_wave(self, count: int, pattern_type: int = 0, enemy_type_index: int = 0):
         """Creates a new wave of enemies based on the given pattern type."""
         # Apply difficulty-based speed modifier
-        speed_modifier = 1.0 + (self.difficulty_level - 1) * DIFFICULTY_SPEED_SCALE
+        speed_modifier = 1.0 + (self.difficulty_level - 1) * 0.15  # Increased from 0.1 to 0.15 (15% per level)
         
         # Define border margin to keep enemies away from borders
         border_margin = 50  # Pixels to keep away from top/bottom playfield borders
@@ -1563,7 +1557,7 @@ class Game:
         self.game_over = False
         self.score = 0
         self.wave_count = 0
-        self.difficulty_level = DIFFICULTY_STARTING_LEVEL
+        self.difficulty_level = 1.0
         
         # Clear all sprite groups
         self.all_sprites.empty()
