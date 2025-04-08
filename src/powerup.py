@@ -41,8 +41,17 @@ POWERUP_FLOAT_SPEED = 1.0  # Base horizontal speed
 POWERUP_DURATION = 10000  # 10 seconds for temporary powerups
 POWERUP_BLINK_START = 8000  # When to start blinking (2 seconds before expiry)
 
-# Powerup types list is now effectively defined by PowerupType Enum
-# POWERUP_TYPES = [...]
+# Powerup colors for different types
+POWERUP_COLORS = {
+    PowerupType.TRIPLE_SHOT: (255, 220, 0),      # Golden
+    PowerupType.RAPID_FIRE: (0, 255, 255),       # Cyan
+    PowerupType.SHIELD: (0, 100, 255),           # Blue
+    PowerupType.HOMING_MISSILES: (255, 0, 255),  # Magenta
+    PowerupType.POWER_RESTORE: (0, 255, 0),      # Green
+    PowerupType.SCATTER_BOMB: (255, 128, 0),     # Orange
+    PowerupType.TIME_WARP: (128, 0, 255),        # Purple
+    PowerupType.MEGA_BLAST: (255, 0, 128),       # Pink
+}
 
 class PowerupParticle(pygame.sprite.Sprite):
     """Particle effect for powerups."""
@@ -85,7 +94,7 @@ class PowerupParticle(pygame.sprite.Sprite):
     def _create_particle_image(self):
         """Create particle image with glow effect."""
         # Create larger surface to accommodate glow
-        glow_size = self.size * 2
+        glow_size = self.size * 3  # Increased glow size for better effect
         total_size = glow_size * 2
         
         self.image = pygame.Surface((total_size, total_size), pygame.SRCALPHA)
@@ -101,7 +110,7 @@ class PowerupParticle(pygame.sprite.Sprite):
         # Middle glow
         pygame.draw.circle(
             self.image,
-            (*self.color, 150),  # Medium alpha
+            (*self.color, 180),  # Increased alpha for better visibility
             (total_size // 2, total_size // 2),
             self.size
         )
@@ -109,9 +118,19 @@ class PowerupParticle(pygame.sprite.Sprite):
         # Outer glow (very faint)
         pygame.draw.circle(
             self.image,
-            (*self.color, 75),  # Low alpha
+            (*self.color, 100),  # Increased alpha for outer glow
             (total_size // 2, total_size // 2),
             glow_size
+        )
+        
+        # Add additional highlight for sparkle effect
+        highlight_pos = (total_size // 2 - self.size // 3, total_size // 2 - self.size // 3)
+        highlight_size = max(2, self.size // 4)
+        pygame.draw.circle(
+            self.image,
+            (255, 255, 255, 200),  # White highlight
+            highlight_pos,
+            highlight_size
         )
     
     def update(self) -> None:
@@ -138,7 +157,7 @@ class PowerupParticle(pygame.sprite.Sprite):
         fade_factor = 1 - (self.age / self.lifetime)
         new_size = max(1, int(self.initial_size * fade_factor))
         
-        if new_size != self.size:
+        if new_size != self.size or self.age % 5 == 0:  # Update less frequently for performance
             self.size = new_size
             # Recreate the image with new size
             self._create_particle_image()
@@ -172,26 +191,21 @@ class Powerup(AnimatedSprite):
         # Store game reference
         self.game_ref = game_ref
         
-        # Load animation frames (will load all frames initially)
-        all_available_frames = self._load_powerup_frames(powerup_type)
+        # Get color for this powerup type
+        self.color = POWERUP_COLORS.get(powerup_type, (255, 255, 255))
         
-        # Select the specific frame for this powerup type
-        # Ensure the index is valid
-        if self.powerup_type < 0 or self.powerup_type >= len(all_available_frames):
-             logger.error(f"Invalid powerup index {self.powerup_type} for loaded frames (count: {len(all_available_frames)}). Falling back.")
-             # Use the first frame as a fallback if index is bad
-             correct_frame = all_available_frames[0]
-        else:
-             correct_frame = all_available_frames[self.powerup_type]
+        # Create special effect surface instead of using sprite
+        self.size = 20  # Base size for powerup
+        self.glow_size = self.size * 2
+        self.image = self._create_special_effect_surface()
         
-        # Store ONLY the correct frame. AnimatedSprite will handle this list.
-        self.frames = [correct_frame]
-        
-        # Set initial image from the single correct frame
-        self.frame_index = 0
-        self.image = self.frames[self.frame_index] # Set initial image explicitly
+        # Setup rect and position
         self.rect = self.image.get_rect(center=(int(x), int(y)))
         self.mask = pygame.mask.from_surface(self.image)
+        
+        # Store a single frame for animation
+        self.frames = [self.image]
+        self.frame_index = 0
         
         # Position tracking for smoother movement
         self.pos_x = float(x)
@@ -212,7 +226,7 @@ class Powerup(AnimatedSprite):
         # Particle effect parameters
         self.particles_group = particles_group
         self.particle_timer = 0
-        self.particle_interval = 100  # ms between particle emissions
+        self.particle_interval = 40  # Reduced interval for more frequent particles
         
         # Track the last time we created particles
         self.last_particle_time = pygame.time.get_ticks()
@@ -220,153 +234,377 @@ class Powerup(AnimatedSprite):
         # Initialize elapsed time for animations
         self.elapsed_time = 0
         
-        # Rotation parameters - Removing direct rotation, handled by AnimatedSprite if needed
-        # self.rotation_angle = 0
-        # self.rotation_speed = random.uniform(1.0, 3.0)  # Degrees per frame
-        
-        # Pulsing effect parameters
+        # Animation parameters
         self.pulse_timer = 0
-        self.pulse_cycle = 60  # Frames for a complete pulse cycle
-        
-        # Store frame dimensions for scaling (Use first frame as reference)
-        self.frame_width = self.image.get_width()
-        self.frame_height = self.image.get_height()
-        # self.current_frame = 0 # No longer needed, use self.frame_index from parent
-        
-        # Make orbs semi-transparent - REMOVED for simplification
-        # self._make_frames_transparent()
+        self.pulse_speed = random.uniform(0.07, 0.12)  # Random pulse speed for variety
+        self.rotation_angle = random.uniform(0, 360)  # Random starting angle
+        self.rotation_speed = random.uniform(0.5, 1.5)  # Random rotation speed
         
         logger.info(f"Created {self.type_name} powerup at ({x}, {y})")
     
-    def _load_powerup_frames(self, powerup_type: PowerupType) -> List[pygame.Surface]:
-        """Load the animation frames for this powerup type."""
-        # Load the sprite sheet
-        try:
-            # Powerups are static items, use center alignment
-            all_frames = load_sprite_sheet(
-                filename="powerups.png",
-                sprite_dir=SPRITES_DIR,
-                scale_factor=POWERUP_SCALE_FACTOR,
-                alignment='center' # Center align powerups
+    def _create_special_effect_surface(self) -> pygame.Surface:
+        """Create a special effect surface for the powerup."""
+        total_size = int(self.glow_size * 2)
+        surface = pygame.Surface((total_size, total_size), pygame.SRCALPHA)
+        center = (total_size // 2, total_size // 2)
+        
+        # Base color from powerup type
+        color = self.color
+        
+        # Get pulse factor if it exists, otherwise use default
+        pulse_factor = getattr(self, 'current_pulse_factor', 1.0)
+        
+        # Core glow - keep this stable (not affected by pulse)
+        core_radius = max(3, self.size // 3)
+        pygame.draw.circle(
+            surface,
+            (*color, 255),  # Full alpha
+            center,
+            core_radius
+        )
+        
+        # Middle glow layer - subtle pulse
+        middle_radius = int(self.size * (0.9 + 0.1 * pulse_factor))
+        pygame.draw.circle(
+            surface,
+            (*color, 180),
+            center,
+            middle_radius
+        )
+        
+        # Outer glow layer - more noticeable pulse
+        outer_radius = int(self.glow_size * pulse_factor)
+        pygame.draw.circle(
+            surface,
+            (*color, 100),
+            center,
+            outer_radius
+        )
+        
+        # Add unique effects based on powerup type
+        if self.powerup_type == PowerupType.TRIPLE_SHOT:
+            # Triple golden rays
+            for angle in range(0, 360, 120):
+                self._draw_ray(surface, center, angle, color, self.size * 1.2)
+                
+        elif self.powerup_type == PowerupType.RAPID_FIRE:
+            # Lightning-like sparks - use predefined angles instead of random angles
+            preset_angles = [0, 45, 90, 135, 180, 225, 270, 315]
+            for angle in preset_angles:
+                # Use a fixed pattern length based on powerup size
+                length = self.size * (1.0 + (angle % 90) / 180)
+                self._draw_lightning(surface, center, angle, color, length)
+                
+        elif self.powerup_type == PowerupType.SHIELD:
+            # Shield ring - stable size with pulse opacity
+            shield_radius = int(self.size * 1.3)
+            shield_alpha = int(180 + 40 * pulse_factor)  # Pulse opacity instead of size
+            pygame.draw.circle(
+                surface,
+                (*color, shield_alpha),
+                center,
+                shield_radius,
+                max(2, int(self.size // 6))  # Thickness
             )
             
-            # Apply alpha transparency from config to all frames
-            for i, frame in enumerate(all_frames):
-                frame_with_alpha = frame.copy()
-                frame_with_alpha.fill((255, 255, 255, POWERUP_ALPHA), None, pygame.BLEND_RGBA_MULT)
-                all_frames[i] = frame_with_alpha
+        elif self.powerup_type == PowerupType.HOMING_MISSILES:
+            # Target-like pattern - fixed sizes
+            circle_sizes = [int(self.size * 0.5), int(self.size * 0.8), int(self.size * 1.1), int(self.size * 1.4)]
+            line_width = max(1, int(self.size // 10))
             
-            return all_frames
+            # Draw each circle at a fixed size
+            for i, radius in enumerate(circle_sizes):
+                if radius > 0:  # Ensure we don't draw 0-radius circles
+                    # Alternate the pulse effect on different rings
+                    ring_alpha = 150
+                    if i % 2 == 0:  # Even circles pulse in opacity
+                        ring_alpha = int(130 + 40 * pulse_factor)
+                    
+                    pygame.draw.circle(
+                        surface,
+                        (*color, ring_alpha),
+                        center,
+                        radius,
+                        line_width
+                    )
+                
+        elif self.powerup_type == PowerupType.POWER_RESTORE:
+            # Healing cross - stable size
+            width = max(2, int(self.size // 4))
+            length = int(self.size * 1.2)
+            # Vertical line
+            pygame.draw.rect(
+                surface,
+                (*color, 220),
+                (center[0] - width//2, center[1] - length//2, width, length)
+            )
+            # Horizontal line
+            pygame.draw.rect(
+                surface,
+                (*color, 220),
+                (center[0] - length//2, center[1] - width//2, length, width)
+            )
             
-        except (Exception, pygame.error) as e:
-            logger.error(f"Error loading powerup frames: {e}")
-            # Return fallback frame
-            fallback = pygame.Surface((32, 32), pygame.SRCALPHA)
-            fallback.fill((255, 0, 255)) # Magenta for error
-            return [fallback]
+        elif self.powerup_type == PowerupType.SCATTER_BOMB:
+            # Explosion-like pattern - fixed angles
+            for i in range(8):
+                angle = i * 45  # Even distribution
+                # Vary ray length slightly with pulse
+                ray_length = self.size * (1.2 + 0.1 * pulse_factor)
+                self._draw_explosion_ray(surface, center, angle, color, ray_length)
+                
+        elif self.powerup_type == PowerupType.TIME_WARP:
+            # Clock-like pattern
+            # Draw clock face - fixed size
+            clock_radius = int(self.size * 1.2)
+            pygame.draw.circle(
+                surface,
+                (*color, 180),
+                center,
+                clock_radius,
+                max(1, int(self.size // 8))
+            )
+            
+            # Use current rotation angle for hands
+            hand_length = self.size * 0.8
+            current_rotation = getattr(self, 'rotation_angle', 0)
+            
+            # Hour hand (shorter)
+            hour_angle = math.radians(current_rotation)
+            hour_end_x = center[0] + int(math.cos(hour_angle) * hand_length * 0.6)
+            hour_end_y = center[1] + int(math.sin(hour_angle) * hand_length * 0.6)
+            pygame.draw.line(
+                surface, 
+                (*color, 230), 
+                center, 
+                (hour_end_x, hour_end_y), 
+                max(1, int(self.size // 6))
+            )
+            
+            # Minute hand (longer)
+            minute_angle = math.radians((current_rotation * 12) % 360)  # 12x faster
+            minute_end_x = center[0] + int(math.cos(minute_angle) * hand_length)
+            minute_end_y = center[1] + int(math.sin(minute_angle) * hand_length)
+            pygame.draw.line(
+                surface, 
+                (*color, 230), 
+                center, 
+                (minute_end_x, minute_end_y), 
+                max(1, int(self.size // 10))
+            )
+            
+        elif self.powerup_type == PowerupType.MEGA_BLAST:
+            # Star-burst pattern - even distribution
+            for i in range(8):
+                angle = i * 45  # Even distribution
+                # Vary ray length slightly with pulse
+                ray_length = self.size * (1.4 + 0.1 * pulse_factor)
+                self._draw_star_ray(surface, center, angle, color, ray_length)
+        
+        # Add highlight for sparkle effect - fixed position
+        highlight_pos = (center[0] - self.size // 3, center[1] - self.size // 3)
+        highlight_size = max(2, self.size // 4)
+        pygame.draw.circle(
+            surface,
+            (255, 255, 255, 200),  # White highlight
+            highlight_pos,
+            highlight_size
+        )
+        
+        return surface
+    
+    def _draw_ray(self, surface, center, angle, color, length):
+        """Draw a ray emanating from the center."""
+        rad_angle = math.radians(angle)
+        end_x = center[0] + int(math.cos(rad_angle) * length)
+        end_y = center[1] + int(math.sin(rad_angle) * length)
+        width = max(2, int(self.size // 5))
+        
+        pygame.draw.line(surface, (*color, 200), center, (end_x, end_y), width)
+        
+        # Add a glow at the end of the ray
+        pygame.draw.circle(
+            surface,
+            (*color, 150),
+            (end_x, end_y),
+            width
+        )
+    
+    def _draw_lightning(self, surface, center, angle, color, length):
+        """Draw a lightning-like zigzag from the center."""
+        rad_angle = math.radians(angle)
+        current_x, current_y = center
+        
+        # Use a fixed seed based on angle and powerup type for consistency
+        # This prevents random flickering while still looking random
+        # Avoid using pos_x/pos_y since they might not be set during initialization
+        try:
+            seed = int((getattr(self, 'pos_x', 0) * 100) + getattr(self, 'pos_y', 0) + self.powerup_type * 1000 + angle * 10)
+        except:
+            # Fallback if anything goes wrong with the calculation
+            seed = int(angle * 100) + self.powerup_type * 1000 + 42
+            
+        local_random = random.Random(seed)
+        
+        segments = local_random.randint(3, 5)
+        segment_length = length / segments
+        width = max(1, int(self.size // 8))
+        
+        for i in range(segments):
+            # Randomize the angle slightly for each segment (but using seeded random)
+            segment_angle = rad_angle + math.radians(local_random.uniform(-30, 30))
+            next_x = current_x + math.cos(segment_angle) * segment_length
+            next_y = current_y + math.sin(segment_angle) * segment_length
+            
+            # Draw the segment
+            pygame.draw.line(
+                surface, 
+                (*color, 220 - (40 * i)),  # Fade out towards the end
+                (int(current_x), int(current_y)), 
+                (int(next_x), int(next_y)), 
+                width
+            )
+            
+            current_x, current_y = next_x, next_y
+    
+    def _draw_explosion_ray(self, surface, center, angle, color, length):
+        """Draw an explosion-like ray from center."""
+        rad_angle = math.radians(angle)
+        end_x = center[0] + int(math.cos(rad_angle) * length)
+        end_y = center[1] + int(math.sin(rad_angle) * length)
+        width = max(2, int(self.size // 6))
+        
+        # Draw main ray
+        pygame.draw.line(surface, (*color, 200), center, (end_x, end_y), width)
+        
+        # Use a fixed seed for consistent random effects
+        # Use a simple calculation that's safe even during initialization
+        seed = int(angle * 100 + self.powerup_type * 1000)
+        local_random = random.Random(seed)
+        
+        # Add smaller rays at the end
+        for i in range(2):
+            branch_angle = rad_angle + math.radians(local_random.uniform(-45, 45))
+            branch_length = length * local_random.uniform(0.3, 0.5)
+            branch_end_x = end_x + int(math.cos(branch_angle) * branch_length)
+            branch_end_y = end_y + int(math.sin(branch_angle) * branch_length)
+            
+            pygame.draw.line(
+                surface,
+                (*color, 150),
+                (end_x, end_y),
+                (branch_end_x, branch_end_y),
+                max(1, width // 2)
+            )
+    
+    def _draw_star_ray(self, surface, center, angle, color, length):
+        """Draw a star-like ray from center."""
+        rad_angle = math.radians(angle)
+        
+        # Main ray
+        end_x = center[0] + int(math.cos(rad_angle) * length)
+        end_y = center[1] + int(math.sin(rad_angle) * length)
+        width = max(2, int(self.size // 5))
+        
+        # Draw thicker line with gradient effect
+        steps = 3
+        for i in range(steps):
+            step_width = max(1, width * (steps - i) // steps)
+            step_alpha = 255 - (i * 50)
+            pygame.draw.line(
+                surface, 
+                (*color, step_alpha), 
+                center, 
+                (end_x, end_y), 
+                step_width
+            )
+        
+        # Add glow at the tip
+        pygame.draw.circle(
+            surface,
+            (*color, 180),
+            (end_x, end_y),
+            width * 1.5
+        )
     
     @property
     def position(self) -> Tuple[float, float]:
-        """Get the current position as a tuple."""
-        return (self._position_x, self._position_y)
-    
-    # Make sure we only have one update method
-    # This version handles both the animation and movement/effects
+        """Return the powerup's current position."""
+        return (self.pos_x, self.pos_y)
+
     def update(self) -> None:
-        """Update powerup state, including animation and movement."""
-        # Handle animation (originally in AnimatedSprite.update)
-        # Since self.frames now only has one element, this won't cycle frames,
-        # but it still handles the animation timer logic if needed elsewhere.
+        """Update powerup position and appearance."""
+        # Call parent update for animation
         super().update()
         
         # Update position
-        self._position_x -= self.move_speed * (1 + self.move_speed_mod)
-        self.rect.center = (int(self._position_x), int(self._position_y))
+        self.pos_x += self.speed_x
+        self.pos_y += self.speed_y
+        self.rect.centerx = int(self.pos_x)
+        self.rect.centery = int(self.pos_y)
         
-        # Update the pulsing effect
-        self.pulse_timer += 1
-        if self.pulse_timer > self.pulse_cycle:
-            self.pulse_timer = 0
+        # Update internal position tracking
+        self._position_x = self.pos_x
+        self._position_y = self.pos_y
         
-        # Calculate pulse scale based on sine wave
-        pulse = math.sin(self.pulse_timer / self.pulse_cycle * math.pi * 2)
-        pulse_scale = 1.0 + pulse * 0.1  # Scale between 0.9 and 1.1
+        # Get current time for consistent animation
+        current_time = pygame.time.get_ticks()
         
-        # Colors for the glow effect based on powerup type
-        colors = [
-            (255, 220, 0),    # TRIPLE_SHOT: Golden
-            (0, 255, 255),    # RAPID_FIRE: Cyan
-            (0, 100, 255),    # SHIELD: Blue
-            (255, 0, 255),    # HOMING_MISSILES: Magenta
-            (0, 255, 0),      # POWER_RESTORE: Green
-            (255, 128, 0),    # SCATTER_BOMB: Orange
-            (128, 0, 255),    # TIME_WARP: Purple
-            (255, 0, 128),    # MEGA_BLAST: Pink
-        ]
-        glow_color = colors[self.powerup_type % len(colors)]
+        # Very slow, smooth pulse effect using time-based animation
+        # This creates a gentle "breathing" effect instead of vibration
+        pulse_period = 3000  # 3 seconds for a complete pulse cycle (slower)
+        pulse_progress = (current_time % pulse_period) / pulse_period
         
-        # Calculate glow intensity based on pulse
-        glow_intensity = 0.5 + pulse * 0.3  # Vary between 0.2 and 0.8
+        # Use sine wave for smooth transition (0.9-1.1 range - more subtle)
+        pulse_factor = 0.9 + 0.2 * (0.5 + 0.5 * math.sin(pulse_progress * math.pi * 2))
         
-        # Get the current animation frame
-        # Ensure frame_index is valid
-        if not self.frames or self.frame_index >= len(self.frames):
-             logger.error(f"Invalid frame index {self.frame_index} for powerup {self.type_name}")
-             # Use a fallback image or skip update to prevent crash
-             # For now, just skip the glow/scale effect if frame is invalid
-             current_base_frame = pygame.Surface((self.frame_width, self.frame_height), pygame.SRCALPHA)
-             current_base_frame.fill((128,128,128,128)) # Grey fallback
+        # Store for use in drawing
+        self.current_pulse_factor = pulse_factor
+        
+        # Smooth rotation using time
+        if self.powerup_type_enum == PowerupType.TIME_WARP:
+            # Faster rotation for time warp
+            rotation_period = 4000  # 4 seconds per rotation (slower)
         else:
-             current_base_frame = self.frames[self.frame_index]
-
-        # Scale the base image (use the current animation frame)
-        scaled_image = pygame.transform.scale(
-            current_base_frame, 
-            (int(self.frame_width * pulse_scale), int(self.frame_height * pulse_scale))
-        )
+            rotation_period = 7000  # 7 seconds per rotation (much slower)
+            
+        rotation_progress = (current_time % rotation_period) / rotation_period
+        self.rotation_angle = rotation_progress * 360  # 0-360 degrees
         
-        # Create a larger surface for the glow effect
-        glow_size = max(scaled_image.get_width(), scaled_image.get_height()) * 2
-        glow_surface = pygame.Surface((glow_size, glow_size), pygame.SRCALPHA)
-        
-        # Draw semi-transparent glowing rings
-        center = (glow_size // 2, glow_size // 2)
-        for radius in range(glow_size // 4, glow_size // 2, 2):
-            # Calculate alpha based on radius (outer rings are more transparent)
-            alpha = int(max(0, 150 * (1 - radius / (glow_size / 2)) * glow_intensity))
-            # Create a temporary surface for this ring
-            ring_surface = pygame.Surface((glow_size, glow_size), pygame.SRCALPHA)
-            pygame.draw.circle(
-                ring_surface, (*glow_color, alpha), center, radius
-            )
-            # Add the ring to the glow surface
-            glow_surface.blit(ring_surface, (0, 0))
-        
-        # Calculate position to center the scaled image on the glow surface
-        image_pos = (
-            center[0] - scaled_image.get_width() // 2,
-            center[1] - scaled_image.get_height() // 2
-        )
-        
-        # Draw the base image on top of the glow
-        glow_surface.blit(scaled_image, image_pos)
-        
-        # Update the powerup's image to the new glow surface
-        # This *overwrites* the frame selected by super().update()
-        self.image = glow_surface 
-        
-        # Restore the center position after changing the image size
-        old_center = self.rect.center
-        self.rect = self.image.get_rect()
-        self.rect.center = old_center
-        
-        # Create a new mask for collision detection
-        self.mask = pygame.mask.from_surface(self.image)
+        # Only update visual occasionally - less frequent updates for stability
+        visual_update_interval = 200  # ms between visual updates (longer interval)
+        if (not hasattr(self, 'last_visual_update') or 
+            current_time - self.last_visual_update >= visual_update_interval):
+            
+            self.last_visual_update = current_time
+            
+            # Store current center for position preservation
+            old_center = self.rect.center
+            
+            # Use fixed base sizes instead of pulsing the core size
+            # This keeps the main shape stable while only the glow breathes
+            self.size = 20  # Fixed base size
+            self.glow_size = 40  # Fixed glow size
+            
+            # Create new surface with current pulse factor
+            self.image = self._create_special_effect_surface()
+            
+            # Store as original for rotation
+            self.original_image = self.image.copy()
+            
+            # Handle rotation - always rotate for smooth animation
+            if self.powerup_type_enum not in [PowerupType.SHIELD, PowerupType.POWER_RESTORE]:
+                # Rotate the stored original image
+                self.image = pygame.transform.rotate(self.original_image, self.rotation_angle)
+            
+            # Restore position
+            self.rect = self.image.get_rect(center=old_center)
+            self.mask = pygame.mask.from_surface(self.image)
         
         # Create trail particles at intervals
-        if self.particles_group and pygame.time.get_ticks() - self.last_particle_time > self.particle_interval:
+        if self.particles_group and current_time - self.last_particle_time > self.particle_interval:
             self._create_trail_particles()
-            self.last_particle_time = pygame.time.get_ticks()
+            self.last_particle_time = current_time
         
         # Remove if off screen
         if self.rect.right < 0:
@@ -377,25 +615,15 @@ class Powerup(AnimatedSprite):
         if not self.particles_group:
             return
         
-        # Get color based on powerup type
-        colors = [
-            (255, 220, 0),    # TRIPLE_SHOT: Golden
-            (0, 255, 255),    # RAPID_FIRE: Cyan
-            (0, 100, 255),    # SHIELD: Blue
-            (255, 0, 255),    # HOMING_MISSILES: Magenta
-            (0, 255, 0),      # POWER_RESTORE: Green
-            (255, 128, 0),    # SCATTER_BOMB: Orange
-            (128, 0, 255),    # TIME_WARP: Purple
-            (255, 0, 128),    # MEGA_BLAST: Pink
-        ]
-        color = colors[self.powerup_type % len(colors)]
+        # Get color for this powerup
+        color = self.color
         
         # Create more particles (3-5) at and around the powerup
         for _ in range(random.randint(3, 5)):
             # Position randomly around the powerup, not just behind
             position = (
-                self.rect.centerx + random.randint(-self.rect.width//2, self.rect.width//2),
-                self.rect.centery + random.randint(-self.rect.height//2, self.rect.height//2)
+                self.rect.centerx + random.randint(-self.rect.width//3, self.rect.width//3),
+                self.rect.centery + random.randint(-self.rect.height//3, self.rect.height//3)
             )
             
             # Random velocity - particles spread in all directions
@@ -452,31 +680,21 @@ class Powerup(AnimatedSprite):
         if not self.particles_group:
             return
             
-        # Get color based on powerup type
-        colors = [
-            (255, 220, 0),    # TRIPLE_SHOT: Golden
-            (0, 255, 255),    # RAPID_FIRE: Cyan
-            (0, 100, 255),    # SHIELD: Blue
-            (255, 0, 255),    # HOMING_MISSILES: Magenta
-            (0, 255, 0),      # POWER_RESTORE: Green
-            (255, 128, 0),    # SCATTER_BOMB: Orange
-            (128, 0, 255),    # TIME_WARP: Purple
-            (255, 0, 128),    # MEGA_BLAST: Pink
-        ]
-        color = colors[self.powerup_type % len(colors)]
+        # Get color for this powerup
+        color = self.color
         
         # Create a burst of particles
-        for _ in range(20):
+        for _ in range(30):  # Increased for more dramatic effect
             # Random angle and speed
             angle = random.uniform(0, math.pi * 2)
-            speed = random.uniform(1.0, 3.0)
+            speed = random.uniform(1.0, 4.0)  # Increased speed
             
             vel_x = math.cos(angle) * speed
             vel_y = math.sin(angle) * speed
             
             # Random size and lifetime
             size = random.randint(3, 8)
-            lifetime = random.randint(30, 60)
+            lifetime = random.randint(40, 80)  # Longer lifetime
             
             # Create particle
             PowerupParticle(

@@ -20,7 +20,8 @@ from config.config import (
     SPRITES_DIR, PLAYER_SPEED, PLAYER_SHOOT_DELAY, SCREEN_WIDTH,
     SCREEN_HEIGHT, PLAYFIELD_TOP_Y, PLAYFIELD_BOTTOM_Y,
     PLAYER_SCALE_FACTOR, PLAYER_ANIMATION_SPEED_MS, BULLET_SPEED,
-    WHITE, RED, GREEN, YELLOW
+    WHITE, RED, GREEN, YELLOW, POWERUP_SLOTS, POWERUP_ICON_SIZE,
+    POWERUP_ICON_SPACING, POWERUP_DISPLAY_START_Y
 )
 
 # Import powerup constants
@@ -561,38 +562,205 @@ class Player(AnimatedSprite):
             shield_state = self.active_powerups_state.get(PowerupType.SHIELD.name)
             if shield_state:
                 # Use shield_pulse from player instance for animation continuity
-                if not hasattr(self, 'shield_pulse'): self.shield_pulse = 0
+                if not hasattr(self, 'shield_pulse'): 
+                    self.shield_pulse = 0
+                    self.shield_particles = []
+                    self.last_shield_particle_time = 0
+                
+                # Update shield pulse value
                 self.shield_pulse = (self.shield_pulse + 0.1) % (2 * math.pi)
                 pulse_value = 0.7 + 0.3 * math.sin(self.shield_pulse)
                 
                 # Calculate shield color with pulse
                 shield_base_color = shield_state.get("color", (0, 100, 255)) # Default blue
-                alpha = int(128 * pulse_value)
-                shield_color = (
-                    shield_base_color[0],
-                    shield_base_color[1],
-                    shield_base_color[2],
-                    alpha
-                )
                 
-                # Create shield surface
-                shield_radius = shield_state.get("radius", 35)
+                # Create shield surfaces with multiple layers for better effect
+                shield_radius = shield_state.get("radius", 40)  # Increased radius
                 shield_size = int(shield_radius * 2 * pulse_value)
-                shield_surface = pygame.Surface((shield_size, shield_size), pygame.SRCALPHA)
                 
-                # Draw shield
+                # Create main shield surface
+                shield_surface = pygame.Surface((shield_size * 2, shield_size * 2), pygame.SRCALPHA)
+                center = (shield_size, shield_size)
+                
+                # Draw multiple shield layers with different opacities
+                # Outer glow layer
                 pygame.draw.circle(
                     shield_surface,
-                    shield_color,
-                    (shield_size // 2, shield_size // 2),
-                    shield_size // 2,
-                    max(1, int(3 * pulse_value))  # Thickness
+                    (*shield_base_color, 40),  # Very transparent
+                    center,
+                    shield_size,
+                    0  # Filled
                 )
                 
-                # Draw shield
+                # Middle layer
+                pygame.draw.circle(
+                    shield_surface,
+                    (*shield_base_color, 80),  # Semi-transparent
+                    center,
+                    int(shield_size * 0.85),
+                    0  # Filled
+                )
+                
+                # Inner layer
+                pygame.draw.circle(
+                    shield_surface,
+                    (*shield_base_color, 40),  # Semi-transparent
+                    center,
+                    int(shield_size * 0.7),
+                    0  # Filled
+                )
+                
+                # Draw shield border rings
+                for i in range(3):
+                    ring_size = shield_size - (i * 5)
+                    if ring_size > 0:
+                        pygame.draw.circle(
+                            shield_surface,
+                            (*shield_base_color, 160 - i * 30),  # Decreasing opacity
+                            center,
+                            ring_size,
+                            max(1, int(3 * pulse_value))  # Thickness
+                        )
+                
+                # Add energy arcs around the shield
+                num_arcs = 8
+                for i in range(num_arcs):
+                    arc_angle = (i * (360 / num_arcs) + pygame.time.get_ticks() / 50) % 360
+                    arc_start = arc_angle - 20
+                    arc_end = arc_angle + 20
+                    
+                    # Calculate arc points
+                    arc_points = []
+                    for angle in range(int(arc_start), int(arc_end), 5):
+                        rad = math.radians(angle)
+                        x = center[0] + math.cos(rad) * shield_size
+                        y = center[1] + math.sin(rad) * shield_size
+                        arc_points.append((x, y))
+                    
+                    # Only draw if we have enough points
+                    if len(arc_points) > 1:
+                        pygame.draw.lines(
+                            shield_surface,
+                            (*shield_base_color, 200),  # More opaque
+                            False,  # Don't connect first and last point
+                            arc_points,
+                            max(1, int(2 * pulse_value))  # Thickness
+                        )
+                
+                # Add electric/energy effect (random small lines near the shield edge)
+                num_energy_lines = int(10 * pulse_value)
+                for _ in range(num_energy_lines):
+                    # Random angle for the energy line
+                    energy_angle = random.uniform(0, 360)
+                    rad_angle = math.radians(energy_angle)
+                    
+                    # Inner point near shield edge
+                    inner_dist = shield_size * 0.8
+                    inner_x = center[0] + math.cos(rad_angle) * inner_dist
+                    inner_y = center[1] + math.sin(rad_angle) * inner_dist
+                    
+                    # Outer point slightly outside shield edge
+                    outer_dist = shield_size * 1.1
+                    outer_x = center[0] + math.cos(rad_angle) * outer_dist
+                    outer_y = center[1] + math.sin(rad_angle) * outer_dist
+                    
+                    # Draw the energy line
+                    pygame.draw.line(
+                        shield_surface,
+                        (*shield_base_color, 180),
+                        (inner_x, inner_y),
+                        (outer_x, outer_y),
+                        max(1, int(1 * pulse_value))  # Thickness
+                    )
+                
+                # Create highlight effect
+                highlight_angle = math.radians(45)  # Highlight at top-left
+                highlight_x = center[0] + math.cos(highlight_angle) * (shield_size * 0.5)
+                highlight_y = center[1] + math.sin(highlight_angle) * (shield_size * 0.5)
+                highlight_size = shield_size // 4
+                
+                # Draw highlight with gradient
+                for i in range(3):
+                    highlight_alpha = 150 - (i * 40)
+                    current_size = highlight_size - (i * 3)
+                    if current_size > 0:
+                        pygame.draw.circle(
+                            shield_surface,
+                            (255, 255, 255, highlight_alpha),
+                            (int(highlight_x), int(highlight_y)),
+                            current_size
+                        )
+                
+                # Position shield around player
                 shield_rect = shield_surface.get_rect(center=self.rect.center)
                 surface.blit(shield_surface, shield_rect)
-            
+                
+                # Create shield particles occasionally
+                current_time = pygame.time.get_ticks()
+                if current_time - getattr(self, 'last_shield_particle_time', 0) > 100:  # Every 100ms
+                    self.last_shield_particle_time = current_time
+                    
+                    # Create 1-3 particles
+                    for _ in range(random.randint(1, 3)):
+                        # Random angle around the shield
+                        particle_angle = random.uniform(0, 360)
+                        rad_angle = math.radians(particle_angle)
+                        
+                        # Position on shield edge
+                        shield_edge_dist = shield_size * random.uniform(0.9, 1.1)
+                        particle_x = self.rect.centerx + math.cos(rad_angle) * shield_edge_dist
+                        particle_y = self.rect.centery + math.sin(rad_angle) * shield_edge_dist
+                        
+                        # Create particle data
+                        particle = {
+                            'pos': [particle_x, particle_y],
+                            'vel': [math.cos(rad_angle) * random.uniform(0.5, 1.5),
+                                    math.sin(rad_angle) * random.uniform(0.5, 1.5)],
+                            'size': random.randint(2, 5),
+                            'life': random.randint(10, 30),
+                            'age': 0,
+                            'color': shield_base_color
+                        }
+                        
+                        # Store in shield particles list
+                        if not hasattr(self, 'shield_particles'):
+                            self.shield_particles = []
+                        self.shield_particles.append(particle)
+                
+                # Update and draw existing shield particles
+                if hasattr(self, 'shield_particles'):
+                    new_particles = []
+                    for p in self.shield_particles:
+                        # Update position
+                        p['pos'][0] += p['vel'][0]
+                        p['pos'][1] += p['vel'][1]
+                        
+                        # Update age
+                        p['age'] += 1
+                        
+                        # Skip if too old
+                        if p['age'] >= p['life']:
+                            continue
+                        
+                        # Calculate fade
+                        fade = 1 - (p['age'] / p['life'])
+                        particle_alpha = int(200 * fade)
+                        particle_size = max(1, int(p['size'] * fade))
+                        
+                        # Draw particle
+                        pygame.draw.circle(
+                            surface,
+                            (*p['color'], particle_alpha),
+                            (int(p['pos'][0]), int(p['pos'][1])),
+                            particle_size
+                        )
+                        
+                        # Keep particle for next frame
+                        new_particles.append(p)
+                    
+                    # Update particles list
+                    self.shield_particles = new_particles
+
         # Draw laser beam charge meter if charging (check state dict)
         # LASER_BEAM removed
         # laser_state = self.active_powerups_state.get(PowerupType.LASER_BEAM.name)
@@ -607,47 +775,47 @@ class Player(AnimatedSprite):
         #         (meter_x, meter_y, filled_width, meter_height)
         #     )
 
-        # Draw shield meter if shield is active (check state dict)
-        shield_state = self.active_powerups_state.get(PowerupType.SHIELD.name)
-        if shield_state:
-            # Calculate shield percentage remaining from state
-            current_time = pygame.time.get_ticks()
-            expiry_time = shield_state.get("expiry_time", 0)
-            duration = shield_state.get("duration", POWERUP_DURATION)
-            time_remaining = max(0, expiry_time - current_time)
-            shield_percent = time_remaining / duration if duration > 0 else 0
-            
-            # Draw shield meter background
-            pygame.draw.rect(
-                surface,
-                (50, 50, 80),  # Dark blue-gray background
-                (self.shield_meter_position[0], 
-                 self.shield_meter_position[1], 
-                 self.shield_meter_width, 
-                 self.shield_meter_height)
-            )
-            
-            # Draw shield meter fill
-            filled_width = int(self.shield_meter_width * shield_percent)
-            pygame.draw.rect(
-                surface,
-                (0, 140, 255),  # Shield blue
-                (self.shield_meter_position[0], 
-                 self.shield_meter_position[1], 
-                 filled_width, 
-                 self.shield_meter_height)
-            )
-            
-            # Draw shield icon
-            shield_icon_size = 12
-            pygame.draw.circle(
-                surface,
-                (0, 100, 255),  # Shield color
-                (self.shield_meter_position[0] - 10, 
-                 self.shield_meter_position[1] + self.shield_meter_height // 2),
-                shield_icon_size // 2,
-                2  # Line width
-            )
+        # REMOVE: Shield meter display removed to simplify UI
+        # shield_state = self.active_powerups_state.get(PowerupType.SHIELD.name)
+        # if shield_state:
+        #     # Calculate shield percentage remaining from state
+        #     current_time = pygame.time.get_ticks()
+        #     expiry_time = shield_state.get("expiry_time", 0)
+        #     duration = shield_state.get("duration", POWERUP_DURATION)
+        #     time_remaining = max(0, expiry_time - current_time)
+        #     shield_percent = time_remaining / duration if duration > 0 else 0
+        #     
+        #     # Draw shield meter background
+        #     pygame.draw.rect(
+        #         surface,
+        #         (50, 50, 80),  # Dark blue-gray background
+        #         (self.shield_meter_position[0], 
+        #          self.shield_meter_position[1], 
+        #          self.shield_meter_width, 
+        #          self.shield_meter_height)
+        #     )
+        #     
+        #     # Draw shield meter fill
+        #     filled_width = int(self.shield_meter_width * shield_percent)
+        #     pygame.draw.rect(
+        #         surface,
+        #         (0, 140, 255),  # Shield blue
+        #         (self.shield_meter_position[0], 
+        #          self.shield_meter_position[1], 
+        #          filled_width, 
+        #          self.shield_meter_height)
+        #     )
+        #     
+        #     # Draw shield icon
+        #     shield_icon_size = 12
+        #     pygame.draw.circle(
+        #         surface,
+        #         (0, 100, 255),  # Shield color
+        #         (self.shield_meter_position[0] - 10, 
+        #          self.shield_meter_position[1] + self.shield_meter_height // 2),
+        #         shield_icon_size // 2,
+        #         2  # Line width
+        #     )
 
     def draw_powerup_icons(self, surface: pygame.Surface) -> None:
         """Draw icons for active powerups based on active_powerups_state."""
@@ -657,43 +825,43 @@ class Player(AnimatedSprite):
         
         current_time = pygame.time.get_ticks()
         
-        # Position for effects panel - right side of power meter
-        effects_panel_x = 10
-        effects_panel_y = 110  # Below power meter
+        # Position for effects panel
+        effects_panel_x = 15
+        # Use the constant from config for the start Y position
+        start_y = POWERUP_DISPLAY_START_Y
         
-        # Font for powerup name and time - smaller text
-        name_font = pygame.font.SysFont(None, 16)
-        time_font = pygame.font.SysFont(None, 14)
+        # Create a list of active powerups to check for duplicates and ensure proper ordering
+        active_powerups_list = []
         
-        # Start position for the first powerup (directly at panel position since no header)
-        start_y = effects_panel_y
+        for name, state in self.active_powerups_state.items():
+            powerup_idx = state.get("index", 999)
+            active_powerups_list.append((name, state, powerup_idx))
         
-        # Load powerup sprites if not already loaded
-        if not hasattr(self, 'powerup_sprites'):
-            self.powerup_sprites = []
-            try:
-                # Use the same function that powerups use to load their sprites
-                from src.sprite_loader import load_sprite_sheet
-                from src.powerup import POWERUP_SCALE_FACTOR
-                from config.config import SPRITES_DIR
-                
-                # Powerup icons probably look best centered
-                self.powerup_sprites = load_sprite_sheet(
-                    filename="powerups.png",
-                    sprite_dir=SPRITES_DIR,
-                    scale_factor=0.1,  # Smaller scale factor for icons
-                    alignment='center' # Center align powerup icons
-                )
-                
-                # Resize all sprites to a consistent size for icons
-                icon_size = 20
-                for i, sprite in enumerate(self.powerup_sprites):
-                    self.powerup_sprites[i] = pygame.transform.scale(sprite, (icon_size, icon_size))
-                    
-            except Exception as e:
-                logger.error(f"Failed to load powerup sprites for icons: {e}")
-                # Fallback to empty list, will use colors as fallback
-                self.powerup_sprites = []
+        # Sort by name for consistent ordering regardless of when they were acquired
+        active_powerups_list.sort(key=lambda x: x[0])
+        
+        # Set icon size from config
+        icon_size = POWERUP_ICON_SIZE
+        spacing = POWERUP_ICON_SPACING
+        
+        # Track time for animation effects
+        animation_time = current_time / 1000  # Convert to seconds for easier math
+        
+        # Draw each active powerup in its designated slot
+        # No need to limit the number of powerups since each has a fixed slot
+        logger.debug(f"Drawing {len(active_powerups_list)} powerups")
+        
+        # Define the powerup colors - match the ones in powerup.py
+        powerup_colors = {
+            PowerupType.TRIPLE_SHOT.value: (255, 220, 0),    # Golden
+            PowerupType.RAPID_FIRE.value: (0, 255, 255),     # Cyan
+            PowerupType.SHIELD.value: (0, 100, 255),         # Blue
+            PowerupType.HOMING_MISSILES.value: (255, 0, 255),# Magenta
+            PowerupType.POWER_RESTORE.value: (0, 255, 0),    # Green
+            PowerupType.SCATTER_BOMB.value: (255, 128, 0),   # Orange
+            PowerupType.TIME_WARP.value: (128, 0, 255),      # Purple
+            PowerupType.MEGA_BLAST.value: (255, 0, 128),     # Pink
+        }
         
         # Powerup full names for display - use Enum names as keys
         display_names = {
@@ -701,78 +869,342 @@ class Player(AnimatedSprite):
             PowerupType.RAPID_FIRE.name: "RAPID FIRE",
             PowerupType.SHIELD.name: "SHIELD",
             PowerupType.HOMING_MISSILES.name: "HOMING MISSILES",
-            # PowerupType.LASER_BEAM.name: "LASER BEAM", # Removed
             PowerupType.POWER_RESTORE.name: "POWER RESTORE", # Doesn't persist in state dict
             PowerupType.SCATTER_BOMB.name: "SCATTER BOMB",
             PowerupType.TIME_WARP.name: "TIME WARP",
             PowerupType.MEGA_BLAST.name: "MEGA BLAST" # Doesn't persist in state dict
         }
         
-        # Colors as fallback - use Enum values for indexing
-        colors = {
-            PowerupType.TRIPLE_SHOT.value: (255, 220, 0),    # Golden
-            PowerupType.RAPID_FIRE.value: (0, 255, 255),     # Cyan
-            PowerupType.SHIELD.value: (0, 100, 255),     # Blue
-            PowerupType.HOMING_MISSILES.value: (255, 0, 255),    # Magenta
-            # PowerupType.LASER_BEAM.value: (0, 255, 0),      # Green (Removed)
-            PowerupType.POWER_RESTORE.value: (255, 255, 255),  # White
-            PowerupType.SCATTER_BOMB.value: (255, 128, 0),    # Orange
-            PowerupType.TIME_WARP.value: (128, 0, 255),    # Purple
-            PowerupType.MEGA_BLAST.value: (255, 0, 128),    # Pink
-        }
+        # Font for powerup name and time
+        name_font = pygame.font.SysFont(None, 18)
+        time_font = pygame.font.SysFont(None, 16)
         
-        # Set a smaller icon size
-        icon_size = 20
-        spacing = 22
+        # Track used slots for debug purposes
+        used_slots = set()
         
-        # Draw each active powerup from the state dictionary
-        # Iterate through a sorted list of powerup names for consistent order
-        active_names_sorted = sorted(self.active_powerups_state.keys())
-
-        for i, powerup_name in enumerate(active_names_sorted):
-            powerup_state = self.active_powerups_state[powerup_name]
-            powerup_idx = powerup_state.get("index", -1)
-
-            if powerup_idx == -1:
-                logger.warning(f"Powerup '{powerup_name}' in state dict missing index.")
-                continue # Skip drawing this one
-
-            # Calculate vertical position for this powerup
-            icon_y = start_y + i * spacing
+        for powerup_name, powerup_state, powerup_idx in active_powerups_list:
+            # Map each powerup name to its dedicated slot from config
+            # Instant powerups don't get displayed, so no need to worry about them
+            slot = POWERUP_SLOTS.get(powerup_name, 999)  # Use 999 as fallback for unknown powerups
             
-            # Use the actual powerup sprite if available
-            if self.powerup_sprites and powerup_idx < len(self.powerup_sprites):
-                # Get the correct sprite for this powerup type
-                sprite = self.powerup_sprites[powerup_idx]
+            if slot in used_slots:
+                logger.warning(f"Duplicate slot {slot} for powerup {powerup_name}")
+            used_slots.add(slot)
+            
+            # Calculate Y position based on slot index
+            icon_y = start_y + slot * spacing
+            
+            logger.debug(f"Powerup {powerup_name} drawing at position y={icon_y}, slot={slot}")
+            
+            # Create a special effect surface for this powerup
+            icon_surface = pygame.Surface((icon_size, icon_size), pygame.SRCALPHA)
+            
+            # Get color for this powerup
+            color = powerup_colors.get(powerup_idx, (128, 128, 128))  # Default to gray if not found
+            
+            # Create animation values - use consistent seed for each powerup type
+            pulse = 0.7 + 0.3 * math.sin(animation_time * 2 + powerup_idx)  # Unique phase for each powerup
+            rotation = (animation_time * 15 + powerup_idx * 45) % 360  # Different rotation for each powerup
+            
+            # Draw special effect icon based on powerup type
+            if powerup_name == PowerupType.TRIPLE_SHOT.name:
+                # Triple golden rays
+                center = (icon_size // 2, icon_size // 2)
+                for angle in range(0, 360, 120):
+                    # Calculate ray endpoints
+                    ray_angle = math.radians(angle + rotation)
+                    ray_length = icon_size * 0.4 * pulse
+                    end_x = center[0] + math.cos(ray_angle) * ray_length
+                    end_y = center[1] + math.sin(ray_angle) * ray_length
+                    # Draw ray
+                    pygame.draw.line(
+                        icon_surface,
+                        color,
+                        center,
+                        (end_x, end_y),
+                        max(1, int(icon_size // 8))
+                    )
+                # Add central glow
+                pygame.draw.circle(icon_surface, color, center, int(icon_size // 4))
+                pygame.draw.circle(icon_surface, (255, 255, 255, 150), 
+                                  (center[0] - 2, center[1] - 2), int(icon_size // 8))
                 
-                # Position for the sprite icon
-                icon_rect = sprite.get_rect(center=(
-                    effects_panel_x + icon_size//2, 
-                    icon_y + icon_size//2
-                ))
+            elif powerup_name == PowerupType.RAPID_FIRE.name:
+                # Lightning-like effect
+                center = (icon_size // 2, icon_size // 2)
+                # Use fixed angles for more consistency
+                lightning_angles = [0, 60, 120, 180, 240, 300]
+                for angle_base in lightning_angles:
+                    angle = math.radians(angle_base + rotation)
+                    start_x = center[0] + math.cos(angle) * (icon_size // 8)
+                    start_y = center[1] + math.sin(angle) * (icon_size // 8)
+                    
+                    # Create zigzag lightning
+                    points = [(start_x, start_y)]
+                    current_angle = angle
+                    segment_length = icon_size // 6
+                    
+                    # Use fixed seed for each lightning bolt
+                    local_random = random.Random(angle_base + powerup_idx * 100)
+                    
+                    for _ in range(3):
+                        # Randomize angle for zigzag effect
+                        current_angle += math.radians(local_random.uniform(-30, 30))
+                        next_x = points[-1][0] + math.cos(current_angle) * segment_length
+                        next_y = points[-1][1] + math.sin(current_angle) * segment_length
+                        points.append((next_x, next_y))
+                    
+                    # Draw the lightning bolt
+                    if len(points) > 1:
+                        pygame.draw.lines(icon_surface, color, False, points, max(1, icon_size // 12))
                 
-                # Draw the sprite
-                surface.blit(sprite, icon_rect)
-            else:
-                # Fallback to colored circle if sprites not available
-                # Use Enum value to get color
-                color = colors.get(powerup_idx, (128, 128, 128)) # Default grey
+                # Add central glow
+                pygame.draw.circle(icon_surface, (*color, 180), center, int(icon_size // 4))
                 
-                # Create circular powerup icon
+            elif powerup_name == PowerupType.SHIELD.name:
+                # Shield bubble effect
+                center = (icon_size // 2, icon_size // 2)
+                shield_radius = int(icon_size // 2 * pulse)
+                
+                # Draw shield circle
                 pygame.draw.circle(
-                    surface,
+                    icon_surface,
+                    (*color, 180),
+                    center,
+                    shield_radius,
+                    max(1, int(icon_size // 10))
+                )
+                
+                # Add inner glow
+                pygame.draw.circle(
+                    icon_surface,
+                    (*color, 100),
+                    center,
+                    max(1, shield_radius - 2)
+                )
+                
+                # Add highlight
+                highlight_pos = (center[0] - shield_radius//3, center[1] - shield_radius//3)
+                pygame.draw.circle(
+                    icon_surface,
+                    (255, 255, 255, 150),
+                    highlight_pos,
+                    max(1, shield_radius // 4)
+                )
+                
+            elif powerup_name == PowerupType.HOMING_MISSILES.name:
+                # Target-like icon
+                center = (icon_size // 2, icon_size // 2)
+                
+                # Draw concentric circles (target)
+                circle_sizes = [icon_size // 2, icon_size // 3, icon_size // 5]
+                for r in circle_sizes:
+                    pygame.draw.circle(
+                        icon_surface,
+                        (*color, 150),
+                        center,
+                        r,
+                        max(1, int(icon_size // 12))
+                    )
+                
+                # Draw crosshairs
+                line_length = icon_size // 2 * pulse
+                for angle in [0, 90, 180, 270]:
+                    rad_angle = math.radians(angle + rotation)
+                    end_x = center[0] + math.cos(rad_angle) * line_length
+                    end_y = center[1] + math.sin(rad_angle) * line_length
+                    pygame.draw.line(
+                        icon_surface,
+                        (*color, 200),
+                        center,
+                        (end_x, end_y),
+                        max(1, int(icon_size // 12))
+                    )
+                
+            elif powerup_name == PowerupType.POWER_RESTORE.name:
+                # Health/power cross
+                center = (icon_size // 2, icon_size // 2)
+                width = max(2, int(icon_size // 6))
+                length = int(icon_size * 0.7 * pulse)
+                
+                # Vertical line
+                pygame.draw.rect(
+                    icon_surface,
+                    (*color, 220),
+                    (center[0] - width//2, center[1] - length//2, width, length)
+                )
+                # Horizontal line
+                pygame.draw.rect(
+                    icon_surface,
+                    (*color, 220),
+                    (center[0] - length//2, center[1] - width//2, length, width)
+                )
+                
+                # Add glow
+                pygame.draw.circle(
+                    icon_surface,
+                    (*color, 100),
+                    center,
+                    int(icon_size // 3)
+                )
+                
+            elif powerup_name == PowerupType.SCATTER_BOMB.name:
+                # Explosion-like rays
+                center = (icon_size // 2, icon_size // 2)
+                
+                # Draw explosion rays
+                for angle in range(0, 360, 45):
+                    ray_angle = math.radians(angle + rotation)
+                    ray_length = icon_size * 0.4 * pulse
+                    end_x = center[0] + math.cos(ray_angle) * ray_length
+                    end_y = center[1] + math.sin(ray_angle) * ray_length
+                    
+                    # Draw the ray
+                    pygame.draw.line(
+                        icon_surface,
+                        color,
+                        center,
+                        (end_x, end_y),
+                        max(1, int(icon_size // 8))
+                    )
+                    
+                    # Add secondary rays with fixed pattern
+                    branch_angle = ray_angle + math.radians(20)
+                    branch_end_x = end_x + math.cos(branch_angle) * (ray_length * 0.3)
+                    branch_end_y = end_y + math.sin(branch_angle) * (ray_length * 0.3)
+                    
+                    pygame.draw.line(
+                        icon_surface,
+                        color,
+                        (end_x, end_y),
+                        (branch_end_x, branch_end_y),
+                        max(1, int(icon_size // 10))
+                    )
+                
+                # Add central glow
+                pygame.draw.circle(icon_surface, (*color, 200), center, int(icon_size // 4))
+                
+            elif powerup_name == PowerupType.TIME_WARP.name:
+                # Clock-like pattern
+                center = (icon_size // 2, icon_size // 2)
+                
+                # Draw clock face
+                pygame.draw.circle(
+                    icon_surface,
+                    (*color, 150),
+                    center,
+                    int(icon_size // 2 * 0.8 * pulse),
+                    max(1, int(icon_size // 10))
+                )
+                
+                # Draw clock hands
+                # Hour hand
+                hour_angle = math.radians(rotation)
+                hour_length = icon_size * 0.25
+                hour_end_x = center[0] + math.cos(hour_angle) * hour_length
+                hour_end_y = center[1] + math.sin(hour_angle) * hour_length
+                pygame.draw.line(
+                    icon_surface,
+                    (*color, 220),
+                    center,
+                    (hour_end_x, hour_end_y),
+                    max(1, int(icon_size // 8))
+                )
+                
+                # Minute hand
+                minute_angle = math.radians(rotation * 12)  # Faster rotation
+                minute_length = icon_size * 0.35
+                minute_end_x = center[0] + math.cos(minute_angle) * minute_length
+                minute_end_y = center[1] + math.sin(minute_angle) * minute_length
+                pygame.draw.line(
+                    icon_surface,
+                    (*color, 220),
+                    center,
+                    (minute_end_x, minute_end_y),
+                    max(1, int(icon_size // 12))
+                )
+                
+                # Central dot
+                pygame.draw.circle(
+                    icon_surface,
                     color,
-                    (effects_panel_x + icon_size//2, icon_y + icon_size//2),
-                    icon_size//2
+                    center,
+                    max(1, int(icon_size // 10))
                 )
                 
-                # Inner highlight
+            elif powerup_name == PowerupType.MEGA_BLAST.name:
+                # Starburst pattern
+                center = (icon_size // 2, icon_size // 2)
+                
+                # Draw star rays
+                num_rays = 8
+                for i in range(num_rays):
+                    angle = math.radians(i * (360 / num_rays) + rotation)
+                    length = icon_size * 0.4 * pulse
+                    
+                    # Main ray points
+                    inner_x = center[0] + math.cos(angle) * (length * 0.3)
+                    inner_y = center[1] + math.sin(angle) * (length * 0.3)
+                    outer_x = center[0] + math.cos(angle) * length
+                    outer_y = center[1] + math.sin(angle) * length
+                    
+                    # Draw with thickness gradient
+                    for w in range(3, 0, -1):
+                        pygame.draw.line(
+                            icon_surface,
+                            (*color, 200 - (w * 30)),
+                            (inner_x, inner_y),
+                            (outer_x, outer_y),
+                            max(1, w)
+                        )
+                    
+                    # Add glow at the tip
+                    pygame.draw.circle(
+                        icon_surface,
+                        (*color, 150),
+                        (int(outer_x), int(outer_y)),
+                        max(1, int(icon_size // 10))
+                    )
+                
+                # Central glow
                 pygame.draw.circle(
-                    surface,
-                    (255, 255, 255),
-                    (effects_panel_x + icon_size//2 - 2, icon_y + icon_size//2 - 2),
-                    icon_size//4
+                    icon_surface,
+                    (*color, 200),
+                    center,
+                    int(icon_size // 5)
                 )
+                
+            else:
+                # Generic powerup glow for any other types
+                center = (icon_size // 2, icon_size // 2)
+                
+                # Draw concentric circles with decreasing alpha
+                for radius in range(int(icon_size // 2), 0, -2):
+                    alpha = int(200 * (radius / (icon_size // 2)))
+                    pygame.draw.circle(
+                        icon_surface,
+                        (*color, alpha),
+                        center,
+                        radius
+                    )
+                
+                # Add highlight
+                highlight_pos = (center[0] - icon_size//6, center[1] - icon_size//6)
+                pygame.draw.circle(
+                    icon_surface,
+                    (255, 255, 255, 150),
+                    highlight_pos,
+                    max(1, int(icon_size // 6))
+                )
+            
+            # Position for the icon
+            icon_rect = icon_surface.get_rect(midleft=(
+                effects_panel_x, 
+                icon_y
+            ))
+            
+            # Draw the special effect icon
+            surface.blit(icon_surface, icon_rect)
             
             # Get full display name
             display_name = display_names.get(powerup_name, powerup_name)
@@ -783,7 +1215,7 @@ class Player(AnimatedSprite):
             
             # Position name to the right of the icon
             name_x = effects_panel_x + icon_size + 5
-            name_y = icon_y + 2
+            name_y = icon_y - 10  # Vertically center with icon
             
             # Draw name with shadow
             surface.blit(name_shadow, (name_x + 1, name_y + 1))
@@ -804,18 +1236,24 @@ class Player(AnimatedSprite):
                 charges_str = f"{charges}"
 
             # Display charges for scatter bomb, time for others
-            # Use Enum name for check
             if powerup_name == PowerupType.SCATTER_BOMB.name and charges_str is not None:
                 status_text = time_font.render(charges_str, True, (255, 220, 150))
+                # Position directly under the name
+                status_x = name_x
+                status_y = name_y + name_text.get_height() + 2
             elif time_remaining_str is not None:
                 status_text = time_font.render(time_remaining_str, True, (200, 200, 200))
+                # Position directly under the name
+                status_x = name_x
+                status_y = name_y + name_text.get_height() + 2
             else:
                 # For powerups without time or charges (like Power Restore, though it shouldn't persist)
                 status_text = time_font.render("Active", True, (200, 200, 200))
+                # Position directly under the name
+                status_x = name_x
+                status_y = name_y + name_text.get_height() + 2
             
-            # Position time/charge info below the name (on same line)
-            status_x = name_x + name_text.get_width() + 5
-            status_y = name_y
+            # Draw status text
             surface.blit(status_text, (status_x, status_y))
 
     def _shoot_triple(self) -> None:
@@ -955,7 +1393,15 @@ class Player(AnimatedSprite):
             extra_state: Dictionary with any additional state (e.g., rapid fire delay).
         """
         current_time = pygame.time.get_ticks()
+        # Check if this powerup has a dedicated display slot, which ensures consistent display
+        # Try to find its slot based on its name in the POWERUP_SLOTS dictionary
+        slot = POWERUP_SLOTS.get(powerup_name, None)
+        
+        # Create the state dictionary with the index and slot (if available)
         state = {"index": powerup_idx}
+        if slot is not None:
+            state["slot"] = slot
+            
         is_refresh = powerup_name in self.active_powerups_state
 
         if duration_ms is not None:
@@ -969,14 +1415,7 @@ class Player(AnimatedSprite):
 
         if extra_state:
             state.update(extra_state)
-
-        # Remove specific handling for Laser Beam
-        # if powerup_name == PowerupType.LASER_BEAM.name:
-        #      state["charge_level"] = 0
-        #      state["max_charge"] = 100
-        #      state["is_charging"] = False
-        #      state.setdefault("color", (0, 255, 0)) # type: ignore
-        
+            
         # Specific handling for Shield state - Use Enum name
         if powerup_name == PowerupType.SHIELD.name:
              state.setdefault("color", (0, 100, 255)) # type: ignore

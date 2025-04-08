@@ -135,12 +135,31 @@ DECORATION_BOTTOM_PADDING: int = 60  # Minimum distance from bottom of playfield
 POWERUP_ALPHA: int = 90  # Alpha value (0-255) for powerup sprite transparency
 
 # Spawn settings
-POWERUP_MIN_SPAWN_INTERVAL_MS: int = 7500  # Minimum spawn interval in milliseconds
-POWERUP_MAX_SPAWN_INTERVAL_MS: int = 45000  # Maximum spawn interval in milliseconds
+POWERUP_MIN_SPAWN_INTERVAL_MS: int = 1000  # Minimum spawn interval in milliseconds 
+POWERUP_MAX_SPAWN_INTERVAL_MS: int = 3000  # Maximum spawn interval in milliseconds 
 
 # Frequency scaling with difficulty
 POWERUP_DIFFICULTY_SCALING: float = 0.85  # Multiplier to reduce spawn interval per difficulty level (< 1.0 means more frequent)
 POWERUP_MIN_DIFFICULTY_INTERVAL_MS: int = 12500  # Minimum spawn interval at max difficulty in milliseconds
+
+# Powerup slot constants for display positioning
+# These define fixed vertical positions for each powerup type in the status area
+POWERUP_SLOTS = {
+    "TRIPLE_SHOT": 0,      # Slot 0 (top position)
+    "RAPID_FIRE": 1,       # Slot 1
+    "SHIELD": 2,           # Slot 2
+    "HOMING_MISSILES": 3,  # Slot 3
+    "SCATTER_BOMB": 4,     # Slot 4
+    "TIME_WARP": 5,        # Slot 5
+    # Instant powerups don't need slots:
+    # "POWER_RESTORE": N/A  # Instant effect, no persistent display
+    # "MEGA_BLAST": N/A     # Instant effect, no persistent display
+}
+
+# Powerup display spacing
+POWERUP_ICON_SIZE: int = 30        # Size of powerup icons in pixels
+POWERUP_ICON_SPACING: int = 32     # Vertical spacing between powerup icons
+POWERUP_DISPLAY_START_Y: int = 50  # Y position for the first powerup slot
 
 #------------------------------------------------------------------------------
 # DIFFICULTY SYSTEM

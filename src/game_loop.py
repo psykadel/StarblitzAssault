@@ -1173,6 +1173,7 @@ class Game:
         """Spawn a random powerup."""
         # Import for type checking
         from src.powerup import PowerupType
+        from src.player import MAX_POWER_LEVEL
         
         # Filter out the last powerup type to avoid repetition
         available_types = list(ACTIVE_POWERUP_TYPES)
@@ -1182,6 +1183,15 @@ class Game:
             except ValueError:
                 # Last type not in available types (shouldn't happen)
                 pass
+        
+        # Filter out POWER_RESTORE if player already has max power
+        if self.player.power_level >= MAX_POWER_LEVEL and PowerupType.POWER_RESTORE in available_types:
+            available_types.remove(PowerupType.POWER_RESTORE)
+            logger.debug("Removed POWER_RESTORE from available powerups because player has max power")
+        
+        # If we have no available types (shouldn't happen but just in case), use defaults
+        if not available_types:
+            available_types = [PowerupType.TRIPLE_SHOT, PowerupType.RAPID_FIRE, PowerupType.SHIELD]
         
         # Choose a random powerup type from the filtered list
         chosen_powerup_enum = random.choice(available_types)

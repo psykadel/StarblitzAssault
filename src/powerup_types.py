@@ -181,10 +181,16 @@ class PowerRestorePowerup(Powerup):
         """Apply the power restore effect to the player."""
         # Don't call base implementation since we're doing a custom power restoration
         
-        # Restore power to maximum (directly modify player attribute)
-        old_power = player.power_level
         # Import MAX_POWER_LEVEL here to avoid dependency cycle at module level
         from src.player import MAX_POWER_LEVEL
+        
+        # Skip if player already has max power
+        if player.power_level >= MAX_POWER_LEVEL:
+            logger.info("Power already at maximum level, no restoration needed")
+            return
+        
+        # Restore power to maximum (directly modify player attribute)
+        old_power = player.power_level
         player.power_level = MAX_POWER_LEVEL 
         
         # Create healing effect particles
