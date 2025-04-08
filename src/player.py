@@ -830,15 +830,8 @@ class Player(AnimatedSprite):
         # Use the constant from config for the start Y position
         start_y = POWERUP_DISPLAY_START_Y
         
-        # Create a list of active powerups to check for duplicates and ensure proper ordering
-        active_powerups_list = []
-        
-        for name, state in self.active_powerups_state.items():
-            powerup_idx = state.get("index", 999)
-            active_powerups_list.append((name, state, powerup_idx))
-        
-        # Sort by name for consistent ordering regardless of when they were acquired
-        active_powerups_list.sort(key=lambda x: x[0])
+        # Debug the state dictionary
+        logger.debug(f"Active powerups state: {self.active_powerups_state.keys()}")
         
         # Set icon size from config
         icon_size = POWERUP_ICON_SIZE
@@ -846,10 +839,6 @@ class Player(AnimatedSprite):
         
         # Track time for animation effects
         animation_time = current_time / 1000  # Convert to seconds for easier math
-        
-        # Draw each active powerup in its designated slot
-        # No need to limit the number of powerups since each has a fixed slot
-        logger.debug(f"Drawing {len(active_powerups_list)} powerups")
         
         # Define the powerup colors - match the ones in powerup.py
         powerup_colors = {
@@ -863,38 +852,50 @@ class Player(AnimatedSprite):
             PowerupType.MEGA_BLAST.value: (255, 0, 128),     # Pink
         }
         
-        # Powerup full names for display - use Enum names as keys
+        # Powerup full names for display
         display_names = {
             PowerupType.TRIPLE_SHOT.name: "TRIPLE SHOT",
             PowerupType.RAPID_FIRE.name: "RAPID FIRE",
             PowerupType.SHIELD.name: "SHIELD",
             PowerupType.HOMING_MISSILES.name: "HOMING MISSILES",
-            PowerupType.POWER_RESTORE.name: "POWER RESTORE", # Doesn't persist in state dict
+            PowerupType.POWER_RESTORE.name: "POWER RESTORE",
             PowerupType.SCATTER_BOMB.name: "SCATTER BOMB",
             PowerupType.TIME_WARP.name: "TIME WARP",
-            PowerupType.MEGA_BLAST.name: "MEGA BLAST" # Doesn't persist in state dict
+            PowerupType.MEGA_BLAST.name: "MEGA BLAST"
         }
         
-        # Font for powerup name and time
+        # Map enum values directly to Y positions - this is the key fix
+        # This guarantees consistent positions regardless of anything else
+        absolute_positions = {
+            PowerupType.TRIPLE_SHOT.value: start_y + (POWERUP_SLOTS["TRIPLE_SHOT"] * spacing),
+            PowerupType.RAPID_FIRE.value: start_y + (POWERUP_SLOTS["RAPID_FIRE"] * spacing),
+            PowerupType.SHIELD.value: start_y + (POWERUP_SLOTS["SHIELD"] * spacing),
+            PowerupType.HOMING_MISSILES.value: start_y + (POWERUP_SLOTS["HOMING_MISSILES"] * spacing),
+            PowerupType.SCATTER_BOMB.value: start_y + (POWERUP_SLOTS["SCATTER_BOMB"] * spacing),
+            PowerupType.TIME_WARP.value: start_y + (POWERUP_SLOTS["TIME_WARP"] * spacing)
+        }
+        
+        # Fonts for names and time
         name_font = pygame.font.SysFont(None, 18)
         time_font = pygame.font.SysFont(None, 16)
         
-        # Track used slots for debug purposes
-        used_slots = set()
+        # Track which powerup indices were actually drawn
+        drawn_indices = set()
         
-        for powerup_name, powerup_state, powerup_idx in active_powerups_list:
-            # Map each powerup name to its dedicated slot from config
-            # Instant powerups don't get displayed, so no need to worry about them
-            slot = POWERUP_SLOTS.get(powerup_name, 999)  # Use 999 as fallback for unknown powerups
+        # Draw each active powerup in its dedicated position
+        for name, state in self.active_powerups_state.items():
+            powerup_idx = state.get("index", 999)
             
-            if slot in used_slots:
-                logger.warning(f"Duplicate slot {slot} for powerup {powerup_name}")
-            used_slots.add(slot)
+            # Skip if we've already drawn this powerup index
+            if powerup_idx in drawn_indices:
+                logger.warning(f"Skipping duplicate powerup index {powerup_idx} for {name}")
+                continue
+                
+            # Get the absolute position directly from the index, regardless of name
+            icon_y = absolute_positions.get(powerup_idx, start_y + (999 * spacing))
             
-            # Calculate Y position based on slot index
-            icon_y = start_y + slot * spacing
-            
-            logger.debug(f"Powerup {powerup_name} drawing at position y={icon_y}, slot={slot}")
+            drawn_indices.add(powerup_idx)
+            logger.debug(f"Drawing powerup {name} (idx={powerup_idx}) at fixed position y={icon_y}")
             
             # Create a special effect surface for this powerup
             icon_surface = pygame.Surface((icon_size, icon_size), pygame.SRCALPHA)
@@ -907,7 +908,7 @@ class Player(AnimatedSprite):
             rotation = (animation_time * 15 + powerup_idx * 45) % 360  # Different rotation for each powerup
             
             # Draw special effect icon based on powerup type
-            if powerup_name == PowerupType.TRIPLE_SHOT.name:
+            if name == PowerupType.TRIPLE_SHOT.name:
                 # Triple golden rays
                 center = (icon_size // 2, icon_size // 2)
                 for angle in range(0, 360, 120):
@@ -929,7 +930,7 @@ class Player(AnimatedSprite):
                 pygame.draw.circle(icon_surface, (255, 255, 255, 150), 
                                   (center[0] - 2, center[1] - 2), int(icon_size // 8))
                 
-            elif powerup_name == PowerupType.RAPID_FIRE.name:
+            elif name == PowerupType.RAPID_FIRE.name:
                 # Lightning-like effect
                 center = (icon_size // 2, icon_size // 2)
                 # Use fixed angles for more consistency
@@ -961,7 +962,7 @@ class Player(AnimatedSprite):
                 # Add central glow
                 pygame.draw.circle(icon_surface, (*color, 180), center, int(icon_size // 4))
                 
-            elif powerup_name == PowerupType.SHIELD.name:
+            elif name == PowerupType.SHIELD.name:
                 # Shield bubble effect
                 center = (icon_size // 2, icon_size // 2)
                 shield_radius = int(icon_size // 2 * pulse)
@@ -992,7 +993,7 @@ class Player(AnimatedSprite):
                     max(1, shield_radius // 4)
                 )
                 
-            elif powerup_name == PowerupType.HOMING_MISSILES.name:
+            elif name == PowerupType.HOMING_MISSILES.name:
                 # Target-like icon
                 center = (icon_size // 2, icon_size // 2)
                 
@@ -1021,7 +1022,7 @@ class Player(AnimatedSprite):
                         max(1, int(icon_size // 12))
                     )
                 
-            elif powerup_name == PowerupType.POWER_RESTORE.name:
+            elif name == PowerupType.POWER_RESTORE.name:
                 # Health/power cross
                 center = (icon_size // 2, icon_size // 2)
                 width = max(2, int(icon_size // 6))
@@ -1048,7 +1049,7 @@ class Player(AnimatedSprite):
                     int(icon_size // 3)
                 )
                 
-            elif powerup_name == PowerupType.SCATTER_BOMB.name:
+            elif name == PowerupType.SCATTER_BOMB.name:
                 # Explosion-like rays
                 center = (icon_size // 2, icon_size // 2)
                 
@@ -1084,7 +1085,7 @@ class Player(AnimatedSprite):
                 # Add central glow
                 pygame.draw.circle(icon_surface, (*color, 200), center, int(icon_size // 4))
                 
-            elif powerup_name == PowerupType.TIME_WARP.name:
+            elif name == PowerupType.TIME_WARP.name:
                 # Clock-like pattern
                 center = (icon_size // 2, icon_size // 2)
                 
@@ -1132,7 +1133,7 @@ class Player(AnimatedSprite):
                     max(1, int(icon_size // 10))
                 )
                 
-            elif powerup_name == PowerupType.MEGA_BLAST.name:
+            elif name == PowerupType.MEGA_BLAST.name:
                 # Starburst pattern
                 center = (icon_size // 2, icon_size // 2)
                 
@@ -1207,7 +1208,7 @@ class Player(AnimatedSprite):
             surface.blit(icon_surface, icon_rect)
             
             # Get full display name
-            display_name = display_names.get(powerup_name, powerup_name)
+            display_name = display_names.get(name, name)
             
             # Draw powerup name with a small shadow for readability
             name_text = name_font.render(display_name, True, (255, 255, 255))
@@ -1225,18 +1226,18 @@ class Player(AnimatedSprite):
             time_remaining_str = None
             charges_str = None
 
-            expiry_time = powerup_state.get("expiry_time")
+            expiry_time = state.get("expiry_time")
             if expiry_time is not None:
                 time_left_ms = max(0, expiry_time - current_time)
                 # Ensure integer division for seconds display
                 time_remaining_str = f"{time_left_ms // 1000}s"
             
-            charges = powerup_state.get("charges")
+            charges = state.get("charges")
             if charges is not None:
                 charges_str = f"{charges}"
 
             # Display charges for scatter bomb, time for others
-            if powerup_name == PowerupType.SCATTER_BOMB.name and charges_str is not None:
+            if name == PowerupType.SCATTER_BOMB.name and charges_str is not None:
                 status_text = time_font.render(charges_str, True, (255, 220, 150))
                 # Position directly under the name
                 status_x = name_x
@@ -1393,14 +1394,12 @@ class Player(AnimatedSprite):
             extra_state: Dictionary with any additional state (e.g., rapid fire delay).
         """
         current_time = pygame.time.get_ticks()
-        # Check if this powerup has a dedicated display slot, which ensures consistent display
-        # Try to find its slot based on its name in the POWERUP_SLOTS dictionary
-        slot = POWERUP_SLOTS.get(powerup_name, None)
         
-        # Create the state dictionary with the index and slot (if available)
-        state = {"index": powerup_idx}
-        if slot is not None:
-            state["slot"] = slot
+        # Create the state dictionary with mandatory index (the enum value is key to positioning)
+        # No need to calculate slot - the drawer will use the index directly
+        state = {
+            "index": powerup_idx
+        }
             
         is_refresh = powerup_name in self.active_powerups_state
 
@@ -1421,6 +1420,7 @@ class Player(AnimatedSprite):
              state.setdefault("color", (0, 100, 255)) # type: ignore
              state.setdefault("radius", 35)
 
+        # Store in the active powerups dictionary
         self.active_powerups_state[powerup_name] = state
 
         if is_refresh:
