@@ -119,7 +119,7 @@ PATTERN_COUNT: int = len(PATTERN_TYPES)  # Total number of patterns
 DECORATION_FILES: int = 6  # Files are named decoration1.png through decoration6.png
 
 # Appearance settings
-DECORATION_ALPHA: int = 70  # Alpha value (0-255) for decoration transparency
+DECORATION_ALPHA: int = 70      # Alpha value (0-255) for decoration transparency
 DECORATION_MIN_SIZE: int = 120  # Minimum size for decorations
 DECORATION_MAX_SIZE: int = 180  # Maximum size for decorations
 
@@ -135,12 +135,12 @@ DECORATION_BOTTOM_PADDING: int = 60  # Minimum distance from bottom of playfield
 POWERUP_ALPHA: int = 90  # Alpha value (0-255) for powerup sprite transparency
 
 # Spawn settings
-POWERUP_MIN_SPAWN_INTERVAL_MS: int = 1000  # Minimum spawn interval in milliseconds 
-POWERUP_MAX_SPAWN_INTERVAL_MS: int = 3000  # Maximum spawn interval in milliseconds 
+POWERUP_MIN_SPAWN_INTERVAL_MS: int = 3000  # Minimum spawn interval in milliseconds 
+POWERUP_MAX_SPAWN_INTERVAL_MS: int = 30000  # Maximum spawn interval in milliseconds 
 
 # Frequency scaling with difficulty
 POWERUP_DIFFICULTY_SCALING: float = 0.85  # Multiplier to reduce spawn interval per difficulty level (< 1.0 means more frequent)
-POWERUP_MIN_DIFFICULTY_INTERVAL_MS: int = 12500  # Minimum spawn interval at max difficulty in milliseconds
+POWERUP_MIN_DIFFICULTY_INTERVAL_MS: int = 10000  # Minimum spawn interval at max difficulty in milliseconds
 
 # Powerup slot constants for display positioning
 # These define fixed vertical positions for each powerup type in the status area
