@@ -267,5 +267,5 @@ WAVE_TIMER_EVENT_ID: int = pygame.USEREVENT + 1
 # ------------------------------------------------------------------------------
 # DEBUG SETTINGS
 # ------------------------------------------------------------------------------
-DEBUG_FORCE_ENEMY_TYPE: bool = True
+DEBUG_FORCE_ENEMY_TYPE: bool = False
 DEBUG_ENEMY_TYPE_INDEX: int = 6  # Enemy type to use when DEBUG_FORCE_ENEMY_TYPE is True (0-5)
