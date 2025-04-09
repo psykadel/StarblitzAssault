@@ -88,18 +88,34 @@ StarblitzAssault/
 │  └─ ...          # Game component modules
 ├─ static/         # Static files
 ├─ tests/          # Permanent tests
+├─ format_script.py # Code formatting script
 ├─ main.py         # Entry point
 └─ requirements.txt # Dependencies
 ```
+
+### Code Formatting
+
+The project includes tools for maintaining consistent code style:
+
+```bash
+# Format all Python code using isort and black
+python format_script.py
+```
+
+This will:
+- Sort imports using isort
+- Format code using black with a line length of 88 characters
+- Skip certain directories (.venv, __pycache__, etc.)
 
 ### Contributing
 
 1. Fork the repository
 2. Create a new branch (`git checkout -b feature/amazing-feature`)
 3. Make your changes
-4. Commit your changes (`git commit -m 'Add some amazing feature'`)
-5. Push to the branch (`git push origin feature/amazing-feature`)
-6. Open a Pull Request
+4. Run the formatting script (`python format_script.py`)
+5. Commit your changes (`git commit -m 'Add some amazing feature'`)
+6. Push to the branch (`git push origin feature/amazing-feature`)
+7. Open a Pull Request
 
 ---
 *(Scaffolding based on provided rules)*

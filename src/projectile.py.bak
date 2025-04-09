@@ -243,13 +243,13 @@ class ScatterProjectile(pygame.sprite.Sprite):
         super().__init__(*groups)
 
         # Create projectile surface (slightly smaller than regular bullet)
-        size = (BULLET_SIZE[0] * 3, BULLET_SIZE[1] * 3)
+        size = (BULLET_SIZE[0] - 2, BULLET_SIZE[1] - 2)
         self.image = pygame.Surface(size, pygame.SRCALPHA)
 
         # Draw the projectile as a yellow-orange circle
         pygame.draw.circle(
             self.image,
-            random.choice([(255, 100, 0), (255, 200, 0), (255, 50, 0), (255, 150, 50)]),  # Yellow-orange color
+            (255, 200, 50),  # Yellow-orange color
             (size[0] // 2, size[1] // 2),
             size[0] // 2,
         )
@@ -267,7 +267,7 @@ class ScatterProjectile(pygame.sprite.Sprite):
         self.pos_y = float(y)
 
         # Lifetime in frames
-        self.lifetime = 90  # 1 second at 60 FPS
+        self.lifetime = 60  # 1 second at 60 FPS
 
     def update(self) -> None:
         """Update the projectile's position."""

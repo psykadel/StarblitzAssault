@@ -3,15 +3,17 @@ description:
 globs: 
 alwaysApply: true
 ---
-# Clear Guidelines for Claude Sonnet 3.7
+# STANDARDS
 
-# Stop & Ask
+## MOST IMPORTANT
+IMPORTANT: try to fix things at the cause, not the symptom.  No workarounds, no duct tape.
 
-## Before Taking Actions:
-- **Do not** install anything via terminal without explicit user confirmation.
-- **Do not** install anything via brew without explicit user confirmation.
+## DON'Ts
+- **Do not** install anything via terminal without explicit user instruction.
+- **Do not** install anything via brew without explicit user instruction.
 - **Do not** install pip dependencies; **only** update `requirements.txt`.
 - **Do not** delete files; move them to `.unused`.
+- **Do not** use git unless instructed speifically.
 
 # Python Best Practices
 
@@ -25,12 +27,11 @@ alwaysApply: true
 - Store static files in `static/`, templates in `templates/`.
 
 ## Code Quality & Formatting
-- Format code using Black.
-- Sort imports with `isort`.
+- Format code.
+- Sort imports.
 - Strict adherence to PEP 8.
 - Maximum line length: 88 characters.
 - Use absolute imports exclusively.
-- Immediately fix all linting errors (no custom `.pylintrc`).
 
 ## Naming Conventions
 - Variables/functions: `snake_case`.
@@ -48,12 +49,11 @@ alwaysApply: true
 - Google-style docstrings.
 - Maintain a clear, informative `README.md`.
 - Generate thorough API documentation.
+- Ensure comments are about what something does or how it works, not what you did.
 
 ## Development Workflow
 - Always use virtual environments (`venv`).
 - Commit frequently, clearly, and granularly.
-- Push logical changes regularly.
-- Implement pre-commit hooks.
 - Follow semantic versioning.
 - Precise, minimal `.gitignore`.
 - Include standard files: `CONTRIBUTING.md`, `LICENSE`, `.python-version`.
@@ -89,8 +89,9 @@ alwaysApply: true
 your_project/
 ├─ .cursor/
 ├─ .logs/
-├─ .tests/
-├─ .unused/
+├─ .tests/                     - 
+├─ .temp/                      - any temporary files you need go here
+├─ .unused/                    - any unused files move here
 ├─ assets/
 │  ├─ backgrounds/
 │  ├─ images/

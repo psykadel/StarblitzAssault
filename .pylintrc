@@ -1,0 +1,32 @@
+[MASTER]
+# Add the current directory to Python path for pylint
+init-hook='import sys; sys.path.append("/Users/kristjanbackmeyer/Library/CloudStorage/OneDrive-Personal/Code/StarblitzAssault")'
+
+# Pygame has dynamically created attributes, which pylint cannot detect
+[TYPECHECK]
+ignored-modules=pygame
+ignored-classes=pygame,pygame.Surface,pygame.Rect
+
+[FORMAT]
+max-line-length=100
+
+[MESSAGES CONTROL]
+disable=
+    C0111, # Missing docstring
+    C0103, # Invalid name
+    C0303, # Trailing whitespace (handled by black)
+    C0301, # Line too long (handled by black)
+    R0913, # Too many arguments
+    R0914, # Too many local variables
+    R0915, # Too many statements
+    W0614, # Unused import from wildcard
+    W0401, # Wildcard import
+    W0703, # Broad except
+    W0212, # Protected member access
+    R0912, # Too many branches
+    R0903, # Too few public methods
+    R0902, # Too many instance attributes
+    R0904, # Too many public methods
+    R0801, # Duplicate code
+    W0511, # FIXME/TODO
+    W1203  # Use lazy % formatting in logging functions
