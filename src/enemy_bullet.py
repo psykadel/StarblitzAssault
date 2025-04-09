@@ -367,7 +367,6 @@ class ExplosionFragment(pygame.sprite.Sprite):
         self.lifetime -= 1
         if self.lifetime <= 0:
             self.kill()
-            return
 
         # Kill the fragment if it goes off screen
         if (
@@ -602,3 +601,173 @@ class WaveBullet(pygame.sprite.Sprite):
             or self.rect.top > SCREEN_HEIGHT
         ):
             self.kill()
+
+
+class LaserBeam(pygame.sprite.Sprite):
+    """A laser beam that extends across the screen."""
+
+    def __init__(self, start_pos: tuple, width: int = 6, *groups) -> None:
+        super().__init__(*groups)
+        
+        # Laser properties
+        self.start_pos = start_pos
+        self.width = width
+        self.max_length = SCREEN_WIDTH  # Maximum length of the laser
+        self.current_length = 0  # Current length (will grow)
+        self.growth_speed = 30  # How fast the laser extends
+        self.max_lifetime = 60  # Frames the laser stays at full extension
+        self.lifetime = 0
+        self.fade_speed = 10  # How fast the laser fades out
+        self.alpha = 255  # Starting alpha
+        
+        # Beam fluctuation properties for visual effects
+        self.flicker_time = 0
+        self.flicker_speed = 0.5
+        self.flicker_amount = 0.2  # Amount to flicker (20% variation)
+        
+        # Appearance effect for beam starting
+        self.beam_start_effect_length = 30  # Length of fade-in effect at beam start
+        self.beam_charge_alpha = 0  # Starting alpha for the charging effect
+        self.charge_fade_in_speed = 20  # Speed of alpha increase for charging effect
+        self.charge_size = 15  # Size of the charge effect
+        self.charge_active = True  # Charge effect is active at first
+        
+        # Create initial image (will be updated)
+        self.image = pygame.Surface((1, self.width), pygame.SRCALPHA)
+        self.rect = self.image.get_rect(midright=start_pos)
+        
+        # We'll initialize the mask later after creating the actual image
+        self.mask = None
+        
+        # Update the image for the first time
+        self.update_image()
+
+    def update_image(self) -> None:
+        """Updates the laser image based on current length and alpha."""
+        # Create surface for laser (add a few pixels extra for glow effects)
+        surface_width = max(1, self.current_length)
+        surface_height = self.width + 8
+        
+        # Create a new surface
+        self.image = pygame.Surface((surface_width, surface_height), pygame.SRCALPHA)
+        
+        # Calculate center of height for drawing
+        center_y = surface_height // 2
+        
+        # Calculate flicker effect
+        flicker = 1.0 + math.sin(self.flicker_time) * self.flicker_amount
+        
+        # Draw glow effect (wider beam with lower alpha)
+        glow_width = int(self.width * 1.8 * flicker)
+        glow_alpha = int(self.alpha * 0.4)
+        glow_color = (255, 100, 100, glow_alpha)  # Lighter red glow
+        
+        # Draw the glow with fade-in effect at the beginning (right side)
+        for x in range(surface_width):
+            # Calculate fade-in factor (0-1) for the right side (beginning of beam at enemy)
+            beginning_fade = min(1.0, (surface_width - x) / self.beam_start_effect_length) if self.beam_start_effect_length > 0 else 1.0
+            current_glow_alpha = int(glow_alpha * beginning_fade)
+            current_glow_color = (255, 100, 100, current_glow_alpha)
+            
+            # Intensity increases toward beam center
+            glow_rect = pygame.Rect(x, center_y - glow_width//2, 1, glow_width)
+            pygame.draw.rect(self.image, current_glow_color, glow_rect)
+        
+        # Calculate core beam width with flicker
+        core_width = int(self.width * flicker)
+        
+        # Draw main beam core with fade-in at the beginning (right side)
+        for x in range(surface_width):
+            # Calculate gradient position (0 to 1)
+            pos = x / surface_width if surface_width > 0 else 0
+            
+            # Calculate fade-in factor (0-1) for the right side (beginning of beam at enemy)
+            beginning_fade = min(1.0, (surface_width - x) / self.beam_start_effect_length) if self.beam_start_effect_length > 0 else 1.0
+            
+            # Start with bright white/red, fade to darker red
+            r = 255
+            g = max(50, 200 - int(150 * pos))
+            b = max(50, 200 - int(150 * pos))
+            
+            # Apply beginning fade
+            current_alpha = int(self.alpha * beginning_fade)
+            beam_color = (r, g, b, current_alpha)
+            
+            # Draw vertical line for beam core
+            pygame.draw.line(self.image, beam_color, 
+                            (x, center_y - core_width//2 * beginning_fade), 
+                            (x, center_y + core_width//2 * beginning_fade), 1)
+        
+        # Draw intense center line with fade-in at beginning (right side)
+        for x in range(surface_width):
+            beginning_fade = min(1.0, (surface_width - x) / self.beam_start_effect_length) if self.beam_start_effect_length > 0 else 1.0
+            center_alpha = int(self.alpha * beginning_fade)
+            center_color = (255, 255, 255, center_alpha)  # Bright white with variable alpha
+            if x < surface_width - 1:  # Avoid IndexError
+                pygame.draw.line(self.image, center_color, (x, center_y), (x+1, center_y), 2)
+        
+        # Add some energy particles at the start of the beam
+        if self.current_length > 20 and random.random() < 0.7:
+            particle_size = random.randint(1, 3)
+            particle_x = random.randint(0, 15)
+            particle_y = random.randint(center_y - core_width//2, center_y + core_width//2)
+            particle_color = (255, 230, 230, self.alpha)
+            pygame.draw.circle(self.image, particle_color, (particle_x, particle_y), particle_size)
+            
+        # Draw charging effect at the origin of the beam (right side)
+        if self.charge_active and self.beam_charge_alpha > 20:
+            charge_size = self.charge_size * (0.8 + 0.4 * math.sin(self.flicker_time * 2))
+            # Create a radial glow at the start of the beam
+            for radius in range(int(charge_size), 0, -2):
+                ratio = radius / charge_size
+                charge_alpha = int(self.beam_charge_alpha * ratio)
+                charge_color = (255, 200, 200, charge_alpha)
+                pygame.draw.circle(self.image, charge_color, 
+                                (surface_width-1, center_y), 
+                                radius)
+            
+            # Add bright center to the charge effect
+            center_charge_color = (255, 255, 255, self.beam_charge_alpha)
+            pygame.draw.circle(self.image, center_charge_color, 
+                            (surface_width-1, center_y), 
+                            charge_size * 0.3)
+        
+        # Save the previous rect position before updating
+        old_right = self.rect.right if hasattr(self, 'rect') else 0
+        
+        # Update rect and position it correctly (shooting leftward from the enemy)
+        self.rect = self.image.get_rect()
+        self.rect.right = old_right or self.start_pos[0]
+        self.rect.centery = self.start_pos[1]
+        
+        # Update mask
+        self.mask = pygame.mask.from_surface(self.image)
+
+    def update(self) -> None:
+        """Update the laser beam's state."""
+        # Update flicker animation
+        self.flicker_time += self.flicker_speed
+        
+        # Handle charging effect
+        if self.charge_active:
+            self.beam_charge_alpha = min(255, self.beam_charge_alpha + self.charge_fade_in_speed)
+            # When charge is fully visible and beam starts to grow, deactivate charge
+            if self.beam_charge_alpha >= 255 and self.current_length > 10:
+                self.charge_active = False
+        
+        # Determine which phase the laser is in
+        if self.current_length < self.max_length:
+            # Growth phase
+            self.current_length = min(self.current_length + self.growth_speed, self.max_length)
+        elif self.lifetime < self.max_lifetime:
+            # Steady phase
+            self.lifetime += 1
+        else:
+            # Fade out phase
+            self.alpha = max(0, self.alpha - self.fade_speed)
+            if self.alpha <= 0:
+                self.kill()
+                return
+        
+        # Update image and collision boxes
+        self.update_image()

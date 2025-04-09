@@ -53,7 +53,7 @@ def get_enemy_weights(difficulty_level: float) -> List[int]:
     Returns:
         List of weights for each enemy type (index corresponds to enemy type)
     """
-    weights = [0] * 6  # Initialize weights for all 6 enemy types
+    weights = [0] * 7  # Initialize weights for all 7 enemy types
 
     for enemy_type, base_freq in BASE_ENEMY_FREQUENCIES.items():
         # Skip if enemy type is not yet unlocked at this difficulty
@@ -650,6 +650,190 @@ class EnemyType6(Enemy):
             bullet = BouncingBullet(self.rect.center, angle, self.bullet_group)
 
         logger.debug(f"Enemy fired bouncing bullets from {self.rect.center}")
+
+
+# Enemy Type 7: Reflector enemy that can reflect player bullets and fire laser beams
+class EnemyType7(Enemy):
+    """Reflector enemy that can reflect player bullets and fire laser beams."""
+
+    def __init__(self, player_ref, bullet_group, *groups) -> None:
+        super().__init__(*groups)
+
+        self.player_ref = player_ref
+        self.bullet_group = bullet_group
+        
+        # Load the sprite frames
+        self.frames = load_sprite_sheet(
+            filename="enemy7.png",
+            sprite_dir=SPRITES_DIR,
+            scale_factor=ENEMY_SCALE_FACTOR,
+            alignment="right",
+        )
+
+        if not self.frames:
+            logger.error("EnemyType7 frames list is empty after loading!")
+            self.kill()
+            return
+
+        # Flip the sprites horizontally
+        self.frames = [pygame.transform.flip(frame, True, False) for frame in self.frames]
+
+        self.image = self.frames[self.frame_index]
+        self.rect = self.image.get_rect()
+        self.mask = pygame.mask.from_surface(self.image)
+
+        # Position tracking
+        self._pos_x = float(self.rect.x)
+        self._pos_y = float(self.rect.y)
+
+        # Reflection shield properties
+        self.reflection_active = False
+        self.reflection_cooldown = random.randint(3000, 5000)  # ms between reflections
+        self.reflection_duration = 2000  # ms the reflection shield is active
+        self.last_reflection_time = 0
+        self.reflection_radius = 40  # pixels
+        self.shield_pulse_offset = 0  # For pulsating effect
+        self.shield_pulse_speed = 0.2  # Speed of pulse animation
+        
+        # Simplified laser attack properties
+        self.max_laser_shots = random.randint(1, 2)  # Each enemy can fire only 1-2 lasers
+        self.laser_shots_fired = 0
+        self.can_fire_laser = False  # Will be set to true when enemy is in position
+        self.min_laser_x = SCREEN_WIDTH * 0.6  # Only fire when in the right 60% of screen
+        self.laser_cooldown = random.randint(1500, 3000)  # Much longer cooldown
+        self.last_laser_time = pygame.time.get_ticks()
+        
+        # Movement pattern: strafing horizontally
+        self.initial_speed_x = ENEMY_SPEED_X * 0.6  # Slower horizontal movement
+        self.strafe_speed_y = 2.0  # Vertical movement during strafing
+        self.strafe_direction = 1 if random.random() > 0.5 else -1  # Random initial direction
+        self.strafe_time = 0
+        self.strafe_period = 180  # Full strafe cycle duration in frames (3 seconds at 60fps)
+        
+        # Visual effects
+        self.shield_color = (100, 200, 255)  # Blue shield
+        self.shield_color2 = (50, 150, 255)  # Darker blue for gradient
+        self.shield_alpha = 0  # Start with invisible shield
+        
+        # Initial speed
+        self.set_speed(self.initial_speed_x, 0)
+
+    def update(self) -> None:
+        # Call the parent class update for animation and basic movement
+        super().update()
+        
+        now = pygame.time.get_ticks()
+        
+        # Update strafe movement
+        self.strafe_time = (self.strafe_time + 1) % self.strafe_period
+        # Calculate vertical speed based on sine wave
+        progress = self.strafe_time / self.strafe_period
+        vertical_offset = math.sin(progress * 2 * math.pi) * self.strafe_speed_y
+        self.set_speed(self.initial_speed_x, vertical_offset * self.strafe_direction)
+        
+        # Update shield pulse animation
+        self.shield_pulse_offset = (self.shield_pulse_offset + self.shield_pulse_speed) % 10
+        
+        # Handle reflection shield
+        if not self.reflection_active and now - self.last_reflection_time > self.reflection_cooldown:
+            # Activate reflection
+            self.reflection_active = True
+            self.last_reflection_time = now
+            # Play shield activation sound (handled in game_loop)
+        elif self.reflection_active and now - self.last_reflection_time > self.reflection_duration:
+            # Deactivate reflection
+            self.reflection_active = False
+            # Reset cooldown
+            self.reflection_cooldown = random.randint(3000, 5000)
+            
+        # Update shield alpha for visual effect
+        if self.reflection_active:
+            self.shield_alpha = min(180, self.shield_alpha + 15)  # Fade in
+        else:
+            self.shield_alpha = max(0, self.shield_alpha - 15)  # Fade out
+            
+        # SIMPLIFIED LASER FIRING LOGIC
+        # Only fire if we haven't reached max shots and we're in the right part of the screen
+        if self.laser_shots_fired < self.max_laser_shots:
+            # Check if we're in position to fire
+            if self.rect.right < SCREEN_WIDTH and self.rect.right > self.min_laser_x:
+                # Only fire after cooldown
+                if now - self.last_laser_time > self.laser_cooldown:
+                    self._fire_laser()
+                    self.last_laser_time = now
+                    self.laser_shots_fired += 1
+                    # Increase cooldown after each shot to prevent rapid firing
+                    self.laser_cooldown = random.randint(2000, 4000)
+
+    def draw(self, surface):
+        """Override draw method to add reflection shield visual."""
+        # Draw the enemy sprite
+        surface.blit(self.image, self.rect)
+        
+        # Draw reflection shield if active
+        if self.shield_alpha > 0:
+            # Get current pulse size for outer and inner rings
+            pulse_size = 4 + math.sin(self.shield_pulse_offset) * 3
+            inner_radius = self.reflection_radius - pulse_size
+            
+            # Create shield surface
+            shield_surf = pygame.Surface((self.reflection_radius * 2 + 10, self.reflection_radius * 2 + 10), pygame.SRCALPHA)
+            shield_center = (self.reflection_radius + 5, self.reflection_radius + 5)
+            
+            # Draw outer glow
+            glow_color = (*self.shield_color, max(20, self.shield_alpha // 3))
+            pygame.draw.circle(shield_surf, glow_color, shield_center, self.reflection_radius + 5)
+            
+            # Draw main shield
+            shield_color_with_alpha = (*self.shield_color, self.shield_alpha)
+            pygame.draw.circle(shield_surf, shield_color_with_alpha, shield_center, self.reflection_radius)
+            
+            # Draw inner ring
+            inner_color = (*self.shield_color2, self.shield_alpha)
+            pygame.draw.circle(shield_surf, inner_color, shield_center, inner_radius)
+            
+            # Draw hexagonal pattern for tech look
+            if self.shield_alpha > 80:  # Only show pattern when shield is more visible
+                segments = 6  # Hexagonal pattern
+                line_thickness = 2
+                for i in range(segments):
+                    angle1 = 2 * math.pi * i / segments
+                    angle2 = 2 * math.pi * ((i + 1) % segments) / segments
+                    
+                    # Middle ring
+                    middle_radius = self.reflection_radius * 0.75
+                    start_pos = (
+                        shield_center[0] + middle_radius * math.cos(angle1),
+                        shield_center[1] + middle_radius * math.sin(angle1)
+                    )
+                    end_pos = (
+                        shield_center[0] + middle_radius * math.cos(angle2),
+                        shield_center[1] + middle_radius * math.sin(angle2)
+                    )
+                    line_color = (220, 240, 255, min(255, self.shield_alpha + 40))
+                    pygame.draw.line(shield_surf, line_color, start_pos, end_pos, line_thickness)
+            
+            # Add a bright border
+            border_color = (200, 230, 255, min(255, self.shield_alpha + 50))
+            pygame.draw.circle(shield_surf, border_color, shield_center, self.reflection_radius, 2)
+            
+            # Blit to screen
+            shield_rect = shield_surf.get_rect(center=self.rect.center)
+            surface.blit(shield_surf, shield_rect)
+    
+    def _fire_laser(self) -> None:
+        """Fire a laser beam from the enemy."""
+        if not self.bullet_group:
+            return
+            
+        # Fire laser from front of ship aimed at player
+        from src.enemy_bullet import LaserBeam
+        
+        # Fire from left side (facing the player)
+        laser_start = (self.rect.left, self.rect.centery)
+        # Direction is leftward (negative x) - laser extends toward player side
+        LaserBeam(laser_start, 8, self.bullet_group)
+        # Sound will be handled in game_loop
 
 
 # Add more enemy classes as needed (e.g., Charger, Shooter, Boss)

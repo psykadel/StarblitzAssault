@@ -50,6 +50,7 @@ from src.enemy import (
     EnemyType4,
     EnemyType5,
     EnemyType6,
+    EnemyType7,
     get_enemy_weights,
 )
 from src.explosion import Explosion
@@ -691,7 +692,7 @@ class Game:
             spacing_y: Vertical spacing between enemies
             enemy_type_index: Type of enemy to spawn (0: EnemyType1, 1: EnemyType2,
                               2: EnemyType3, 3: EnemyType4, 4: EnemyType5,
-                              5: EnemyType6)
+                              5: EnemyType6, 6: EnemyType7)
             speed_modifier: Multiplier for enemy speed based on difficulty
         """
         # Calculate the playfield height for spacing
@@ -728,6 +729,8 @@ class Game:
                 enemy = EnemyType5(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
             elif enemy_type_index == 5:
                 enemy = EnemyType6(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
+            elif enemy_type_index == 6:
+                enemy = EnemyType7(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
             else:
                 enemy = EnemyType1(self.all_sprites, self.enemies)
 
@@ -759,6 +762,12 @@ class Game:
                 enemy.last_shot_time = pygame.time.get_ticks()  # Reset timer
                 enemy.last_teleport_time = pygame.time.get_ticks()  # Reset teleport timer
                 enemy.teleport_delay = max(1000, int(enemy.teleport_delay / speed_modifier))
+            elif isinstance(enemy, EnemyType7):
+                # Reflector enemy with laser and shield
+                enemy.last_reflection_time = pygame.time.get_ticks()  # Reset reflection timer
+                enemy.last_laser_time = pygame.time.get_ticks()  # Reset laser timer
+                enemy.reflection_cooldown = max(1000, int(enemy.reflection_cooldown / speed_modifier))
+                enemy.laser_cooldown = max(1000, int(enemy.laser_cooldown / speed_modifier))
             else:
                 enemy = EnemyType1(self.all_sprites, self.enemies)
 
@@ -807,6 +816,8 @@ class Game:
                 enemy = EnemyType5(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
             elif enemy_type_index == 5:
                 enemy = EnemyType6(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
+            elif enemy_type_index == 6:
+                enemy = EnemyType7(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
             else:
                 enemy = EnemyType1(self.all_sprites, self.enemies)
 
@@ -838,6 +849,12 @@ class Game:
                 enemy.last_shot_time = pygame.time.get_ticks()  # Reset timer
                 enemy.last_teleport_time = pygame.time.get_ticks()  # Reset teleport timer
                 enemy.teleport_delay = max(1000, int(enemy.teleport_delay / speed_modifier))
+            elif isinstance(enemy, EnemyType7):
+                # Reflector enemy with laser and shield
+                enemy.last_reflection_time = pygame.time.get_ticks()  # Reset reflection timer
+                enemy.last_laser_time = pygame.time.get_ticks()  # Reset laser timer
+                enemy.reflection_cooldown = max(1000, int(enemy.reflection_cooldown / speed_modifier))
+                enemy.laser_cooldown = max(1000, int(enemy.laser_cooldown / speed_modifier))
             else:
                 enemy = EnemyType1(self.all_sprites, self.enemies)
 
@@ -851,7 +868,7 @@ class Game:
 
         Args:
             count: Number of enemies to spawn
-            enemy_type_index: Type of enemy to spawn
+            enemy_type_index: Type of enemy to spawn (0-6)
             speed_modifier: Multiplier for enemy speed based on difficulty
         """
         # Spacing between enemies
@@ -891,6 +908,8 @@ class Game:
                 enemy = EnemyType5(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
             elif enemy_type_index == 5:
                 enemy = EnemyType6(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
+            elif enemy_type_index == 6:
+                enemy = EnemyType7(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
             else:
                 enemy = EnemyType1(self.all_sprites, self.enemies)
 
@@ -922,6 +941,12 @@ class Game:
                 enemy.last_shot_time = pygame.time.get_ticks()  # Reset timer
                 enemy.last_teleport_time = pygame.time.get_ticks()  # Reset teleport timer
                 enemy.teleport_delay = max(1000, int(enemy.teleport_delay / speed_modifier))
+            elif isinstance(enemy, EnemyType7):
+                # Reflector enemy with laser and shield
+                enemy.last_reflection_time = pygame.time.get_ticks()  # Reset reflection timer
+                enemy.last_laser_time = pygame.time.get_ticks()  # Reset laser timer
+                enemy.reflection_cooldown = max(1000, int(enemy.reflection_cooldown / speed_modifier))
+                enemy.laser_cooldown = max(1000, int(enemy.laser_cooldown / speed_modifier))
             else:
                 enemy = EnemyType1(self.all_sprites, self.enemies)
 
@@ -933,7 +958,7 @@ class Game:
 
         Args:
             count: Number of enemies to spawn
-            enemy_type_index: Type of enemy to spawn
+            enemy_type_index: Type of enemy to spawn (0-6)
             speed_modifier: Multiplier for enemy speed based on difficulty
         """
         # Need an odd number for the V-pattern to look symmetrical
@@ -983,6 +1008,8 @@ class Game:
                 enemy = EnemyType5(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
             elif enemy_type_index == 5:
                 enemy = EnemyType6(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
+            elif enemy_type_index == 6:
+                enemy = EnemyType7(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
             else:
                 enemy = EnemyType1(self.all_sprites, self.enemies)
 
@@ -1014,6 +1041,12 @@ class Game:
                 enemy.last_shot_time = pygame.time.get_ticks()  # Reset timer
                 enemy.last_teleport_time = pygame.time.get_ticks()  # Reset teleport timer
                 enemy.teleport_delay = max(1000, int(enemy.teleport_delay / speed_modifier))
+            elif isinstance(enemy, EnemyType7):
+                # Reflector enemy with laser and shield
+                enemy.last_reflection_time = pygame.time.get_ticks()  # Reset reflection timer
+                enemy.last_laser_time = pygame.time.get_ticks()  # Reset laser timer
+                enemy.reflection_cooldown = max(1000, int(enemy.reflection_cooldown / speed_modifier))
+                enemy.laser_cooldown = max(1000, int(enemy.laser_cooldown / speed_modifier))
             else:
                 enemy = EnemyType1(self.all_sprites, self.enemies)
 
@@ -1297,10 +1330,36 @@ class Game:
 
         for bullet, enemies_hit in bullet_enemy_dict.items():
             for enemy in enemies_hit:
-                # Regular enemy hit handling
-                bullet.kill()
-                enemy.kill()
-                self._process_enemy_destruction(enemy)
+                # Check if enemy is a Reflector with active shield
+                if isinstance(enemy, EnemyType7) and enemy.reflection_active:
+                    # Reflect bullet back at player
+                    bullet.kill()
+                    
+                    # Calculate reflection angle (reverse direction and randomize slightly)
+                    reflection_angle = random.uniform(-30, 30)  # Add some random spread
+                    
+                    # Create bullet at enemy position going in player's direction
+                    from src.enemy_bullet import EnemyBullet
+                    reflected_bullet = EnemyBullet(
+                        enemy.rect.center, 
+                        (enemy.rect.centerx - 100, enemy.rect.centery + reflection_angle),
+                        self.enemy_bullets
+                    )
+                    
+                    # Play reflection sound effect
+                    try:
+                        self.sound_manager.play("shield", "enemy")
+                    except Exception as e:
+                        # Fallback to another common sound if shield isn't available
+                        try:
+                            self.sound_manager.play("hit1", "enemy")
+                        except Exception:
+                            logger.warning(f"Failed to play shield or fallback sound: {e}")
+                else:
+                    # Regular enemy hit handling
+                    bullet.kill()
+                    enemy.kill()
+                    self._process_enemy_destruction(enemy)
 
         # Skip collision handling if player is not alive
         if not self.player.is_alive:
@@ -1417,7 +1476,9 @@ class Game:
     def _process_enemy_destruction(self, enemy):
         """Handle common logic for enemy destruction."""
         # Add score for destroying enemy based on enemy type
-        if isinstance(enemy, EnemyType6):
+        if isinstance(enemy, EnemyType7):
+            self.score += 350  # Reflector enemy
+        elif isinstance(enemy, EnemyType6):
             self.score += 300  # Teleporting enemy
         elif isinstance(enemy, EnemyType5):
             self.score += 250  # Seeker enemy
@@ -1465,7 +1526,11 @@ class Game:
 
         # Draw most sprites
         for sprite in self.all_sprites:
-            self.screen.blit(sprite.image, sprite.rect)
+            # Use custom draw method for reflector enemies
+            if isinstance(sprite, EnemyType7):
+                sprite.draw(self.screen)
+            else:
+                self.screen.blit(sprite.image, sprite.rect)
 
             # Draw any enemy labels (for test mode) - use getattr to avoid linter errors
             if getattr(sprite, "label_text", None) and getattr(sprite, "label_rect", None):

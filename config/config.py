@@ -77,9 +77,10 @@ ENEMY_TYPES = {
     "BASIC": 0,  # Basic enemy (EnemyType1)
     "SHOOTER": 1,  # Enemy that shoots bullets at player (EnemyType2)
     "WAVE": 2,  # Enemy that moves in wave pattern and fires wave projectiles (EnemyType3)
-    "SPIRAL": 3,  # Enemy with erratic movement and spiral projectiles (EnemyType4)
+    "SPIRAL": 3,  # Enemy that moves erratically and fires spiral projectiles (EnemyType4)
     "SEEKER": 4,  # Enemy that tracks player and fires homing projectiles (EnemyType5)
     "TELEPORTER": 5,  # Enemy that teleports and fires bouncing projectiles (EnemyType6)
+    "REFLECTOR": 6,  # Enemy that reflects player bullets and fires laser beams (EnemyType7)
 }
 
 # Enemy type names for logging and UI display
@@ -90,6 +91,7 @@ ENEMY_TYPE_NAMES = {
     ENEMY_TYPES["SPIRAL"]: "Spiral",
     ENEMY_TYPES["SEEKER"]: "Seeker",
     ENEMY_TYPES["TELEPORTER"]: "Teleporter",
+    ENEMY_TYPES["REFLECTOR"]: "Reflector",
 }
 
 # Enemy sprite sheet filenames
@@ -100,6 +102,7 @@ ENEMY_SPRITE_FILES = {
     ENEMY_TYPES["SPIRAL"]: "enemy4.png",
     ENEMY_TYPES["SEEKER"]: "enemy5.png",
     ENEMY_TYPES["TELEPORTER"]: "enemy6.png",
+    ENEMY_TYPES["REFLECTOR"]: "enemy7.png",
 }
 
 # ------------------------------------------------------------------------------
@@ -127,7 +130,7 @@ DECORATION_MAX_SIZE: int = 180  # Maximum size for decorations
 # Spacing and positioning settings
 DECORATION_MIN_HORIZONTAL_SPACING: int = 1000  # Minimum horizontal spacing between decorations
 DECORATION_TOP_PADDING: int = 30  # Minimum distance from top of playfield
-DECORATION_BOTTOM_PADDING: int = 60  # Minimum distance from bottom of playfield
+DECORATION_BOTTOM_PADDING: int = 70  # Minimum distance from bottom of playfield
 
 # ------------------------------------------------------------------------------
 # POWERUP SETTINGS
@@ -184,6 +187,7 @@ BASE_ENEMY_FREQUENCIES = {
     ENEMY_TYPES["SPIRAL"]: 10,  # 10% chance at difficulty 1
     ENEMY_TYPES["SEEKER"]: 10,  # 10% chance at difficulty 1
     ENEMY_TYPES["TELEPORTER"]: 0,  # 0% at difficulty 1 (unlocks at difficulty 2)
+    ENEMY_TYPES["REFLECTOR"]: 0,  # 0% at difficulty 1 (unlocks at difficulty 2.5)
 }
 
 # Difficulty thresholds for when each enemy type starts to appear
@@ -194,6 +198,7 @@ ENEMY_UNLOCK_THRESHOLDS = {
     ENEMY_TYPES["SPIRAL"]: 1.0,  # Available from start
     ENEMY_TYPES["SEEKER"]: 1.0,  # Available from start
     ENEMY_TYPES["TELEPORTER"]: 2.0,  # Unlocks at difficulty 2.0
+    ENEMY_TYPES["REFLECTOR"]: 2.0,  # Unlocks at difficulty 2.5
 }
 
 # Frequency scaling per difficulty level
@@ -207,6 +212,7 @@ FREQUENCY_SCALING = {
     ENEMY_TYPES["SPIRAL"]: 1.0,  # Increases by 1.0% per difficulty level
     ENEMY_TYPES["SEEKER"]: 1.5,  # Increases by 1.5% per difficulty level
     ENEMY_TYPES["TELEPORTER"]: 2.0,  # Increases by 2.0% per difficulty level once unlocked
+    ENEMY_TYPES["REFLECTOR"]: 2.0,  # Increases by 1.8% per difficulty level once unlocked
 }
 
 # Maximum frequency for each enemy type (percentage)
@@ -217,6 +223,7 @@ MAX_FREQUENCIES = {
     ENEMY_TYPES["SPIRAL"]: 20,  # Max 20%
     ENEMY_TYPES["SEEKER"]: 25,  # Max 25%
     ENEMY_TYPES["TELEPORTER"]: 20,  # Max 20%
+    ENEMY_TYPES["REFLECTOR"]: 20,  # Max 20%
 }
 
 # Minimum frequency for each enemy type once unlocked (percentage)
@@ -227,6 +234,7 @@ MIN_FREQUENCIES = {
     ENEMY_TYPES["SPIRAL"]: 5,  # Min 5%
     ENEMY_TYPES["SEEKER"]: 5,  # Min 5%
     ENEMY_TYPES["TELEPORTER"]: 2,  # Min 2%
+    ENEMY_TYPES["REFLECTOR"]: 3,  # Min 3%
 }
 
 # ------------------------------------------------------------------------------
@@ -259,5 +267,5 @@ WAVE_TIMER_EVENT_ID: int = pygame.USEREVENT + 1
 # ------------------------------------------------------------------------------
 # DEBUG SETTINGS
 # ------------------------------------------------------------------------------
-DEBUG_FORCE_ENEMY_TYPE: bool = False
-DEBUG_ENEMY_TYPE_INDEX: int = 5  # Enemy type to use when DEBUG_FORCE_ENEMY_TYPE is True (0-5)
+DEBUG_FORCE_ENEMY_TYPE: bool = True
+DEBUG_ENEMY_TYPE_INDEX: int = 6  # Enemy type to use when DEBUG_FORCE_ENEMY_TYPE is True (0-5)
