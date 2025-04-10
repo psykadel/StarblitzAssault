@@ -115,6 +115,23 @@ class Enemy(AnimatedSprite):
         """Allows enemy to shoot projectiles."""
         # Placeholder for enemy shooting logic - implement in subclasses
         pass
+        
+    def reset(self) -> None:
+        """Reset the enemy to its initial state for object pooling reuse."""
+        # Reset animation
+        self.frame_index = 0
+        if hasattr(self, 'frames') and self.frames:
+            self.image = self.frames[0]
+            
+        # Reset position tracking to avoid position inheritance
+        if hasattr(self, 'rect'):
+            self._pos_x = float(self.rect.x)
+            self._pos_y = float(self.rect.y)
+            
+        # Reset default speed
+        self.set_speed(ENEMY_SPEED_X, 0)
+            
+        # Child classes should override this to reset specific properties
 
 
 # Renaming Grunt to represent enemy1 specifically

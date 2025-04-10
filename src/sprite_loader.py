@@ -4,7 +4,7 @@ import logging
 import math
 import os
 import sys
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Dict
 
 import pygame
 
@@ -13,6 +13,9 @@ from src.logger import get_logger
 
 # Get a logger for this module
 logger = get_logger(__name__)
+
+# Cache for loaded sprite sheets - proper type annotation 
+_sprite_sheet_cache: Dict[str, List[pygame.Surface]] = {}
 
 # Default crop border is no longer needed with mask-based detection
 # DEFAULT_CROP_BORDER_PIXELS = 2
@@ -137,6 +140,13 @@ def load_sprite_sheet(
         raise FileNotFoundError(error_msg)
 
     try:
+        # Check if this sprite sheet is already in the cache
+        cache_key = f"{sprite_sheet_path}_{scale_factor}_{grid_size}_{alignment}_{align_margin}"
+        if cache_key in _sprite_sheet_cache:
+            logger.debug(f"Using cached sprite sheet: {filename}")
+            return _sprite_sheet_cache[cache_key]
+
+        # Load the sprite sheet if not cached
         sprite_sheet = pygame.image.load(sprite_sheet_path).convert_alpha()
         logger.info(
             f"Loaded sprite sheet: {filename} ({sprite_sheet.get_width()}x{sprite_sheet.get_height()})"
@@ -248,6 +258,9 @@ def load_sprite_sheet(
                 aligned_sprites.append(canvas)
 
         logger.info(f"Extracted and aligned {len(aligned_sprites)} sprites from {filename}")
+        
+        # Cache the result
+        _sprite_sheet_cache[cache_key] = aligned_sprites
         return aligned_sprites
 
     except pygame.error as e:
@@ -258,6 +271,13 @@ def load_sprite_sheet(
         error_msg = f"ValueError processing sprite sheet: {sprite_sheet_path} - {str(e)}"
         logger.error(error_msg)
         raise  # Re-raise
+
+
+def clear_sprite_cache():
+    """Clear the sprite sheet cache to free memory."""
+    global _sprite_sheet_cache
+    _sprite_sheet_cache.clear()
+    logger.info("Sprite sheet cache cleared")
 
 
 # Example usage (can be kept for testing or removed)

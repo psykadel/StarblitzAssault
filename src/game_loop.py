@@ -73,6 +73,9 @@ BG_LAYER_SPEEDS = [0.5, 1.0, 1.5, 2.0]  # Slowest to fastest (added a fourth spe
 # Use the event ID from config
 WAVE_TIMER_EVENT = WAVE_TIMER_EVENT_ID
 
+# Add at the beginning of the file, near other imports:
+from collections import deque
+
 
 # Define pattern types as IntEnum for better type checking and readability
 class PatternType(IntEnum):
@@ -399,6 +402,76 @@ class Game:
         # Don't spawn a powerup immediately
         self.last_powerup_time = pygame.time.get_ticks() + 10000  # 10 second initial delay
 
+        # Initialize enemy pools and preload sprites
+        self._init_enemy_pools()
+
+    def _init_enemy_pools(self):
+        """Initialize object pools for enemies to reduce instantiation overhead."""
+        # Create sprite sheet cache to avoid reloading the same sheets
+        self.sprite_sheet_cache = {}
+        
+        # Create enemy pools with preloaded instances
+        self.enemy_pools = {}
+        for enemy_type in range(8):  # We have 8 enemy types (0-7)
+            self.enemy_pools[enemy_type] = deque()
+            
+        # Preload some instances for each enemy type
+        self._preload_enemy_instances()
+    
+    def _preload_enemy_instances(self):
+        """Preload some enemy instances to avoid instantiation during gameplay."""
+        # Number of instances to preload for each enemy type
+        preload_count = 10
+        
+        # Temporarily create enemy instances outside the visible area
+        for enemy_type in range(8):
+            for _ in range(preload_count):
+                enemy = self._create_enemy_instance(enemy_type)
+                if enemy:
+                    # Move it off-screen
+                    enemy.topleft = (SCREEN_WIDTH * 2, 0)
+                    # Kill it to remove from sprite groups but keep the instance
+                    enemy.kill()
+                    # Store in the appropriate pool
+                    self.enemy_pools[enemy_type].append(enemy)
+    
+    def _create_enemy_instance(self, enemy_type_index):
+        """Create a new enemy instance of the specified type."""
+        if enemy_type_index == 0:
+            return EnemyType1(self.all_sprites, self.enemies)
+        elif enemy_type_index == 1:
+            return EnemyType2(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
+        elif enemy_type_index == 2:
+            return EnemyType3(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
+        elif enemy_type_index == 3:
+            return EnemyType4(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
+        elif enemy_type_index == 4:
+            return EnemyType5(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
+        elif enemy_type_index == 5:
+            return EnemyType6(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
+        elif enemy_type_index == 6:
+            return EnemyType7(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
+        elif enemy_type_index == 7:
+            return EnemyType8(self.player, self.all_sprites, self.enemies)
+        return None
+    
+    def _get_enemy_from_pool(self, enemy_type_index):
+        """Get an enemy from the pool or create a new one if the pool is empty."""
+        if enemy_type_index in self.enemy_pools and self.enemy_pools[enemy_type_index]:
+            # Reuse an existing enemy from the pool
+            enemy = self.enemy_pools[enemy_type_index].popleft()
+            if enemy:
+                # Add it back to the sprite groups
+                self.all_sprites.add(enemy)
+                self.enemies.add(enemy)
+                # Reset its state (position will be set by the caller)
+                if hasattr(enemy, 'reset'):
+                    enemy.reset()
+                return enemy
+        
+        # Create a new enemy if the pool is empty or we got None
+        return self._create_enemy_instance(enemy_type_index)
+
     def run(self):
         """Starts and manages the main game loop."""
         # No longer force spawn a powerup at start
@@ -688,111 +761,66 @@ class Game:
     def _spawn_vertical_pattern(
         self, count: int, spacing_y: int, enemy_type_index: int = 0, speed_modifier: float = 1.0
     ):
-        """Creates a vertical line of enemies entering from right.
-
-        Args:
-            count: Number of enemies to spawn
-            spacing_y: Vertical spacing between enemies
-            enemy_type_index: Type of enemy to spawn (0: EnemyType1, 1: EnemyType2,
-                              2: EnemyType3, 3: EnemyType4, 4: EnemyType5,
-                              5: EnemyType6, 6: EnemyType7, 7: EnemyType8)
-            speed_modifier: Multiplier for enemy speed based on difficulty
-        """
-        # Calculate the playfield height for spacing
+        """Creates a vertical line of enemies entering from right."""
+        # Calculate positioning parameters (this doesn't change)
         playfield_height = PLAYFIELD_BOTTOM_Y - PLAYFIELD_TOP_Y
-
-        # Apply border margin to prevent spawning too close to borders
         border_margin = 50
         usable_height = playfield_height - (2 * border_margin)
-
-        # Fixed enemy height estimate
         enemy_height = 40
-
-        # Total pattern height
         total_height = (count - 1) * spacing_y + enemy_height
-
-        # Center the pattern vertically within the usable area
         start_y = PLAYFIELD_TOP_Y + border_margin + (usable_height - total_height) // 2
-
-        # Fixed horizontal offset past right edge
         x_pos = SCREEN_WIDTH + 50
 
-        # Create the enemies
+        # Batch enemy creation for improved performance
         for i in range(count):
             y_pos = start_y + i * spacing_y
-
-            # Create the enemy based on the specified type
-            if enemy_type_index == 1:
-                enemy = EnemyType2(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
-            elif enemy_type_index == 2:
-                enemy = EnemyType3(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
-            elif enemy_type_index == 3:
-                enemy = EnemyType4(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
-            elif enemy_type_index == 4:
-                enemy = EnemyType5(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
-            elif enemy_type_index == 5:
-                enemy = EnemyType6(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
-            elif enemy_type_index == 6:
-                enemy = EnemyType7(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
-            elif enemy_type_index == 7:
-                enemy = EnemyType8(self.player, self.all_sprites, self.enemies)
-            else:
-                enemy = EnemyType1(self.all_sprites, self.enemies)
-
+            
+            # Get an enemy from the pool instead of creating a new one
+            enemy = self._get_enemy_from_pool(enemy_type_index)
+            
+            # Skip if we couldn't create a valid enemy
+            if not enemy:
+                continue
+            
             # Apply speed modifier based on difficulty
-            enemy.speed_x *= speed_modifier
-
-            # Adjust shooting cooldowns based on enemy type
+            if hasattr(enemy, 'speed_x'):
+                enemy.speed_x *= speed_modifier
+            
+            # Reset timers and cooldowns
             if isinstance(enemy, EnemyType2):
-                # Basic shooter - uses ENEMY_SHOOTER_COOLDOWN_MS directly
-                enemy.last_shot_time = pygame.time.get_ticks()  # Reset timer
+                enemy.last_shot_time = pygame.time.get_ticks()
             elif isinstance(enemy, EnemyType3):
-                # Wave projectile enemy - uses ENEMY_SHOOTER_COOLDOWN_MS * 1.5
-                enemy.last_shot_time = pygame.time.get_ticks()  # Reset timer
+                enemy.last_shot_time = pygame.time.get_ticks()
             elif isinstance(enemy, EnemyType4):
-                # Spiral shooter - has multiple cooldowns
-                enemy.last_shot_time = pygame.time.get_ticks()  # Reset timer
-                enemy.last_homing_shot_time = pygame.time.get_ticks()  # Reset timer
-                enemy.homing_shot_cooldown = max(
-                    1000, int(enemy.homing_shot_cooldown / speed_modifier)
-                )
+                enemy.last_shot_time = pygame.time.get_ticks()
+                enemy.last_homing_shot_time = pygame.time.get_ticks()
+                enemy.homing_shot_cooldown = max(1000, int(enemy.homing_shot_cooldown / speed_modifier))
             elif isinstance(enemy, EnemyType5):
-                # Advanced shooter - has multiple cooldowns
-                enemy.last_explosive_shot_time = pygame.time.get_ticks()  # Reset timer
-                enemy.last_homing_shot_time = pygame.time.get_ticks()  # Reset timer
+                enemy.last_explosive_shot_time = pygame.time.get_ticks()
+                enemy.last_homing_shot_time = pygame.time.get_ticks()
                 enemy.explosive_cooldown = max(1000, int(enemy.explosive_cooldown / speed_modifier))
                 enemy.homing_cooldown = max(1000, int(enemy.homing_cooldown / speed_modifier))
             elif isinstance(enemy, EnemyType6):
-                # Teleporting enemy with bouncing projectiles
-                enemy.last_shot_time = pygame.time.get_ticks()  # Reset timer
-                enemy.last_teleport_time = pygame.time.get_ticks()  # Reset teleport timer
+                enemy.last_shot_time = pygame.time.get_ticks()
+                enemy.last_teleport_time = pygame.time.get_ticks()
                 enemy.teleport_delay = max(1000, int(enemy.teleport_delay / speed_modifier))
             elif isinstance(enemy, EnemyType7):
-                # Reflector enemy with laser and shield
-                enemy.last_reflection_time = pygame.time.get_ticks()  # Reset reflection timer
-                enemy.last_laser_time = pygame.time.get_ticks()  # Reset laser timer
+                enemy.last_reflection_time = pygame.time.get_ticks()
+                enemy.last_laser_time = pygame.time.get_ticks()
                 enemy.reflection_cooldown = max(1000, int(enemy.reflection_cooldown / speed_modifier))
                 enemy.laser_cooldown = max(1000, int(enemy.laser_cooldown / speed_modifier))
             elif isinstance(enemy, EnemyType8):
-                # Lightboard enemy
-                enemy.last_charge_time = pygame.time.get_ticks()  # Reset charge timer
+                enemy.last_charge_time = pygame.time.get_ticks()
                 enemy.charge_cooldown = max(1000, int(enemy.charge_cooldown / speed_modifier))
-            else:
-                enemy = EnemyType1(self.all_sprites, self.enemies)
 
-            # Use the property setter instead of direct rect access
-            enemy.topleft = (x_pos, y_pos)
+            # Position the enemy
+            if hasattr(enemy, 'topleft'):
+                enemy.topleft = (x_pos, y_pos)
 
     def _spawn_horizontal_pattern(
         self, count: int, enemy_type_index: int = 0, speed_modifier: float = 1.0
     ):
-        """Creates a horizontal line of enemies entering from right.
-
-        Args:
-            count: Number of enemies to spawn
-            enemy_type_index: Type of enemy to spawn
-            speed_modifier: Multiplier for enemy speed based on difficulty
-        """
+        """Creates a horizontal line of enemies entering from right."""
         # Spacing between enemies horizontally
         spacing_x = 60
 
@@ -814,174 +842,165 @@ class Game:
         for i in range(count):
             x_pos = base_x + i * spacing_x
 
-            # Create the enemy based on the specified type
-            if enemy_type_index == 1:
-                enemy = EnemyType2(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
-            elif enemy_type_index == 2:
-                enemy = EnemyType3(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
-            elif enemy_type_index == 3:
-                enemy = EnemyType4(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
-            elif enemy_type_index == 4:
-                enemy = EnemyType5(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
-            elif enemy_type_index == 5:
-                enemy = EnemyType6(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
-            elif enemy_type_index == 6:
-                enemy = EnemyType7(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
-            elif enemy_type_index == 7:
-                enemy = EnemyType8(self.player, self.all_sprites, self.enemies)
-            else:
-                enemy = EnemyType1(self.all_sprites, self.enemies)
-
+            # Get an enemy from the pool instead of creating a new one
+            enemy = self._get_enemy_from_pool(enemy_type_index)
+            
+            # Skip if we couldn't create a valid enemy
+            if not enemy:
+                continue
+            
             # Apply speed modifier based on difficulty
-            enemy.speed_x *= speed_modifier
-
-            # Adjust shooting cooldowns based on enemy type
+            if hasattr(enemy, 'speed_x'):
+                enemy.speed_x *= speed_modifier
+            
+            # Reset timers and cooldowns - same for all patterns
             if isinstance(enemy, EnemyType2):
-                # Basic shooter - uses ENEMY_SHOOTER_COOLDOWN_MS directly
-                enemy.last_shot_time = pygame.time.get_ticks()  # Reset timer
+                enemy.last_shot_time = pygame.time.get_ticks()
             elif isinstance(enemy, EnemyType3):
-                # Wave projectile enemy - uses ENEMY_SHOOTER_COOLDOWN_MS * 1.5
-                enemy.last_shot_time = pygame.time.get_ticks()  # Reset timer
+                enemy.last_shot_time = pygame.time.get_ticks()
             elif isinstance(enemy, EnemyType4):
-                # Spiral shooter - has multiple cooldowns
-                enemy.last_shot_time = pygame.time.get_ticks()  # Reset timer
-                enemy.last_homing_shot_time = pygame.time.get_ticks()  # Reset timer
-                enemy.homing_shot_cooldown = max(
-                    1000, int(enemy.homing_shot_cooldown / speed_modifier)
-                )
+                enemy.last_shot_time = pygame.time.get_ticks()
+                enemy.last_homing_shot_time = pygame.time.get_ticks()
+                enemy.homing_shot_cooldown = max(1000, int(enemy.homing_shot_cooldown / speed_modifier))
             elif isinstance(enemy, EnemyType5):
-                # Advanced shooter - has multiple cooldowns
-                enemy.last_explosive_shot_time = pygame.time.get_ticks()  # Reset timer
-                enemy.last_homing_shot_time = pygame.time.get_ticks()  # Reset timer
+                enemy.last_explosive_shot_time = pygame.time.get_ticks()
+                enemy.last_homing_shot_time = pygame.time.get_ticks()
                 enemy.explosive_cooldown = max(1000, int(enemy.explosive_cooldown / speed_modifier))
                 enemy.homing_cooldown = max(1000, int(enemy.homing_cooldown / speed_modifier))
             elif isinstance(enemy, EnemyType6):
-                # Teleporting enemy with bouncing projectiles
-                enemy.last_shot_time = pygame.time.get_ticks()  # Reset timer
-                enemy.last_teleport_time = pygame.time.get_ticks()  # Reset teleport timer
+                enemy.last_shot_time = pygame.time.get_ticks()
+                enemy.last_teleport_time = pygame.time.get_ticks()
                 enemy.teleport_delay = max(1000, int(enemy.teleport_delay / speed_modifier))
             elif isinstance(enemy, EnemyType7):
-                # Reflector enemy with laser and shield
-                enemy.last_reflection_time = pygame.time.get_ticks()  # Reset reflection timer
-                enemy.last_laser_time = pygame.time.get_ticks()  # Reset laser timer
+                enemy.last_reflection_time = pygame.time.get_ticks()
+                enemy.last_laser_time = pygame.time.get_ticks()
                 enemy.reflection_cooldown = max(1000, int(enemy.reflection_cooldown / speed_modifier))
                 enemy.laser_cooldown = max(1000, int(enemy.laser_cooldown / speed_modifier))
             elif isinstance(enemy, EnemyType8):
-                # Lightboard enemy
-                enemy.last_charge_time = pygame.time.get_ticks()  # Reset charge timer
+                enemy.last_charge_time = pygame.time.get_ticks()
                 enemy.charge_cooldown = max(1000, int(enemy.charge_cooldown / speed_modifier))
-            else:
-                enemy = EnemyType1(self.all_sprites, self.enemies)
 
-            # Use the property setter instead of direct rect access
-            enemy.topleft = (x_pos, y_pos)
+            # Position the enemy
+            if hasattr(enemy, 'topleft'):
+                enemy.topleft = (x_pos, y_pos)
 
     def _spawn_diagonal_pattern(
         self, count: int, enemy_type_index: int = 0, speed_modifier: float = 1.0
     ):
-        """Creates a diagonal line of enemies entering from right.
-
-        Args:
-            count: Number of enemies to spawn
-            enemy_type_index: Type of enemy to spawn (0-6)
-            speed_modifier: Multiplier for enemy speed based on difficulty
-        """
-        # Spacing between enemies
-        spacing_x = 50
-        spacing_y = 50
-
-        # Apply border margin to prevent spawning too close to borders
-        border_margin = 50
-
-        # Start position (respecting top margin)
+        """Creates a diagonal line of enemies entering from right."""
+        # Apply larger border margin to prevent spawning outside visible area
+        border_margin = 70  # Increased from 50 to 70
+        
+        # Use even larger margin for EnemyType7 which has a taller sprite
+        if enemy_type_index == 6:  # EnemyType7 index is 6
+            border_margin = 100  # Extra large margin for the Reflector enemy
+        
+        # Calculate usable playfield height
+        playfield_height = PLAYFIELD_BOTTOM_Y - PLAYFIELD_TOP_Y - (2 * border_margin)
+        
+        # Fixed horizontal spacing
+        spacing_x = 60
+        
+        # Direction - negative for diagonal down, positive for diagonal up
+        direction = 1 if random.random() < 0.5 else -1
+        
+        # Calculate maximum safe vertical distance
+        max_vertical_distance = (count - 1) * 60  # Using max possible spacing of 60
+        
+        # Check if the pattern would exceed playfield bounds and adjust spacing if needed
+        if max_vertical_distance > playfield_height:
+            # Scale down spacing to fit within available height
+            spacing_y = (playfield_height * 0.8) / (count - 1) if count > 1 else playfield_height
+        else:
+            spacing_y = min(60, playfield_height / (count + 1))  # Use default spacing if it fits, with extra safety margin
+        
+        # Set safe boundaries for enemy spawn positions
+        safe_top = PLAYFIELD_TOP_Y + border_margin
+        safe_bottom = PLAYFIELD_BOTTOM_Y - border_margin
+        
+        # Calculate start position based on direction
+        if direction == 1:  # Diagonal up
+            # Start at a safer position (higher up from bottom)
+            start_y = safe_bottom - 20
+            if enemy_type_index == 6:  # Additional offset for EnemyType7
+                start_y -= 30
+        else:  # Diagonal down
+            # Start at a safer position (lower down from top)
+            start_y = safe_top + 20
+            if enemy_type_index == 6:  # Additional offset for EnemyType7
+                start_y += 30
+        
         start_x = SCREEN_WIDTH + 50
-        start_y = PLAYFIELD_TOP_Y + border_margin
-
-        # Adjust start_y based on count to keep the pattern within the playfield
-        available_height = (
-            PLAYFIELD_BOTTOM_Y - PLAYFIELD_TOP_Y - (2 * border_margin) - 40
-        )  # 40 is enemy height estimate
-        max_drop = (count - 1) * spacing_y
-
-        if max_drop > available_height:
-            # Scale down spacing to fit within available height with margins
-            spacing_y = available_height / (count - 1) if count > 1 else 0
-
+        
         # Create the enemies
         for i in range(count):
             x_pos = start_x + i * spacing_x
-            y_pos = start_y + i * spacing_y
-
-            # Create the enemy based on the specified type
-            if enemy_type_index == 1:
-                enemy = EnemyType2(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
-            elif enemy_type_index == 2:
-                enemy = EnemyType3(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
-            elif enemy_type_index == 3:
-                enemy = EnemyType4(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
-            elif enemy_type_index == 4:
-                enemy = EnemyType5(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
-            elif enemy_type_index == 5:
-                enemy = EnemyType6(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
-            elif enemy_type_index == 6:
-                enemy = EnemyType7(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
-            elif enemy_type_index == 7:
-                enemy = EnemyType8(self.player, self.all_sprites, self.enemies)
-            else:
-                enemy = EnemyType1(self.all_sprites, self.enemies)
-
+            y_pos = start_y + (i * spacing_y * direction)
+            
+            # Apply strict bounds checking - ensure enemies always stay within safe area
+            y_pos = max(safe_top, min(safe_bottom, y_pos))
+            
+            # Get an enemy from the pool instead of creating a new one
+            enemy = self._get_enemy_from_pool(enemy_type_index)
+            
+            # Skip if we couldn't create a valid enemy
+            if not enemy:
+                continue
+                
             # Apply speed modifier based on difficulty
-            enemy.speed_x *= speed_modifier
-
-            # Adjust shooting cooldowns based on enemy type
+            if hasattr(enemy, 'speed_x'):
+                enemy.speed_x *= speed_modifier
+            
+            # Reset timers and cooldowns - using the same code for all patterns
             if isinstance(enemy, EnemyType2):
-                # Basic shooter - uses ENEMY_SHOOTER_COOLDOWN_MS directly
-                enemy.last_shot_time = pygame.time.get_ticks()  # Reset timer
+                enemy.last_shot_time = pygame.time.get_ticks()
             elif isinstance(enemy, EnemyType3):
-                # Wave projectile enemy - uses ENEMY_SHOOTER_COOLDOWN_MS * 1.5
-                enemy.last_shot_time = pygame.time.get_ticks()  # Reset timer
+                enemy.last_shot_time = pygame.time.get_ticks()
             elif isinstance(enemy, EnemyType4):
-                # Spiral shooter - has multiple cooldowns
-                enemy.last_shot_time = pygame.time.get_ticks()  # Reset timer
-                enemy.last_homing_shot_time = pygame.time.get_ticks()  # Reset timer
-                enemy.homing_shot_cooldown = max(
-                    1000, int(enemy.homing_shot_cooldown / speed_modifier)
-                )
+                enemy.last_shot_time = pygame.time.get_ticks()
+                enemy.last_homing_shot_time = pygame.time.get_ticks()
+                enemy.homing_shot_cooldown = max(1000, int(enemy.homing_shot_cooldown / speed_modifier))
             elif isinstance(enemy, EnemyType5):
-                # Advanced shooter - has multiple cooldowns
-                enemy.last_explosive_shot_time = pygame.time.get_ticks()  # Reset timer
-                enemy.last_homing_shot_time = pygame.time.get_ticks()  # Reset timer
+                enemy.last_explosive_shot_time = pygame.time.get_ticks()
+                enemy.last_homing_shot_time = pygame.time.get_ticks()
                 enemy.explosive_cooldown = max(1000, int(enemy.explosive_cooldown / speed_modifier))
                 enemy.homing_cooldown = max(1000, int(enemy.homing_cooldown / speed_modifier))
             elif isinstance(enemy, EnemyType6):
-                # Teleporting enemy with bouncing projectiles
-                enemy.last_shot_time = pygame.time.get_ticks()  # Reset timer
-                enemy.last_teleport_time = pygame.time.get_ticks()  # Reset teleport timer
+                enemy.last_shot_time = pygame.time.get_ticks()
+                enemy.last_teleport_time = pygame.time.get_ticks()
                 enemy.teleport_delay = max(1000, int(enemy.teleport_delay / speed_modifier))
             elif isinstance(enemy, EnemyType7):
-                # Reflector enemy with laser and shield
-                enemy.last_reflection_time = pygame.time.get_ticks()  # Reset reflection timer
-                enemy.last_laser_time = pygame.time.get_ticks()  # Reset laser timer
+                enemy.last_reflection_time = pygame.time.get_ticks()
+                enemy.last_laser_time = pygame.time.get_ticks()
                 enemy.reflection_cooldown = max(1000, int(enemy.reflection_cooldown / speed_modifier))
                 enemy.laser_cooldown = max(1000, int(enemy.laser_cooldown / speed_modifier))
             elif isinstance(enemy, EnemyType8):
-                # Lightboard enemy
-                enemy.last_charge_time = pygame.time.get_ticks()  # Reset charge timer
+                enemy.last_charge_time = pygame.time.get_ticks()
                 enemy.charge_cooldown = max(1000, int(enemy.charge_cooldown / speed_modifier))
-            else:
-                enemy = EnemyType1(self.all_sprites, self.enemies)
 
-            # Use the property setter instead of direct rect access
-            enemy.topleft = (x_pos, y_pos)
+            # Position the enemy - here we use set_pos to ensure center is positioned properly
+            if hasattr(enemy, 'topleft'):
+                enemy.topleft = (x_pos, y_pos)
+                
+                # Final safety check - if still out of bounds after positioning, adjust
+                if hasattr(enemy, 'rect'):
+                    # More aggressive adjustment for EnemyType7 which has a taller sprite
+                    bottom_margin = 40 if isinstance(enemy, EnemyType7) else 20
+                    top_margin = 40 if isinstance(enemy, EnemyType7) else 20
+                    
+                    if enemy.rect.bottom > PLAYFIELD_BOTTOM_Y - bottom_margin:
+                        # If bottom is too low, pull it up
+                        enemy.rect.bottom = PLAYFIELD_BOTTOM_Y - bottom_margin
+                        if hasattr(enemy, '_pos_y'):
+                            enemy._pos_y = float(enemy.rect.y)
+                    elif enemy.rect.top < PLAYFIELD_TOP_Y + top_margin:
+                        # If top is too high, push it down
+                        enemy.rect.top = PLAYFIELD_TOP_Y + top_margin
+                        if hasattr(enemy, '_pos_y'):
+                            enemy._pos_y = float(enemy.rect.y)
 
     def _spawn_v_pattern(self, count: int, enemy_type_index: int = 0, speed_modifier: float = 1.0):
-        """Creates a V-shaped formation of enemies entering from right.
-
-        Args:
-            count: Number of enemies to spawn
-            enemy_type_index: Type of enemy to spawn (0-6)
-            speed_modifier: Multiplier for enemy speed based on difficulty
-        """
+        """Creates a V-shaped formation of enemies entering from right."""
         # Need an odd number for the V-pattern to look symmetrical
         if count % 2 == 0:
             count += 1
@@ -1018,67 +1037,47 @@ class Game:
             # Y increases as we go away from center
             y_pos = center_y + index_from_center * spacing_y
 
-            # Create the enemy based on the specified type
-            if enemy_type_index == 1:
-                enemy = EnemyType2(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
-            elif enemy_type_index == 2:
-                enemy = EnemyType3(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
-            elif enemy_type_index == 3:
-                enemy = EnemyType4(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
-            elif enemy_type_index == 4:
-                enemy = EnemyType5(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
-            elif enemy_type_index == 5:
-                enemy = EnemyType6(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
-            elif enemy_type_index == 6:
-                enemy = EnemyType7(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
-            elif enemy_type_index == 7:
-                enemy = EnemyType8(self.player, self.all_sprites, self.enemies)
-            else:
-                enemy = EnemyType1(self.all_sprites, self.enemies)
-
+            # Get an enemy from the pool instead of creating a new one
+            enemy = self._get_enemy_from_pool(enemy_type_index)
+            
+            # Skip if we couldn't create a valid enemy
+            if not enemy:
+                continue
+            
             # Apply speed modifier based on difficulty
-            enemy.speed_x *= speed_modifier
-
-            # Adjust shooting cooldowns based on enemy type
+            if hasattr(enemy, 'speed_x'):
+                enemy.speed_x *= speed_modifier
+            
+            # Reset timers and cooldowns - using the same code for all patterns
             if isinstance(enemy, EnemyType2):
-                # Basic shooter - uses ENEMY_SHOOTER_COOLDOWN_MS directly
-                enemy.last_shot_time = pygame.time.get_ticks()  # Reset timer
+                enemy.last_shot_time = pygame.time.get_ticks()
             elif isinstance(enemy, EnemyType3):
-                # Wave projectile enemy - uses ENEMY_SHOOTER_COOLDOWN_MS * 1.5
-                enemy.last_shot_time = pygame.time.get_ticks()  # Reset timer
+                enemy.last_shot_time = pygame.time.get_ticks()
             elif isinstance(enemy, EnemyType4):
-                # Spiral shooter - has multiple cooldowns
-                enemy.last_shot_time = pygame.time.get_ticks()  # Reset timer
-                enemy.last_homing_shot_time = pygame.time.get_ticks()  # Reset timer
-                enemy.homing_shot_cooldown = max(
-                    1000, int(enemy.homing_shot_cooldown / speed_modifier)
-                )
+                enemy.last_shot_time = pygame.time.get_ticks()
+                enemy.last_homing_shot_time = pygame.time.get_ticks()
+                enemy.homing_shot_cooldown = max(1000, int(enemy.homing_shot_cooldown / speed_modifier))
             elif isinstance(enemy, EnemyType5):
-                # Advanced shooter - has multiple cooldowns
-                enemy.last_explosive_shot_time = pygame.time.get_ticks()  # Reset timer
-                enemy.last_homing_shot_time = pygame.time.get_ticks()  # Reset timer
+                enemy.last_explosive_shot_time = pygame.time.get_ticks()
+                enemy.last_homing_shot_time = pygame.time.get_ticks()
                 enemy.explosive_cooldown = max(1000, int(enemy.explosive_cooldown / speed_modifier))
                 enemy.homing_cooldown = max(1000, int(enemy.homing_cooldown / speed_modifier))
             elif isinstance(enemy, EnemyType6):
-                # Teleporting enemy with bouncing projectiles
-                enemy.last_shot_time = pygame.time.get_ticks()  # Reset timer
-                enemy.last_teleport_time = pygame.time.get_ticks()  # Reset teleport timer
+                enemy.last_shot_time = pygame.time.get_ticks()
+                enemy.last_teleport_time = pygame.time.get_ticks()
                 enemy.teleport_delay = max(1000, int(enemy.teleport_delay / speed_modifier))
             elif isinstance(enemy, EnemyType7):
-                # Reflector enemy with laser and shield
-                enemy.last_reflection_time = pygame.time.get_ticks()  # Reset reflection timer
-                enemy.last_laser_time = pygame.time.get_ticks()  # Reset laser timer
+                enemy.last_reflection_time = pygame.time.get_ticks()
+                enemy.last_laser_time = pygame.time.get_ticks()
                 enemy.reflection_cooldown = max(1000, int(enemy.reflection_cooldown / speed_modifier))
                 enemy.laser_cooldown = max(1000, int(enemy.laser_cooldown / speed_modifier))
             elif isinstance(enemy, EnemyType8):
-                # Lightboard enemy
-                enemy.last_charge_time = pygame.time.get_ticks()  # Reset charge timer
+                enemy.last_charge_time = pygame.time.get_ticks()
                 enemy.charge_cooldown = max(1000, int(enemy.charge_cooldown / speed_modifier))
-            else:
-                enemy = EnemyType1(self.all_sprites, self.enemies)
 
-            # Use the property setter instead of direct rect access
-            enemy.topleft = (x_pos, y_pos)
+            # Position the enemy
+            if hasattr(enemy, 'topleft'):
+                enemy.topleft = (x_pos, y_pos)
 
     def _update(self):
         """Updates the state of all game objects and handles collisions."""
@@ -1540,6 +1539,23 @@ class Game:
         # Ensure the enemy is removed from all sprite groups
         if enemy in self.enemies:
             enemy.kill()
+            
+            # Determine enemy type to add to correct pool
+            enemy_type = -1
+            if isinstance(enemy, EnemyType1): enemy_type = 0
+            elif isinstance(enemy, EnemyType2): enemy_type = 1
+            elif isinstance(enemy, EnemyType3): enemy_type = 2
+            elif isinstance(enemy, EnemyType4): enemy_type = 3
+            elif isinstance(enemy, EnemyType5): enemy_type = 4
+            elif isinstance(enemy, EnemyType6): enemy_type = 5
+            elif isinstance(enemy, EnemyType7): enemy_type = 6
+            elif isinstance(enemy, EnemyType8): enemy_type = 7
+            
+            # Add back to pool if we identified the type
+            if enemy_type >= 0:
+                # Limit pool size to prevent excessive memory usage
+                if len(self.enemy_pools[enemy_type]) < 20:
+                    self.enemy_pools[enemy_type].append(enemy)
 
     def _render(self):
         """Draws the game state to the screen."""
@@ -1570,9 +1586,6 @@ class Game:
 
         # Draw explosions
         self.explosions.draw(self.screen)
-
-        # Draw particles
-        self.particles.draw(self.screen)
 
         # Draw powerups
         self.powerups.draw(self.screen)
@@ -1618,6 +1631,9 @@ class Game:
 
             # Update previous power level
             self.previous_player_power = self.player.power_level
+
+        # Draw particles AFTER all other game elements to make them appear on top
+        self.particles.draw(self.screen)
 
         # Draw score in upper right corner
         score_text = self.score_font.render(f"SCORE: {self.score}", True, WHITE)

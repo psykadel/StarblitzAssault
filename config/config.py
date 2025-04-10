@@ -211,7 +211,7 @@ ENEMY_UNLOCK_THRESHOLDS = {
 # Positive values mean the frequency increases with difficulty
 # Negative values mean the frequency decreases with difficulty
 FREQUENCY_SCALING = {
-    ENEMY_TYPES["BASIC"]: -3.5,  # Increased from -3.5 to phase out basic enemies faster
+    ENEMY_TYPES["BASIC"]: -4.0,  # Increased from -3.5 to phase out basic enemies faster
     ENEMY_TYPES["SHOOTER"]: 1.0,  # Reduced from 1.5 to make room for more interesting enemies
     ENEMY_TYPES["WAVE"]: 1.2,  # Increased from 1.0
     ENEMY_TYPES["SPIRAL"]: 1.3,  # Increased from 1.0
