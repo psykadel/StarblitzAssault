@@ -81,6 +81,7 @@ ENEMY_TYPES = {
     "SEEKER": 4,  # Enemy that tracks player and fires homing projectiles (EnemyType5)
     "TELEPORTER": 5,  # Enemy that teleports and fires bouncing projectiles (EnemyType6)
     "REFLECTOR": 6,  # Enemy that reflects player bullets and fires laser beams (EnemyType7)
+    "LIGHTBOARD": 7,  # Enemy that rides a lightboard and tries to collide with player (EnemyType8)
 }
 
 # Enemy type names for logging and UI display
@@ -92,6 +93,7 @@ ENEMY_TYPE_NAMES = {
     ENEMY_TYPES["SEEKER"]: "Seeker",
     ENEMY_TYPES["TELEPORTER"]: "Teleporter",
     ENEMY_TYPES["REFLECTOR"]: "Reflector",
+    ENEMY_TYPES["LIGHTBOARD"]: "Lightboard",
 }
 
 # Enemy sprite sheet filenames
@@ -103,6 +105,7 @@ ENEMY_SPRITE_FILES = {
     ENEMY_TYPES["SEEKER"]: "enemy5.png",
     ENEMY_TYPES["TELEPORTER"]: "enemy6.png",
     ENEMY_TYPES["REFLECTOR"]: "enemy7.png",
+    ENEMY_TYPES["LIGHTBOARD"]: "enemy8.png",
 }
 
 # ------------------------------------------------------------------------------
@@ -188,6 +191,7 @@ BASE_ENEMY_FREQUENCIES = {
     ENEMY_TYPES["SEEKER"]: 10,  # 10% chance at difficulty 1
     ENEMY_TYPES["TELEPORTER"]: 0,  # 0% at difficulty 1 (unlocks at difficulty 2)
     ENEMY_TYPES["REFLECTOR"]: 0,  # 0% at difficulty 1 (unlocks at difficulty 2.5)
+    ENEMY_TYPES["LIGHTBOARD"]: 0,  # 0% at difficulty 1 (unlocks at difficulty 3)
 }
 
 # Difficulty thresholds for when each enemy type starts to appear
@@ -198,7 +202,8 @@ ENEMY_UNLOCK_THRESHOLDS = {
     ENEMY_TYPES["SPIRAL"]: 1.0,  # Available from start
     ENEMY_TYPES["SEEKER"]: 1.0,  # Available from start
     ENEMY_TYPES["TELEPORTER"]: 2.0,  # Unlocks at difficulty 2.0
-    ENEMY_TYPES["REFLECTOR"]: 2.0,  # Unlocks at difficulty 2.5
+    ENEMY_TYPES["REFLECTOR"]: 2.5,  # Unlocks at difficulty 2.5
+    ENEMY_TYPES["LIGHTBOARD"]: 3.0,  # Unlocks at difficulty 3.0
 }
 
 # Frequency scaling per difficulty level
@@ -213,6 +218,7 @@ FREQUENCY_SCALING = {
     ENEMY_TYPES["SEEKER"]: 1.5,  # Increases by 1.5% per difficulty level
     ENEMY_TYPES["TELEPORTER"]: 2.0,  # Increases by 2.0% per difficulty level once unlocked
     ENEMY_TYPES["REFLECTOR"]: 2.0,  # Increases by 1.8% per difficulty level once unlocked
+    ENEMY_TYPES["LIGHTBOARD"]: 2.5,  # Increases by 2.5% per difficulty level once unlocked
 }
 
 # Maximum frequency for each enemy type (percentage)
@@ -224,6 +230,7 @@ MAX_FREQUENCIES = {
     ENEMY_TYPES["SEEKER"]: 25,  # Max 25%
     ENEMY_TYPES["TELEPORTER"]: 20,  # Max 20%
     ENEMY_TYPES["REFLECTOR"]: 20,  # Max 20%
+    ENEMY_TYPES["LIGHTBOARD"]: 25,  # Max 25%
 }
 
 # Minimum frequency for each enemy type once unlocked (percentage)
@@ -235,6 +242,7 @@ MIN_FREQUENCIES = {
     ENEMY_TYPES["SEEKER"]: 5,  # Min 5%
     ENEMY_TYPES["TELEPORTER"]: 2,  # Min 2%
     ENEMY_TYPES["REFLECTOR"]: 3,  # Min 3%
+    ENEMY_TYPES["LIGHTBOARD"]: 4,  # Min 4%
 }
 
 # ------------------------------------------------------------------------------

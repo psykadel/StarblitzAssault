@@ -51,6 +51,7 @@ from src.enemy import (
     EnemyType5,
     EnemyType6,
     EnemyType7,
+    EnemyType8,
     get_enemy_weights,
 )
 from src.explosion import Explosion
@@ -502,10 +503,12 @@ class Game:
                         EnemyType4(self.player, self.enemy_bullets, self.all_sprites, self.enemies),
                         EnemyType5(self.player, self.enemy_bullets, self.all_sprites, self.enemies),
                         EnemyType6(self.player, self.enemy_bullets, self.all_sprites, self.enemies),
+                        EnemyType7(self.player, self.enemy_bullets, self.all_sprites, self.enemies),
+                        EnemyType8(self.player, self.all_sprites, self.enemies),
                     ]
 
                     # Position them vertically stacked with descriptive text
-                    enemy_names = ["Basic", "Shooter", "Wave", "Spiral", "Seeker", "Teleporter"]
+                    enemy_names = ["Basic", "Shooter", "Wave", "Spiral", "Seeker", "Teleporter", "Reflector", "New Enemy"]
                     font = pygame.font.SysFont(None, 24)
 
                     for i, (enemy, name) in enumerate(zip(enemies, enemy_names)):
@@ -692,7 +695,7 @@ class Game:
             spacing_y: Vertical spacing between enemies
             enemy_type_index: Type of enemy to spawn (0: EnemyType1, 1: EnemyType2,
                               2: EnemyType3, 3: EnemyType4, 4: EnemyType5,
-                              5: EnemyType6, 6: EnemyType7)
+                              5: EnemyType6, 6: EnemyType7, 7: EnemyType8)
             speed_modifier: Multiplier for enemy speed based on difficulty
         """
         # Calculate the playfield height for spacing
@@ -731,6 +734,8 @@ class Game:
                 enemy = EnemyType6(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
             elif enemy_type_index == 6:
                 enemy = EnemyType7(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
+            elif enemy_type_index == 7:
+                enemy = EnemyType8(self.player, self.all_sprites, self.enemies)
             else:
                 enemy = EnemyType1(self.all_sprites, self.enemies)
 
@@ -768,6 +773,10 @@ class Game:
                 enemy.last_laser_time = pygame.time.get_ticks()  # Reset laser timer
                 enemy.reflection_cooldown = max(1000, int(enemy.reflection_cooldown / speed_modifier))
                 enemy.laser_cooldown = max(1000, int(enemy.laser_cooldown / speed_modifier))
+            elif isinstance(enemy, EnemyType8):
+                # Lightboard enemy
+                enemy.last_charge_time = pygame.time.get_ticks()  # Reset charge timer
+                enemy.charge_cooldown = max(1000, int(enemy.charge_cooldown / speed_modifier))
             else:
                 enemy = EnemyType1(self.all_sprites, self.enemies)
 
@@ -818,6 +827,8 @@ class Game:
                 enemy = EnemyType6(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
             elif enemy_type_index == 6:
                 enemy = EnemyType7(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
+            elif enemy_type_index == 7:
+                enemy = EnemyType8(self.player, self.all_sprites, self.enemies)
             else:
                 enemy = EnemyType1(self.all_sprites, self.enemies)
 
@@ -855,6 +866,10 @@ class Game:
                 enemy.last_laser_time = pygame.time.get_ticks()  # Reset laser timer
                 enemy.reflection_cooldown = max(1000, int(enemy.reflection_cooldown / speed_modifier))
                 enemy.laser_cooldown = max(1000, int(enemy.laser_cooldown / speed_modifier))
+            elif isinstance(enemy, EnemyType8):
+                # Lightboard enemy
+                enemy.last_charge_time = pygame.time.get_ticks()  # Reset charge timer
+                enemy.charge_cooldown = max(1000, int(enemy.charge_cooldown / speed_modifier))
             else:
                 enemy = EnemyType1(self.all_sprites, self.enemies)
 
@@ -910,6 +925,8 @@ class Game:
                 enemy = EnemyType6(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
             elif enemy_type_index == 6:
                 enemy = EnemyType7(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
+            elif enemy_type_index == 7:
+                enemy = EnemyType8(self.player, self.all_sprites, self.enemies)
             else:
                 enemy = EnemyType1(self.all_sprites, self.enemies)
 
@@ -947,6 +964,10 @@ class Game:
                 enemy.last_laser_time = pygame.time.get_ticks()  # Reset laser timer
                 enemy.reflection_cooldown = max(1000, int(enemy.reflection_cooldown / speed_modifier))
                 enemy.laser_cooldown = max(1000, int(enemy.laser_cooldown / speed_modifier))
+            elif isinstance(enemy, EnemyType8):
+                # Lightboard enemy
+                enemy.last_charge_time = pygame.time.get_ticks()  # Reset charge timer
+                enemy.charge_cooldown = max(1000, int(enemy.charge_cooldown / speed_modifier))
             else:
                 enemy = EnemyType1(self.all_sprites, self.enemies)
 
@@ -1010,6 +1031,8 @@ class Game:
                 enemy = EnemyType6(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
             elif enemy_type_index == 6:
                 enemy = EnemyType7(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
+            elif enemy_type_index == 7:
+                enemy = EnemyType8(self.player, self.all_sprites, self.enemies)
             else:
                 enemy = EnemyType1(self.all_sprites, self.enemies)
 
@@ -1047,6 +1070,10 @@ class Game:
                 enemy.last_laser_time = pygame.time.get_ticks()  # Reset laser timer
                 enemy.reflection_cooldown = max(1000, int(enemy.reflection_cooldown / speed_modifier))
                 enemy.laser_cooldown = max(1000, int(enemy.laser_cooldown / speed_modifier))
+            elif isinstance(enemy, EnemyType8):
+                # Lightboard enemy
+                enemy.last_charge_time = pygame.time.get_ticks()  # Reset charge timer
+                enemy.charge_cooldown = max(1000, int(enemy.charge_cooldown / speed_modifier))
             else:
                 enemy = EnemyType1(self.all_sprites, self.enemies)
 
@@ -1474,12 +1501,14 @@ class Game:
                 self._handle_game_over()
 
     def _process_enemy_destruction(self, enemy):
-        """Handle common logic for enemy destruction."""
-        # Add score for destroying enemy based on enemy type
+        """Process an enemy that was destroyed."""
+        # More points for higher-level enemies
         if isinstance(enemy, EnemyType7):
-            self.score += 350  # Reflector enemy
+            self.score += 400  # Reflector enemy
+        elif isinstance(enemy, EnemyType8):
+            self.score += 450  # Lightboard enemy
         elif isinstance(enemy, EnemyType6):
-            self.score += 300  # Teleporting enemy
+            self.score += 350  # Teleporter enemy
         elif isinstance(enemy, EnemyType5):
             self.score += 250  # Seeker enemy
         elif isinstance(enemy, EnemyType4):
@@ -1526,8 +1555,8 @@ class Game:
 
         # Draw most sprites
         for sprite in self.all_sprites:
-            # Use custom draw method for reflector enemies
-            if isinstance(sprite, EnemyType7):
+            # Use custom draw method for reflector enemies and lightboard enemies
+            if isinstance(sprite, EnemyType7) or isinstance(sprite, EnemyType8):
                 sprite.draw(self.screen)
             else:
                 self.screen.blit(sprite.image, sprite.rect)
