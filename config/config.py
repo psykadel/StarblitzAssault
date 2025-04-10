@@ -179,19 +179,19 @@ POWERUP_DISPLAY_START_Y: int = 50  # Y position for the first powerup slot
 # Base difficulty settings
 DIFFICULTY_STARTING_LEVEL: float = 1.0
 DIFFICULTY_MAX_LEVEL: float = 10.0
-DIFFICULTY_INCREASE_RATE: float = 0.2
+DIFFICULTY_INCREASE_RATE: float = 0.3  # Increased from 0.2 to make difficulty rise faster
 
 # Base frequencies for each enemy type at difficulty level 1
 # Values are percentages (should sum to 100)
 BASE_ENEMY_FREQUENCIES = {
-    ENEMY_TYPES["BASIC"]: 40,  # 40% chance at difficulty 1
-    ENEMY_TYPES["SHOOTER"]: 30,  # 30% chance at difficulty 1
-    ENEMY_TYPES["WAVE"]: 10,  # 10% chance at difficulty 1
-    ENEMY_TYPES["SPIRAL"]: 10,  # 10% chance at difficulty 1
-    ENEMY_TYPES["SEEKER"]: 10,  # 10% chance at difficulty 1
-    ENEMY_TYPES["TELEPORTER"]: 0,  # 0% at difficulty 1 (unlocks at difficulty 2)
-    ENEMY_TYPES["REFLECTOR"]: 0,  # 0% at difficulty 1 (unlocks at difficulty 2.5)
-    ENEMY_TYPES["LIGHTBOARD"]: 0,  # 0% at difficulty 1 (unlocks at difficulty 3)
+    ENEMY_TYPES["BASIC"]: 35,  # Reduced from 40% to make room for more interesting enemies
+    ENEMY_TYPES["SHOOTER"]: 30,  # Unchanged
+    ENEMY_TYPES["WAVE"]: 12,  # Increased from 10%
+    ENEMY_TYPES["SPIRAL"]: 12,  # Increased from 10%
+    ENEMY_TYPES["SEEKER"]: 11,  # Increased from 10%
+    ENEMY_TYPES["TELEPORTER"]: 0,  # Remains 0% initially (unlocks soon)
+    ENEMY_TYPES["REFLECTOR"]: 0,  # Remains 0% initially (unlocks soon)
+    ENEMY_TYPES["LIGHTBOARD"]: 0,  # Remains 0% initially (unlocks soon)
 }
 
 # Difficulty thresholds for when each enemy type starts to appear
@@ -201,9 +201,9 @@ ENEMY_UNLOCK_THRESHOLDS = {
     ENEMY_TYPES["WAVE"]: 1.0,  # Available from start
     ENEMY_TYPES["SPIRAL"]: 1.0,  # Available from start
     ENEMY_TYPES["SEEKER"]: 1.0,  # Available from start
-    ENEMY_TYPES["TELEPORTER"]: 2.0,  # Unlocks at difficulty 2.0
-    ENEMY_TYPES["REFLECTOR"]: 2.5,  # Unlocks at difficulty 2.5
-    ENEMY_TYPES["LIGHTBOARD"]: 3.0,  # Unlocks at difficulty 3.0
+    ENEMY_TYPES["TELEPORTER"]: 1.5,
+    ENEMY_TYPES["REFLECTOR"]: 2.0,
+    ENEMY_TYPES["LIGHTBOARD"]: 2.0,
 }
 
 # Frequency scaling per difficulty level
@@ -211,38 +211,38 @@ ENEMY_UNLOCK_THRESHOLDS = {
 # Positive values mean the frequency increases with difficulty
 # Negative values mean the frequency decreases with difficulty
 FREQUENCY_SCALING = {
-    ENEMY_TYPES["BASIC"]: -3.5,  # Decreases by 3.5% per difficulty level
-    ENEMY_TYPES["SHOOTER"]: 1.5,  # Increases by 1.5% per difficulty level
-    ENEMY_TYPES["WAVE"]: 1.0,  # Increases by 1.0% per difficulty level
-    ENEMY_TYPES["SPIRAL"]: 1.0,  # Increases by 1.0% per difficulty level
-    ENEMY_TYPES["SEEKER"]: 1.5,  # Increases by 1.5% per difficulty level
-    ENEMY_TYPES["TELEPORTER"]: 2.0,  # Increases by 2.0% per difficulty level once unlocked
-    ENEMY_TYPES["REFLECTOR"]: 2.0,  # Increases by 1.8% per difficulty level once unlocked
-    ENEMY_TYPES["LIGHTBOARD"]: 2.5,  # Increases by 2.5% per difficulty level once unlocked
+    ENEMY_TYPES["BASIC"]: -3.5,  # Increased from -3.5 to phase out basic enemies faster
+    ENEMY_TYPES["SHOOTER"]: 1.0,  # Reduced from 1.5 to make room for more interesting enemies
+    ENEMY_TYPES["WAVE"]: 1.2,  # Increased from 1.0
+    ENEMY_TYPES["SPIRAL"]: 1.3,  # Increased from 1.0
+    ENEMY_TYPES["SEEKER"]: 1.8,  # Increased from 1.5
+    ENEMY_TYPES["TELEPORTER"]: 2.5,  # Increased from 2.0
+    ENEMY_TYPES["REFLECTOR"]: 2.5,  # Increased from 2.0
+    ENEMY_TYPES["LIGHTBOARD"]: 3.0,  # Increased from 2.5
 }
 
 # Maximum frequency for each enemy type (percentage)
 MAX_FREQUENCIES = {
-    ENEMY_TYPES["BASIC"]: 40,  # Never higher than initial value
-    ENEMY_TYPES["SHOOTER"]: 45,  # Max 45%
-    ENEMY_TYPES["WAVE"]: 20,  # Max 20%
-    ENEMY_TYPES["SPIRAL"]: 20,  # Max 20%
-    ENEMY_TYPES["SEEKER"]: 25,  # Max 25%
-    ENEMY_TYPES["TELEPORTER"]: 20,  # Max 20%
-    ENEMY_TYPES["REFLECTOR"]: 20,  # Max 20%
-    ENEMY_TYPES["LIGHTBOARD"]: 25,  # Max 25%
+    ENEMY_TYPES["BASIC"]: 35,  # Reduced from 40 (same as initial)
+    ENEMY_TYPES["SHOOTER"]: 40,  # Reduced from 45 to make room for more interesting enemies
+    ENEMY_TYPES["WAVE"]: 20,  # Unchanged
+    ENEMY_TYPES["SPIRAL"]: 22,  # Slightly increased from 20
+    ENEMY_TYPES["SEEKER"]: 25,  # Unchanged
+    ENEMY_TYPES["TELEPORTER"]: 22,  # Increased from 20
+    ENEMY_TYPES["REFLECTOR"]: 22,  # Increased from 20
+    ENEMY_TYPES["LIGHTBOARD"]: 25,  # Unchanged
 }
 
 # Minimum frequency for each enemy type once unlocked (percentage)
 MIN_FREQUENCIES = {
-    ENEMY_TYPES["BASIC"]: 5,  # Min 5% (always some chance)
-    ENEMY_TYPES["SHOOTER"]: 10,  # Min 10%
-    ENEMY_TYPES["WAVE"]: 5,  # Min 5%
-    ENEMY_TYPES["SPIRAL"]: 5,  # Min 5%
-    ENEMY_TYPES["SEEKER"]: 5,  # Min 5%
-    ENEMY_TYPES["TELEPORTER"]: 2,  # Min 2%
-    ENEMY_TYPES["REFLECTOR"]: 3,  # Min 3%
-    ENEMY_TYPES["LIGHTBOARD"]: 4,  # Min 4%
+    ENEMY_TYPES["BASIC"]: 5,  # Unchanged
+    ENEMY_TYPES["SHOOTER"]: 10,  # Unchanged
+    ENEMY_TYPES["WAVE"]: 6,  # Increased from 5
+    ENEMY_TYPES["SPIRAL"]: 6,  # Increased from 5
+    ENEMY_TYPES["SEEKER"]: 6,  # Increased from 5
+    ENEMY_TYPES["TELEPORTER"]: 3,  # Increased from 2
+    ENEMY_TYPES["REFLECTOR"]: 4,  # Increased from 3
+    ENEMY_TYPES["LIGHTBOARD"]: 5,  # Increased from 4
 }
 
 # ------------------------------------------------------------------------------
