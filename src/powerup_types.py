@@ -2,7 +2,8 @@
 
 import math
 import random
-from typing import Any, Dict, List, Optional, Tuple
+from enum import auto
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type, ClassVar, Union
 
 import pygame
 
@@ -14,19 +15,78 @@ from src.projectile import Bullet, ScatterProjectile
 # Get a logger for this module
 logger = get_logger(__name__)
 
+# Global registry to store powerup classes by type
+POWERUP_REGISTRY: Dict[PowerupType, Type['PowerupBase']] = {}
 
-class TripleShotPowerup(Powerup):
-    """Triple shot powerup - player fires 3 bullets at once."""
+def register_powerup(powerup_type: PowerupType) -> Callable:
+    """Decorator to register a powerup class with its type.
+    
+    Args:
+        powerup_type: The PowerupType enum value for this powerup
+        
+    Returns:
+        A decorator function that registers the decorated class
+    """
+    def decorator(cls):
+        POWERUP_REGISTRY[powerup_type] = cls
+        # Store the type directly on the class
+        cls.powerup_type_enum = powerup_type
+        return cls
+    return decorator
 
+# Classification of powerups by effect type
+# For future usage when filtering/displaying powerups
+DURATION_POWERUPS = [
+    PowerupType.TRIPLE_SHOT,
+    PowerupType.RAPID_FIRE,
+    PowerupType.SHIELD,
+    PowerupType.HOMING_MISSILES,
+    PowerupType.TIME_WARP,
+]
+
+CHARGE_POWERUPS = [
+    PowerupType.SCATTER_BOMB,
+]
+
+INSTANT_POWERUPS = [
+    PowerupType.POWER_RESTORE,
+    PowerupType.MEGA_BLAST,
+]
+
+# Create a base class for our registry-compatible powerups
+class PowerupBase(Powerup):
+    """Base class for all powerups that use the registry system."""
+    
+    # This will be set by the decorator
+    powerup_type_enum: ClassVar[PowerupType]
+    
     def __init__(
         self,
         x: float,
         y: float,
-        *groups,
+        *groups: pygame.sprite.Group,
         particles_group: Optional[pygame.sprite.Group] = None,
         game_ref=None,
     ) -> None:
-        super().__init__(PowerupType.TRIPLE_SHOT, x, y, *groups, particles_group=particles_group)
+        """Initialize the powerup with the type stored in the class attribute.
+        
+        Args:
+            x: Initial x position
+            y: Initial y position
+            groups: Sprite groups to add to
+            particles_group: Optional group for particle effects
+            game_ref: Reference to the game instance
+        """
+        # Pass the type from the class attribute to the Powerup constructor
+        super().__init__(self.powerup_type_enum, x, y, *groups, particles_group=particles_group)  # type: ignore
+        self.game_ref = game_ref
+
+@register_powerup(PowerupType.TRIPLE_SHOT)
+class TripleShotPowerup(PowerupBase):
+    """Triple shot powerup - player fires 3 bullets at once."""
+    
+    # Type is set by the decorator and used by PowerupBase.__init__
+    powerup_type_enum = PowerupType.TRIPLE_SHOT
 
     def apply_effect(self, player) -> None:
         """Apply the triple shot effect to the player."""
@@ -44,19 +104,12 @@ class TripleShotPowerup(Powerup):
 
         logger.info("Triple Shot activated for 10 seconds")
 
-
-class RapidFirePowerup(Powerup):
+@register_powerup(PowerupType.RAPID_FIRE)
+class RapidFirePowerup(PowerupBase):
     """Rapid fire powerup - player shoots more frequently."""
-
-    def __init__(
-        self,
-        x: float,
-        y: float,
-        *groups,
-        particles_group: Optional[pygame.sprite.Group] = None,
-        game_ref=None,
-    ) -> None:
-        super().__init__(PowerupType.RAPID_FIRE, x, y, *groups, particles_group=particles_group)
+    
+    # Type is set by the decorator and used by PowerupBase.__init__
+    powerup_type_enum = PowerupType.RAPID_FIRE
 
     def apply_effect(self, player) -> None:
         """Apply the rapid fire effect to the player."""
@@ -79,19 +132,12 @@ class RapidFirePowerup(Powerup):
 
         logger.info("Rapid Fire activated for 10 seconds")
 
-
-class ShieldPowerup(Powerup):
+@register_powerup(PowerupType.SHIELD)
+class ShieldPowerup(PowerupBase):
     """Shield powerup - temporary invulnerability."""
-
-    def __init__(
-        self,
-        x: float,
-        y: float,
-        *groups,
-        particles_group: Optional[pygame.sprite.Group] = None,
-        game_ref=None,
-    ) -> None:
-        super().__init__(PowerupType.SHIELD, x, y, *groups, particles_group=particles_group)
+    
+    # Type is set by the decorator and used by PowerupBase.__init__
+    powerup_type_enum = PowerupType.SHIELD
 
     def apply_effect(self, player) -> None:
         """Apply the shield effect to the player."""
@@ -112,26 +158,12 @@ class ShieldPowerup(Powerup):
         # For now we just log that we got it
         logger.info("Shield activated for 10 seconds")
 
-
-class HomingMissilesPowerup(Powerup):
+@register_powerup(PowerupType.HOMING_MISSILES)
+class HomingMissilesPowerup(PowerupBase):
     """Homing missiles powerup - bullets track nearest enemy."""
-
-    def __init__(
-        self,
-        x: float,
-        y: float,
-        *groups,
-        particles_group: Optional[pygame.sprite.Group] = None,
-        game_ref=None,
-    ) -> None:
-        super().__init__(
-            PowerupType.HOMING_MISSILES,
-            x,
-            y,
-            *groups,
-            particles_group=particles_group,
-            game_ref=game_ref,
-        )
+    
+    # Type is set by the decorator and used by PowerupBase.__init__
+    powerup_type_enum = PowerupType.HOMING_MISSILES
 
     def apply_effect(self, player) -> None:
         """Apply the homing missiles effect to the player."""
@@ -157,19 +189,12 @@ class HomingMissilesPowerup(Powerup):
         # Note: The actual homing behavior would be implemented in the Bullet class
         # or a new HomingMissile class, and player.update would check for expiry
 
-
-class PowerRestorePowerup(Powerup):
+@register_powerup(PowerupType.POWER_RESTORE)
+class PowerRestorePowerup(PowerupBase):
     """Power restore powerup - instantly restores player's power to max."""
-
-    def __init__(
-        self,
-        x: float,
-        y: float,
-        *groups,
-        particles_group: Optional[pygame.sprite.Group] = None,
-        game_ref=None,
-    ) -> None:
-        super().__init__(PowerupType.POWER_RESTORE, x, y, *groups, particles_group=particles_group)
+    
+    # Type is set by the decorator and used by PowerupBase.__init__
+    powerup_type_enum = PowerupType.POWER_RESTORE
 
     def apply_effect(self, player) -> None:
         """Apply the power restore effect to the player."""
@@ -196,19 +221,12 @@ class PowerRestorePowerup(Powerup):
         # Note: Power Restore does not add itself to the active_powerups_state
         # as it's an instant effect with no duration or charges.
 
-
-class ScatterBombPowerup(Powerup):
+@register_powerup(PowerupType.SCATTER_BOMB)
+class ScatterBombPowerup(PowerupBase):
     """Scatter bomb powerup - releases burst of projectiles in all directions."""
-
-    def __init__(
-        self,
-        x: float,
-        y: float,
-        *groups,
-        particles_group: Optional[pygame.sprite.Group] = None,
-        game_ref=None,
-    ) -> None:
-        super().__init__(PowerupType.SCATTER_BOMB, x, y, *groups, particles_group=particles_group)
+    
+    # Type is set by the decorator and used by PowerupBase.__init__
+    powerup_type_enum = PowerupType.SCATTER_BOMB
 
     def apply_effect(self, player) -> None:
         """Apply the scatter bomb effect to the player."""
@@ -231,19 +249,12 @@ class ScatterBombPowerup(Powerup):
         # Note: The actual scatter bombing would be handled in the player's update
         # or a new method triggered by a key press
 
-
-class TimeWarpPowerup(Powerup):
+@register_powerup(PowerupType.TIME_WARP)
+class TimeWarpPowerup(PowerupBase):
     """Time warp powerup - slows down enemies and enemy bullets."""
-
-    def __init__(
-        self,
-        x: float,
-        y: float,
-        *groups,
-        particles_group: Optional[pygame.sprite.Group] = None,
-        game_ref=None,
-    ) -> None:
-        super().__init__(PowerupType.TIME_WARP, x, y, *groups, particles_group=particles_group)
+    
+    # Type is set by the decorator and used by PowerupBase.__init__
+    powerup_type_enum = PowerupType.TIME_WARP
 
     def apply_effect(self, player) -> None:
         """Apply the time warp effect."""
@@ -268,19 +279,12 @@ class TimeWarpPowerup(Powerup):
         # Note: The actual time warping would be implemented in the
         # game's update method, slowing down enemies and bullets
 
-
-class MegaBlastPowerup(Powerup):
+@register_powerup(PowerupType.MEGA_BLAST)
+class MegaBlastPowerup(PowerupBase):
     """Mega blast powerup - screen-clearing explosion."""
-
-    def __init__(
-        self,
-        x: float,
-        y: float,
-        *groups,
-        particles_group: Optional[pygame.sprite.Group] = None,
-        game_ref=None,
-    ) -> None:
-        super().__init__(PowerupType.MEGA_BLAST, x, y, *groups, particles_group=particles_group)
+    
+    # Type is set by the decorator and used by PowerupBase.__init__
+    powerup_type_enum = PowerupType.MEGA_BLAST
 
     def apply_effect(self, player) -> None:
         """Apply the mega blast effect - immediately destroy all enemies."""
@@ -333,20 +337,54 @@ class MegaBlastPowerup(Powerup):
         # Note: Mega Blast does not add itself to the active_powerups_state
         # as it's an instant effect with no duration or charges.
 
+# Template for adding new powerups
+"""
+@register_powerup(PowerupType.NEW_POWERUP_NAME)
+class NewPowerupClass(PowerupBase):
+    '''New powerup - describe what it does.'''
+    
+    # Type is set by the decorator and used by PowerupBase.__init__
+    powerup_type_enum = PowerupType.NEW_POWERUP_NAME
+
+    def apply_effect(self, player) -> None:
+        '''Apply the powerup effect.'''
+        super().apply_effect(player)  # Call base implementation for common operations
+        
+        # For duration-based powerups:
+        player.add_powerup(
+            powerup_name=PowerupType.NEW_POWERUP_NAME.name,
+            powerup_idx=PowerupType.NEW_POWERUP_NAME.value,
+            duration_ms=POWERUP_DURATION,
+            # Add any extra state needed:
+            # extra_state={"key": value},
+        )
+        
+        # OR for charge-based powerups:
+        # player.add_powerup(
+        #     powerup_name=PowerupType.NEW_POWERUP_NAME.name,
+        #     powerup_idx=PowerupType.NEW_POWERUP_NAME.value,
+        #     charges=3,
+        # )
+        
+        # Create collection effect
+        self._create_collection_effect(player.rect.center)
+        
+        logger.info("New Powerup activated")
+"""
 
 # Factory function to create a powerup of a specific type
 def create_powerup(
-    powerup_type: int,
+    powerup_type: Union[int, PowerupType],
     x: float,
     y: float,
-    *groups,
+    *groups: pygame.sprite.Group,
     particles_group: Optional[pygame.sprite.Group] = None,
     game_ref=None,
 ) -> Powerup:
     """Create a powerup of the specified type.
 
     Args:
-        powerup_type: Index (integer value) of the powerup type (0-7)
+        powerup_type: Index (integer value) or PowerupType enum member
         x: Initial x position
         y: Initial y position
         groups: Sprite groups to add to
@@ -356,40 +394,62 @@ def create_powerup(
     Returns:
         A new powerup instance of the appropriate type
     """
-    powerup_class_map = {
-        PowerupType.TRIPLE_SHOT: TripleShotPowerup,
-        PowerupType.RAPID_FIRE: RapidFirePowerup,
-        PowerupType.SHIELD: ShieldPowerup,
-        PowerupType.HOMING_MISSILES: HomingMissilesPowerup,
-        PowerupType.POWER_RESTORE: PowerRestorePowerup,
-        PowerupType.SCATTER_BOMB: ScatterBombPowerup,
-        PowerupType.TIME_WARP: TimeWarpPowerup,
-        PowerupType.MEGA_BLAST: MegaBlastPowerup,
-    }
+    # Convert int to PowerupType if needed
+    if isinstance(powerup_type, int):
+        try:
+            powerup_enum_member = PowerupType(powerup_type)
+        except ValueError:
+            logger.error(f"Invalid powerup type integer: {powerup_type}")
+            # Default to Triple Shot as a fallback
+            powerup_enum_member = PowerupType.TRIPLE_SHOT
+    else:
+        # Already a PowerupType
+        powerup_enum_member = powerup_type
 
-    # Try to get the corresponding Enum member from the integer value
-    try:
-        powerup_enum_member = PowerupType(powerup_type)
-    except ValueError:
-        logger.error(f"Invalid powerup type integer: {powerup_type}")
-        # Default to Triple Shot as a fallback
-        powerup_enum_member = PowerupType.TRIPLE_SHOT
-
-    # Get the correct class from the mapping using the Enum member
-    powerup_class = powerup_class_map.get(powerup_enum_member)
+    # Get the correct class from the registry using the Enum member
+    powerup_class = POWERUP_REGISTRY.get(powerup_enum_member)
 
     if not powerup_class:
-        logger.error(f"No class mapped for powerup type: {powerup_enum_member.name}")
+        logger.error(f"No class registered for powerup type: {powerup_enum_member.name}")
         # Fallback to Triple Shot class
-        powerup_class = TripleShotPowerup
-        powerup_enum_member = PowerupType.TRIPLE_SHOT  # Ensure enum member matches class
+        powerup_class = POWERUP_REGISTRY[PowerupType.TRIPLE_SHOT]
 
-    # Create the powerup instance, passing the Enum member to the constructor
-    return powerup_class(
-        x,
-        y,
+    # Create the powerup instance
+    # We use type: ignore because we're intentionally passing coordinates instead of 
+    # the PowerupType as the first parameter - our PowerupBase class handles this correctly
+    return powerup_class(  # type: ignore
+        x,  # x coordinate
+        y,  # y coordinate
         *groups,
         particles_group=particles_group,
         game_ref=game_ref,
-        # Note: The __init__ of the specific powerup class now takes the Enum member
     )
+
+# Helper function to get all registered powerup types
+def get_all_powerup_types() -> List[PowerupType]:
+    """Get a list of all registered powerup types.
+    
+    Returns:
+        List of PowerupType enum values for all registered powerups
+    """
+    return list(POWERUP_REGISTRY.keys())
+
+# Helper function to get powerups by category
+def get_powerups_by_category(category: str) -> List[PowerupType]:
+    """Get powerups by category.
+    
+    Args:
+        category: The category to filter by ('duration', 'charge', or 'instant')
+        
+    Returns:
+        List of PowerupType enum values in the requested category
+    """
+    if category == 'duration':
+        return DURATION_POWERUPS
+    elif category == 'charge':
+        return CHARGE_POWERUPS
+    elif category == 'instant':
+        return INSTANT_POWERUPS
+    else:
+        logger.warning(f"Unknown powerup category: {category}")
+        return []

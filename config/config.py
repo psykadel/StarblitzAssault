@@ -45,13 +45,13 @@ LOGO_ALPHA: int = 128  # Alpha value (0-255) for game logo transparency
 FPS: int = 60
 
 # Player settings
-PLAYER_SPEED: float = 4.0
+PLAYER_SPEED: float = 6.0  # pixels per frame
 PLAYER_SHOOT_DELAY: int = 200  # Milliseconds
 PLAYER_SCALE_FACTOR: float = 0.25
 PLAYER_ANIMATION_SPEED_MS: int = 75  # Milliseconds per frame
 
 # Bullet settings
-BULLET_SPEED: float = 10.0
+BULLET_SPEED: float = 12.0  # pixels per frame
 BULLET_SIZE: Tuple[int, int] = (10, 4)
 
 # Animation settings
@@ -133,7 +133,7 @@ DECORATION_MAX_SIZE: int = 180  # Maximum size for decorations
 # Spacing and positioning settings
 DECORATION_MIN_HORIZONTAL_SPACING: int = 1000  # Minimum horizontal spacing between decorations
 DECORATION_TOP_PADDING: int = 30  # Minimum distance from top of playfield
-DECORATION_BOTTOM_PADDING: int = 70  # Minimum distance from bottom of playfield
+DECORATION_BOTTOM_PADDING: int = 80  # Minimum distance from bottom of playfield
 
 # ------------------------------------------------------------------------------
 # POWERUP SETTINGS
@@ -143,8 +143,8 @@ POWERUP_ALPHA: int = 90  # Alpha value (0-255) for powerup sprite transparency
 POWERUP_GLOW_RATIO: float = 1  # Glow ratio for powerup sprite
 
 # Spawn settings
-POWERUP_MIN_SPAWN_INTERVAL_MS: int = 3000  # Minimum spawn interval in milliseconds
-POWERUP_MAX_SPAWN_INTERVAL_MS: int = 30000  # Maximum spawn interval in milliseconds
+POWERUP_MIN_SPAWN_INTERVAL_MS: int = 2000  # Minimum spawn interval in milliseconds
+POWERUP_MAX_SPAWN_INTERVAL_MS: int = 20000  # Maximum spawn interval in milliseconds
 
 # Frequency scaling with difficulty
 POWERUP_DIFFICULTY_SCALING: float = (
@@ -276,4 +276,39 @@ WAVE_TIMER_EVENT_ID: int = pygame.USEREVENT + 1
 # DEBUG SETTINGS
 # ------------------------------------------------------------------------------
 DEBUG_FORCE_ENEMY_TYPE: bool = False
-DEBUG_ENEMY_TYPE_INDEX: int = 6  # Enemy type to use when DEBUG_FORCE_ENEMY_TYPE is True (0-5)
+DEBUG_ENEMY_TYPE_INDEX: int = 3  # Enemy type to use when DEBUG_FORCE_ENEMY_TYPE is True (0-5)
+
+# ------------------------------------------------------------------------------
+# GAME MECHANICS
+# ------------------------------------------------------------------------------
+PLAYER_SPEED: float = 6.0  # pixels per frame
+BULLET_SPEED: float = 12.0  # pixels per frame
+ENEMY_BULLET_SPEED: float = 6.0  # pixels per frame
+HOMING_MISSILE_SPEED: float = 3.0  # pixels per frame
+HOMING_MISSILE_ROTATION_SPEED: float = 3.0  # degrees per frame
+EXPLOSIVE_BULLET_SPEED: float = 4.0  # pixels per frame
+PLAYER_FIRE_DELAY: int = 200  # milliseconds between shots
+PLAYER_SHIELD_DURATION: int = 5000  # duration of shield powerup in ms
+ENEMY_HIT_DELAY: int = 50  # milliseconds flash when hit
+ANIMATION_DELAY: int = 100  # milliseconds between animation frames
+EXPLOSION_ANIMATION_DELAY: int = 50  # milliseconds between explosion frames
+
+# Enemy Spawn Boundary Settings
+SPAWN_BASE_BORDER_MARGIN: int = 80  # Base margin from playfield edges
+SPAWN_DIAGONAL_SPACING_X: int = 60  # Horizontal spacing for diagonal patterns
+SPAWN_DIAGONAL_SPACING_Y: int = 60  # Vertical spacing for diagonal patterns (maximum)
+# Enemy type specific extra margins
+SPAWN_EXTRA_MARGINS: Dict[int, int] = {
+    6: 40,  # EnemyType7 (Reflector) - extra large margin
+    7: 30,  # EnemyType8 (Lightboard) - larger than standard margin
+    4: 20,  # EnemyType5 (Explosive) - above standard margin 
+    3: 20,  # EnemyType4 (Erratic) - above standard margin
+}
+
+# Pattern spawn settings
+SPAWN_HORIZONTAL_BORDER_MARGIN: int = 50
+SPAWN_VERTICAL_BORDER_MARGIN: int = 50
+SPAWN_V_PATTERN_BORDER_MARGIN: int = 50
+
+# Score awarded for destroying enemies
+ENEMY_BASE_SCORE: int = 100
