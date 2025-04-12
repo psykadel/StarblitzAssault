@@ -16,7 +16,7 @@ from src.projectile import Bullet, ScatterProjectile
 logger = get_logger(__name__)
 
 # Global registry to store powerup classes by type
-POWERUP_REGISTRY: Dict[PowerupType, Type['PowerupBase']] = {}
+POWERUP_REGISTRY: Dict[PowerupType, Type[Powerup]] = {}
 
 def register_powerup(powerup_type: PowerupType) -> Callable:
     """Decorator to register a powerup class with its type.
@@ -64,21 +64,13 @@ class PowerupBase(Powerup):
         self,
         x: float,
         y: float,
-        *groups: pygame.sprite.Group,
+        *groups,
         particles_group: Optional[pygame.sprite.Group] = None,
         game_ref=None,
     ) -> None:
-        """Initialize the powerup with the type stored in the class attribute.
-        
-        Args:
-            x: Initial x position
-            y: Initial y position
-            groups: Sprite groups to add to
-            particles_group: Optional group for particle effects
-            game_ref: Reference to the game instance
-        """
+        """Initialize the powerup with the type stored in the class attribute."""
         # Pass the type from the class attribute to the Powerup constructor
-        super().__init__(self.powerup_type_enum, x, y, *groups, particles_group=particles_group)  # type: ignore
+        super().__init__(self.powerup_type_enum, x, y, *groups, particles_group=particles_group)
         self.game_ref = game_ref
 
 @register_powerup(PowerupType.TRIPLE_SHOT)
@@ -377,7 +369,7 @@ def create_powerup(
     powerup_type: Union[int, PowerupType],
     x: float,
     y: float,
-    *groups: pygame.sprite.Group,
+    *groups,
     particles_group: Optional[pygame.sprite.Group] = None,
     game_ref=None,
 ) -> Powerup:
@@ -414,12 +406,10 @@ def create_powerup(
         # Fallback to Triple Shot class
         powerup_class = POWERUP_REGISTRY[PowerupType.TRIPLE_SHOT]
 
-    # Create the powerup instance
-    # We use type: ignore because we're intentionally passing coordinates instead of 
-    # the PowerupType as the first parameter - our PowerupBase class handles this correctly
-    return powerup_class(  # type: ignore
-        x,  # x coordinate
-        y,  # y coordinate
+    # Create the powerup instance - PowerupBase will handle passing the correct type
+    return powerup_class(
+        x,
+        y,
         *groups,
         particles_group=particles_group,
         game_ref=game_ref,

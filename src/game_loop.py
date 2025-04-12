@@ -40,10 +40,6 @@ from config.config import (
     WAVE_TIMER_EVENT_ID,
     WHITE,
     SOUNDS_DIR,
-    SPAWN_BASE_BORDER_MARGIN,
-    SPAWN_EXTRA_MARGINS,
-    SPAWN_DIAGONAL_SPACING_X,
-    SPAWN_DIAGONAL_SPACING_Y,
 )
 from src.background import BackgroundDecorations, BackgroundLayer
 from src.border import Border
@@ -892,79 +888,65 @@ class Game:
         self, count: int, enemy_type_index: int = 0, speed_modifier: float = 1.0
     ):
         """Creates a diagonal line of enemies entering from right."""
-        # Use config values instead of hardcoded values
-        from config.config import (SPAWN_BASE_BORDER_MARGIN, SPAWN_EXTRA_MARGINS, 
-                                 SPAWN_DIAGONAL_SPACING_X, SPAWN_DIAGONAL_SPACING_Y,
-                                 PLAYFIELD_TOP_Y, PLAYFIELD_BOTTOM_Y, SCREEN_WIDTH)
+        # Apply larger border margin to prevent spawning outside visible area
+        border_margin = 70  # Increased from 50 to 70
         
-        # Get base border margin and add any extra margin for this enemy type
-        base_border_margin = SPAWN_BASE_BORDER_MARGIN
-        extra_margin = SPAWN_EXTRA_MARGINS.get(enemy_type_index, 0)
-        border_margin = base_border_margin + extra_margin
+        # Use even larger margin for EnemyType7 which has a taller sprite
+        if enemy_type_index == 6:  # EnemyType7 index is 6
+            border_margin = 100  # Extra large margin for the Reflector enemy
         
-        # Calculate safe top and bottom boundaries
-        safe_top = PLAYFIELD_TOP_Y + border_margin
-        safe_bottom = PLAYFIELD_BOTTOM_Y - border_margin
+        # Calculate usable playfield height
+        playfield_height = PLAYFIELD_BOTTOM_Y - PLAYFIELD_TOP_Y - (2 * border_margin)
+        
+        # Fixed horizontal spacing
+        spacing_x = 60
         
         # Direction - negative for diagonal down, positive for diagonal up
         direction = 1 if random.random() < 0.5 else -1
         
-        # For enemies spawning from bottom moving up, use upward direction to avoid
-        # them spawning too low, regardless of random choice
-        if enemy_type_index in [6, 7]:  # EnemyType7 and EnemyType8 should start lower with upward direction
-            direction = 1  # Force diagonal upward pattern
+        # Calculate maximum safe vertical distance
+        max_vertical_distance = (count - 1) * 60  # Using max possible spacing of 60
         
-        # Calculate spacing between enemies (using config constants)
-        spacing_x = SPAWN_DIAGONAL_SPACING_X
-        max_vertical_distance = safe_bottom - safe_top
+        # Check if the pattern would exceed playfield bounds and adjust spacing if needed
+        if max_vertical_distance > playfield_height:
+            # Scale down spacing to fit within available height
+            spacing_y = (playfield_height * 0.8) / (count - 1) if count > 1 else playfield_height
+        else:
+            spacing_y = min(60, playfield_height / (count + 1))  # Use default spacing if it fits, with extra safety margin
         
-        # Calculate theoretical maximum spacing for even distribution
-        max_spacing_y = max_vertical_distance / max(1, count - 1)
-        # Use the smaller of the maximum calculated spacing or the config value
-        spacing_y = min(max_spacing_y, SPAWN_DIAGONAL_SPACING_Y)
-        
-        # Check if pattern will exceed boundaries and adjust starting position
-        total_vertical_space = spacing_y * (count - 1)
+        # Set safe boundaries for enemy spawn positions
+        safe_top = PLAYFIELD_TOP_Y + border_margin
+        safe_bottom = PLAYFIELD_BOTTOM_Y - border_margin
         
         # Calculate start position based on direction
+        if direction == 1:  # Diagonal up
+            # Start at a safer position (higher up from bottom)
+            start_y = safe_bottom - 20
+            if enemy_type_index == 6:  # Additional offset for EnemyType7
+                start_y -= 30
+        else:  # Diagonal down
+            # Start at a safer position (lower down from top)
+            start_y = safe_top + 20
+            if enemy_type_index == 6:  # Additional offset for EnemyType7
+                start_y += 30
+        
         start_x = SCREEN_WIDTH + 50
         
-        if direction == 1:  # Bottom to top (positive is upward)
-            start_y = safe_bottom
-            if start_y - total_vertical_space < safe_top:
-                # Adjust to keep within bounds
-                start_y = min(safe_bottom, safe_top + total_vertical_space)
-        else:  # Top to bottom (negative is downward)
-            start_y = safe_top
-            if start_y + total_vertical_space > safe_bottom:
-                # Adjust to keep within bounds
-                start_y = max(safe_top, safe_bottom - total_vertical_space)
-        
-        # Pre-calculate all positions and perform safety checks before creating enemies
-        positions = []
+        # Create the enemies
         for i in range(count):
-            current_x = start_x + i * spacing_x
+            x_pos = start_x + i * spacing_x
+            y_pos = start_y + (i * spacing_y * direction)
             
-            # Calculate y position based on direction
-            if direction == 1:  # Bottom to top (positive is upward)
-                current_y = start_y - (i * spacing_y)
-            else:  # Top to bottom (negative is downward)
-                current_y = start_y + (i * spacing_y)
+            # Apply strict bounds checking - ensure enemies always stay within safe area
+            y_pos = max(safe_top, min(safe_bottom, y_pos))
             
-            # Final safety check to ensure we're within playfield boundaries
-            current_y = max(safe_top, min(safe_bottom, current_y))
-            
-            positions.append((current_x, current_y))
-        
-        # Create the enemies at the validated positions
-        for x_pos, y_pos in positions:
             # Get an enemy from the pool instead of creating a new one
             enemy = self._get_enemy_from_pool(enemy_type_index)
             
             # Skip if we couldn't create a valid enemy
             if not enemy:
                 continue
-            
+                
             # Apply speed modifier based on difficulty
             if hasattr(enemy, 'speed_x'):
                 enemy.speed_x *= speed_modifier
@@ -996,9 +978,26 @@ class Game:
                 enemy.last_charge_time = pygame.time.get_ticks()
                 enemy.charge_cooldown = max(1000, int(enemy.charge_cooldown / speed_modifier))
 
-            # Position the enemy
+            # Position the enemy - here we use set_pos to ensure center is positioned properly
             if hasattr(enemy, 'topleft'):
                 enemy.topleft = (x_pos, y_pos)
+                
+                # Final safety check - if still out of bounds after positioning, adjust
+                if hasattr(enemy, 'rect'):
+                    # More aggressive adjustment for EnemyType7 which has a taller sprite
+                    bottom_margin = 40 if isinstance(enemy, EnemyType7) else 20
+                    top_margin = 40 if isinstance(enemy, EnemyType7) else 20
+                    
+                    if enemy.rect.bottom > PLAYFIELD_BOTTOM_Y - bottom_margin:
+                        # If bottom is too low, pull it up
+                        enemy.rect.bottom = PLAYFIELD_BOTTOM_Y - bottom_margin
+                        if hasattr(enemy, '_pos_y'):
+                            enemy._pos_y = float(enemy.rect.y)
+                    elif enemy.rect.top < PLAYFIELD_TOP_Y + top_margin:
+                        # If top is too high, push it down
+                        enemy.rect.top = PLAYFIELD_TOP_Y + top_margin
+                        if hasattr(enemy, '_pos_y'):
+                            enemy._pos_y = float(enemy.rect.y)
 
     def _spawn_v_pattern(self, count: int, enemy_type_index: int = 0, speed_modifier: float = 1.0):
         """Creates a V-shaped formation of enemies entering from right."""
