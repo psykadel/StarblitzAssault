@@ -297,195 +297,313 @@ class ScatterProjectile(pygame.sprite.Sprite):
 
 
 class LaserBeam(pygame.sprite.Sprite):
-    """Green laser beam attack that fires rapid green laser lines."""
+    """Green laser beam attack that clearly emanates from the player ship."""
 
     def __init__(self, player_pos: Tuple[int, int], charge_level: float, *groups) -> None:
-        """Initialize a laser beam.
-
-        Args:
-            player_pos: Position of the player firing the beam
-            charge_level: Charge level from 0.0 to 1.0
-            groups: Sprite groups to add to
-        """
+        """Initialize a laser beam."""
         super().__init__(*groups)
 
-        # Calculate beam dimensions
+        # Ensure charge level is non-negative before calculations
+        charge_level = max(0.0, charge_level)
+
+        # Calculate beam dimensions with offset to start in front of ship
+        ship_width_estimate = 50  # Estimated width of player ship
+        beam_start_x = player_pos[0] + ship_width_estimate//2  # Start from front of ship
         screen_width = pygame.display.get_surface().get_width()
-        beam_start_x = player_pos[0] + 20  # Start a bit in front of player
         beam_length = screen_width - beam_start_x
 
-        # Laser line properties based on charge level
-        min_height = 3
-        max_height = 15
-        self.laser_height = min_height + int((max_height - min_height) * charge_level)
+        # --- Safety Check for beam_length ---
+        if beam_length <= 0:
+            logger.warning(f"Laser beam started at or beyond screen edge ({beam_start_x=}). Setting length to 1.")
+            beam_length = 1
+        # --- End Safety Check ---
 
-        # Number of laser lines based on charge level - more lines for more impressive effect
-        min_lines = 5
-        max_lines = 15
-        self.num_laser_lines = min_lines + int((max_lines - min_lines) * charge_level)
+        # Create a taller surface to accommodate particle effects
+        padding = 40  # Increased to allow for wider particle spread
+        # Create a thin beam with particle effects
+        thin_beam_height = max(1, 4 + int(2 * charge_level))  # Much thinner core beam
+        surface_height = thin_beam_height + padding * 2
+        
+        # Ensure surface dimensions are valid before creating
+        if beam_length > 0 and surface_height > 0:
+            self.image = pygame.Surface((beam_length, surface_height), pygame.SRCALPHA)
+        else:
+            # Create a minimal 1x1 surface if dimensions are invalid
+            logger.error(f"Invalid dimensions for LaserBeam surface: ({beam_length=}, {surface_height=}). Creating 1x1 surface.")
+            self.image = pygame.Surface((1, 1), pygame.SRCALPHA)
+            beam_length = 1 # Adjust beam_length to match minimal surface
+            thin_beam_height = 1 # Adjust beam_height
 
-        # Spacing between laser lines - tighter spacing for higher charge
-        self.spacing = max(2, int(15 * (1 - charge_level) + 3))
-
-        # Create beam surface - add extra padding for glow effects
-        padding = 30
-        max_beam_height = (
-            self.laser_height * self.num_laser_lines
-            + self.spacing * (self.num_laser_lines - 1)
-            + padding * 2
-        )
-        self.image = pygame.Surface((beam_length, max_beam_height), pygame.SRCALPHA)
-
-        # Bright green laser color
-        base_color = (20, 200, 20)  # More saturated green base
-        full_charge_color = (150, 255, 150)  # Brighter green
-
-        self.r = base_color[0] + int((full_charge_color[0] - base_color[0]) * charge_level)
-        self.g = base_color[1] + int((full_charge_color[1] - base_color[1]) * charge_level)
-        self.b = base_color[2] + int((full_charge_color[2] - base_color[2]) * charge_level)
+        # Store dimensions
+        self.beam_length = beam_length
+        self.beam_height = thin_beam_height
+        self.center_y = surface_height // 2
+        self.player_pos = player_pos
+        self.surface_height = surface_height
+        self.beam_start_x = beam_start_x  # Store the actual start position
 
         # Animation variables
-        self.pulse_offset = 0
-        self.animation_offset = 0
-        self.animation_speed = 0.8 + charge_level * 2.0  # Even faster with higher charge
-        self.beam_length = beam_length
-        self.padding = padding
+        self.pulse_time = 0
+        self.flow_offset = 0
+        self.flow_speed = 2.0 + charge_level * 2.0
+        
+        # Fade-in animation variables
+        self.is_fading_in = True
+        self.fade_in_progress = 0.0  # 0.0 to 1.0
+        self.fade_in_speed = 0.15    # How quickly the beam extends
+        
+        # Particle effect variables
+        self.particles = []
+        self.particle_spawn_rate = int(3 + charge_level * 1.5)  # Further reduced spawn rate
+        self.max_particles = 80  # Further reduced max particles
+        self.particle_size_range = (1, 3)  # Smaller max size
+        self.particle_speed_range = (3, 7)
+        self.particle_spread = int(6 + charge_level * 4)  # Further reduced spread
 
-        # Draw the initial laser lines
-        self._draw_laser_lines()
+        # Only update visuals every other frame to improve performance
+        self.update_frame = True
 
-        # Set up rect and mask
+        # Color cycling for beam and particles
+        self.color_phase = 0
+        self.color_shift = random.uniform(0, 2 * math.pi)
+        
+        # Set up rect and mask - Position from the front of the ship
         self.rect = self.image.get_rect(midleft=(beam_start_x, player_pos[1]))
+
+        # Draw initial beam
+        self._draw_beam()
+
+        # Create mask from image (important for collision detection)
         self.mask = pygame.mask.from_surface(self.image)
 
-        # Set lifetime based on charge level
-        min_lifetime = 30
-        max_lifetime = 60
-        self.lifetime = min_lifetime + int((max_lifetime - min_lifetime) * charge_level)
+        # Set lifetime and damage
+        self.lifetime = 30 + int(15 * charge_level)
+        self.damage = 2 + int(charge_level * 4)
 
-        # Store damage value based on charge
-        self.damage = 1 + int(charge_level * 3)  # 1-4 damage
+        logger.debug(f"Created particle laser beam with charge {charge_level:.2f}")
 
-        logger.debug(f"Created laser beam with charge {charge_level:.2f}, damage {self.damage}")
+    def _get_particle_color(self, distance_ratio, size_ratio):
+        """Get dynamic color for particles based on position and size."""
+        # This method is optimized out in favor of inline color calculations
+        # Keep it for compatibility but it's no longer used
+        cycle = 0.5 + 0.5 * math.sin(self.color_phase + self.color_shift)
+        
+        r = int(40 + 80 * cycle)
+        g = min(255, int(200 + 55 * (1 - distance_ratio * 0.5)))
+        b = int(50 + 80 * cycle * (1 - distance_ratio))
+        alpha = max(30, min(200, int(180 * (1 - distance_ratio * 0.3))))
+        
+        return (r, g, b, alpha)
 
-    def _draw_laser_lines(self) -> None:
-        """Draw multiple pulsing laser lines with enhanced visual effects."""
-        # Clear the surface
+    def _spawn_particles(self):
+        """Create new particles across the entire beam."""
+        # Only spawn if we haven't exceeded max particles
+        if len(self.particles) >= self.max_particles:
+            return
+            
+        center_y = self.center_y
+        
+        # Determine visible beam length during fade-in
+        visible_length = self.beam_length
+        if self.is_fading_in:
+            visible_length = int(self.beam_length * self.fade_in_progress)
+            
+        # Skip if beam isn't visible yet
+        if visible_length <= 0:
+            return
+        
+        # Spawn particles throughout the beam
+        for _ in range(self.particle_spawn_rate):
+            if len(self.particles) >= self.max_particles:
+                break
+                
+            # Randomize particle properties
+            size = random.uniform(self.particle_size_range[0], self.particle_size_range[1])
+            speed = random.uniform(self.particle_speed_range[0], self.particle_speed_range[1])
+            
+            # Position particles anywhere along the visible beam
+            x_pos = random.uniform(0, visible_length)
+            y_offset = random.uniform(-self.particle_spread, self.particle_spread)
+            
+            # Shorter lifespan for particles that start further along the beam
+            max_lifespan = 60 - int(45 * (x_pos / self.beam_length))
+            lifespan = random.randint(10, max(10, max_lifespan))
+            
+            # Create new particle
+            particle = {
+                'x': x_pos,
+                'y': center_y + y_offset,
+                'size': size,
+                'speed': speed,
+                'y_drift': random.uniform(-0.5, 0.5),  # Slow vertical drift
+                'lifespan': lifespan,
+                'pulse_offset': random.uniform(0, 2 * math.pi),  # Random pulse phase
+                'oscillation': random.uniform(0.2, 1.0)  # Random oscillation amplitude
+            }
+            
+            self.particles.append(particle)
+
+    def _update_particles(self):
+        """Update all particles' positions and properties."""
+        # Update color animation
+        self.color_phase += 0.08
+        
+        # Update particles
+        for particle in self.particles[:]:  # Use a copy to safely remove during iteration
+            # Move particle
+            particle['x'] += particle['speed']
+            
+            # Add oscillating vertical movement
+            y_oscil = math.sin(self.pulse_time * 0.3 + particle['pulse_offset']) * particle['oscillation'] * self.particle_spread * 0.3
+            particle['y'] += particle['y_drift'] + y_oscil
+            
+            # Reduce lifespan
+            particle['lifespan'] -= 1
+            
+            # Remove if expired or out of bounds
+            if particle['lifespan'] <= 0 or particle['x'] >= self.beam_length:
+                self.particles.remove(particle)
+
+    def _draw_beam(self):
+        """Draw the thin central beam and particle effects."""
+        # Ensure beam_length is positive before proceeding with drawing calculations that depend on it
+        if self.beam_length <= 0:
+            # Should not happen due to __init__ checks, but as a failsafe:
+            logger.warning("Attempted to draw beam with non-positive length in _draw_beam.")
+            return
+
+        # Clear surface
         self.image.fill((0, 0, 0, 0))
 
-        # Calculate vertical center of the beam
-        total_height = self.image.get_height()
-        center_y = total_height // 2
+        center_y = self.center_y
+        
+        # Update fade-in animation
+        if self.is_fading_in:
+            self.fade_in_progress = min(1.0, self.fade_in_progress + self.fade_in_speed)
+            if self.fade_in_progress >= 1.0:
+                self.is_fading_in = False
+        
+        # Determine visible beam length
+        visible_length = self.beam_length
+        if self.is_fading_in:
+            visible_length = int(self.beam_length * self.fade_in_progress)
+        
+        # Only update particles every other frame to improve performance
+        self.update_frame = not self.update_frame
+        if self.update_frame:
+            # Spawn new particles
+            self._spawn_particles()
+            
+            # Update existing particles
+            self._update_particles()
 
-        # Calculate starting y-position for first laser line
-        start_y = (
-            center_y
-            - (self.num_laser_lines * self.laser_height + (self.num_laser_lines - 1) * self.spacing)
-            // 2
+        # Draw the thin central beam - only if we have visible length
+        if visible_length > 0:
+            core_height = max(1, self.beam_height)
+            core_top = center_y - core_height // 2
+            
+            # Create a slightly transparent core beam
+            beam_color = (30, 240, 70, 160)  # Bright green, semi-transparent
+            pygame.draw.rect(
+                self.image,
+                beam_color,
+                (0, core_top, visible_length, core_height)
+            )
+        
+        # Add subtle pulsing effect, but calculate less frequently
+        self.pulse_time += 0.1
+        pulse = 0.8 + 0.2 * math.sin(self.pulse_time * 0.5)
+        
+        # Add a single source point ball instead of multiple circles
+        ball_radius = 6
+        ball_color = (120, 255, 120, 200)
+        pygame.draw.circle(
+            self.image,
+            ball_color,
+            (0, center_y),
+            ball_radius
         )
+            
+        # Draw all particles
+        for particle in self.particles:
+            # Only draw particles within the visible beam length during fade-in
+            if self.is_fading_in and particle['x'] > visible_length:
+                continue
+                
+            # Calculate distance ratio from source (0 at source, 1 at end)
+            distance_ratio = particle['x'] / self.beam_length
+            size_ratio = (particle['size'] - self.particle_size_range[0]) / (self.particle_size_range[1] - self.particle_size_range[0])
+            
+            # Get dynamic color based on distance and size - simpler calculation
+            # Use cached color phase calculation rather than recalculating for each particle
+            cycle = 0.5 + 0.5 * math.sin(self.color_phase + self.color_shift)
+            
+            # Simplified color calculation - fewer branches and calculations
+            r = int(40 + 80 * cycle)
+            g = min(255, int(200 + 55 * (1 - distance_ratio * 0.5)))
+            b = int(50 + 80 * cycle * (1 - distance_ratio))
+            alpha = max(30, min(200, int(180 * (1 - distance_ratio * 0.3))))
+            
+            color = (r, g, b, alpha)
+            
+            # Draw the particle - with smaller max size
+            x, y = int(particle['x']), int(particle['y'])
+            size = max(1, particle['size'])  # Simplified size calculation
+            
+            pygame.draw.circle(
+                self.image,
+                color,
+                (x, y),
+                size
+            )
+        
+        # Add occasional energy bursts, but less frequently
+        if random.random() < 0.1:  # Reduced from 0.2 to 0.1 (50% reduction)
+            # Only create bursts within visible beam
+            burst_x = random.randint(0, min(int(visible_length * 0.9), 300)) if visible_length > 0 else 0
+            burst_y = center_y + random.randint(-self.particle_spread // 2, self.particle_spread // 2)
+            burst_radius = random.randint(2, 6)  # Smaller burst radius
+            burst_alpha = random.randint(40, 100)
+            
+            # Draw energy burst
+            pygame.draw.circle(
+                self.image,
+                (180, 255, 100, burst_alpha),
+                (burst_x, burst_y),
+                burst_radius
+            )
+        
+        # If beam is still fading in, create a leading edge effect
+        if self.is_fading_in and visible_length > 0:
+            # Create a bright leading edge glow (with circular glow instead of vertical lines)
+            edge_x = visible_length - 5
+            
+            # Use a single, simplified glow at the leading edge
+            pygame.draw.circle(
+                self.image,
+                (180, 255, 150, 120),
+                (edge_x, center_y),
+                self.particle_spread // 2
+            )
 
-        # Add a global pulsing glow effect
-        glow_surf = pygame.Surface((self.beam_length, total_height), pygame.SRCALPHA)
-        glow_alpha = 30 + int(20 * math.sin(self.animation_offset * 0.5))
-        glow_color = (self.r // 3, self.g // 2, self.r // 3, glow_alpha)
-        glow_surf.fill(glow_color)
-        self.image.blit(glow_surf, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+        # Don't update mask every frame - only update when particles are updated
+        if self.update_frame:
+            # Update mask for accurate collision detection
+            self.mask = pygame.mask.from_surface(self.image)
 
-        # Draw each laser line
-        for i in range(self.num_laser_lines):
-            # Y position for this line
-            y_pos = start_y + i * (self.laser_height + self.spacing)
-
-            # Phase shift for this line to create wave effect
-            phase_shift = i * 0.7
-
-            # Length modulation for wave-like effect
-            length_mod = 0.85 + 0.15 * math.sin(self.animation_offset + phase_shift)
-            line_length = int(self.beam_length * length_mod)
-
-            # Brightness modulation
-            brightness_mod = 0.8 + 0.2 * math.sin(self.animation_offset * 2.0 + phase_shift)
-            r = int(self.r * brightness_mod)
-            g = int(self.g * brightness_mod)
-            b = int(self.b * brightness_mod)
-
-            # Draw the laser line - core
-            pygame.draw.rect(self.image, (r, g, b), (0, y_pos, line_length, self.laser_height))
-
-            # Taper the end of each line for a more laser-like look
-            taper_length = min(80, int(line_length * 0.2))
-            for x in range(line_length - taper_length, line_length):
-                # Calculate fade based on position
-                fade = 1.0 - ((x - (line_length - taper_length)) / taper_length)
-                # Apply alpha based on fade
-                alpha = int(255 * fade)
-                # Mix in a white color at the tip for a more energized look
-                taper_r = int(r + (255 - r) * (1 - fade))
-                taper_g = int(g + (255 - g) * (1 - fade))
-                taper_b = int(b + (255 - b) * (1 - fade))
-
-                pygame.draw.line(
-                    self.image,
-                    (taper_r, taper_g, taper_b, alpha),
-                    (x, y_pos),
-                    (x, y_pos + self.laser_height),
-                    1,
-                )
-
-            # Add glow effect with larger width for better visibility
-            glow_height = self.laser_height * 4
-            glow_surf = pygame.Surface((line_length, glow_height), pygame.SRCALPHA)
-
-            # Add a brighter inner glow
-            for y in range(glow_height):
-                # Distance from center of glow
-                dist = abs(y - glow_height / 2) / (glow_height / 2)
-                # Alpha based on distance (falloff) - stronger glow
-                alpha = max(0, int(220 * (1 - dist**1.5) * brightness_mod))
-                # Only draw if visible
-                if alpha > 0:
-                    pygame.draw.line(
-                        glow_surf,
-                        (min(255, r + 50), min(255, g + 50), min(255, b + 50), alpha),
-                        (0, y),
-                        (line_length, y),
-                    )
-
-            # Draw random energy particles along the beam for added effect
-            for _ in range(5):
-                if random.random() < 0.7:
-                    particle_x = random.randint(0, line_length - 20)
-                    particle_y = random.randint(0, glow_height - 1)
-                    particle_size = random.randint(2, 5)
-                    particle_alpha = random.randint(150, 230)
-                    pygame.draw.circle(
-                        glow_surf,
-                        (230, 255, 230, particle_alpha),
-                        (particle_x, particle_y),
-                        particle_size,
-                    )
-
-            # Blit glow (centered on laser line)
-            glow_y = y_pos - (glow_height - self.laser_height) // 2
-            self.image.blit(glow_surf, (0, glow_y), special_flags=pygame.BLEND_RGBA_ADD)
-
-    def update(self) -> None:
-        """Update the beam's lifetime and animation."""
+    def update(self):
+        """Update the beam animation and lifetime."""
         # Reduce lifetime
         self.lifetime -= 1
-
-        # Update animation
-        self.animation_offset += self.animation_speed
-        self.pulse_offset += 0.3
-
-        # Redraw the laser lines with updated animation
-        self._draw_laser_lines()
-
-        # Fade out near end of life
-        if self.lifetime < 15:
-            alpha = int(255 * (self.lifetime / 15.0))
+        
+        # Redraw with updated animation
+        self._draw_beam()
+        
+        # Fade out at end of life
+        if self.lifetime < 10:
+            alpha = int(255 * (self.lifetime / 10.0))
             self.image.set_alpha(alpha)
-
-        # Remove when lifetime ends
+        
+        # Remove when expired
         if self.lifetime <= 0:
             self.kill()

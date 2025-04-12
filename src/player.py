@@ -315,8 +315,10 @@ class Player(AnimatedSprite):
         # Check for continuous shooting
         if self.is_firing:
             # Use triple shot if active, otherwise normal shot
-            if "TRIPLE_SHOT" in self.active_powerups_state:
+            if PowerupType.TRIPLE_SHOT.name in self.active_powerups_state:
                 self._shoot_triple()
+            elif PowerupType.LASER_BEAM.name in self.active_powerups_state:
+                self._fire_laser_beam()
             else:
                 self.shoot()  # shoot() already handles the cooldown based on powerup state
 
@@ -401,6 +403,7 @@ class Player(AnimatedSprite):
 
         if now - self.last_shot_time > shoot_delay:
             self.last_shot_time = now
+            
             # Bullet starts at the front-center of the player
             all_sprites_group = self.groups()[0] if self.groups() else None
             if all_sprites_group:
@@ -468,6 +471,37 @@ class Player(AnimatedSprite):
                     logger.debug(
                         f"Recharged scatter bomb. Now have {scatter_state['charges']} bombs."
                     )
+        
+        # Check if we have the laser beam powerup active
+        elif PowerupType.LASER_BEAM.name in self.active_powerups_state:
+            # See if we can fire a laser beam (check current charge and charge time)
+            laser_state = self.active_powerups_state[PowerupType.LASER_BEAM.name]
+
+            # If we don't have charge info, set it up
+            if "charges" not in laser_state:
+                laser_state["charges"] = 5  # Maximum 5 laser beam charges
+                laser_state["last_charge_time"] = self.timing_func()
+                laser_state["charge_interval"] = 2000  # 2 seconds to recharge one beam
+
+            # If we have charges and the bomb key is pressed for the first time
+            if (
+                laser_state["charges"] > 0
+                and self.key_states["key_bomb"]
+                and not self.prev_key_states.get("key_bomb", False)
+            ):
+                self._fire_laser_beam(laser_state)
+
+            # Recharge laser beams over time
+            current_time = self.timing_func()
+            if laser_state["charges"] < 5:  # Don't recharge if we're at max
+                time_since_last_charge = current_time - laser_state["last_charge_time"]
+                if time_since_last_charge >= laser_state["charge_interval"]:
+                    # Recharge one beam
+                    laser_state["charges"] += 1
+                    laser_state["last_charge_time"] = current_time
+                    logger.debug(
+                        f"Recharged laser beam. Now have {laser_state['charges']} beams."
+                    )
 
     def timing_func(self) -> int:
         """Return the current time in milliseconds. Used for timing-based effects."""
@@ -517,6 +551,36 @@ class Player(AnimatedSprite):
                     logger.warning(f"Failed to play explosion sound: {e}")
 
             logger.info(f"Fired scatter bomb. {charges_remaining} charges remaining")
+
+    def _fire_laser_beam(self, laser_state=None) -> None:
+        """Fire a growing green laser beam.
+
+        Args:
+            laser_state: Optional laser beam state dictionary. If None, will attempt
+                       to retrieve from active_powerups_state.
+        """
+        # Get sprite groups
+        all_sprites_group = self.groups()[0] if self.groups() else None
+        if all_sprites_group:
+            # Create a laser beam from the player's position
+            # Use a constant charge level for consistent visuals
+            charge_level = 0.8
+            
+            LaserBeam(
+                self.rect.center,
+                charge_level,
+                all_sprites_group,
+                self.bullets,
+            )
+
+            # Play sound
+            if self.game_ref and hasattr(self.game_ref, "sound_manager"):
+                try:
+                    self.game_ref.sound_manager.play("laser", "player")
+                except Exception as e:
+                    logger.warning(f"Failed to play laser sound: {e}")
+
+            logger.debug("Fired laser beam")
 
     def take_damage(self) -> bool:
         """Reduces player's power level when hit.
@@ -895,6 +959,7 @@ class Player(AnimatedSprite):
             PowerupType.SCATTER_BOMB.value: (255, 128, 0),  # Orange
             PowerupType.TIME_WARP.value: (128, 0, 255),  # Purple
             PowerupType.MEGA_BLAST.value: (255, 0, 128),  # Pink
+            PowerupType.LASER_BEAM.value: (20, 255, 100),  # Bright Green for Laser
         }
 
         # Powerup full names for display
@@ -907,6 +972,7 @@ class Player(AnimatedSprite):
             PowerupType.SCATTER_BOMB.name: "SCATTER BOMB",
             PowerupType.TIME_WARP.name: "TIME WARP",
             PowerupType.MEGA_BLAST.name: "MEGA BLAST",
+            PowerupType.LASER_BEAM.name: "LASER BEAM",
         }
 
         # Map enum values directly to Y positions - this is the key fix
@@ -919,6 +985,7 @@ class Player(AnimatedSprite):
             + (POWERUP_SLOTS["HOMING_MISSILES"] * spacing),
             PowerupType.SCATTER_BOMB.value: start_y + (POWERUP_SLOTS["SCATTER_BOMB"] * spacing),
             PowerupType.TIME_WARP.value: start_y + (POWERUP_SLOTS["TIME_WARP"] * spacing),
+            PowerupType.LASER_BEAM.value: start_y + (POWERUP_SLOTS["LASER_BEAM"] * spacing),
         }
 
         # Fonts for names and time
@@ -1156,41 +1223,67 @@ class Player(AnimatedSprite):
                 pygame.draw.circle(icon_surface, color, center, max(1, int(icon_size // 10)))
 
             elif name == PowerupType.MEGA_BLAST.name:
-                # Starburst pattern
+                # Exploding star burst effect
                 center = (icon_size // 2, icon_size // 2)
 
                 # Draw star rays
-                num_rays = 8
-                for i in range(num_rays):
-                    angle = math.radians(i * (360 / num_rays) + rotation)
-                    length = icon_size * 0.4 * pulse
-
-                    # Main ray points
-                    inner_x = center[0] + math.cos(angle) * (length * 0.3)
-                    inner_y = center[1] + math.sin(angle) * (length * 0.3)
-                    outer_x = center[0] + math.cos(angle) * length
-                    outer_y = center[1] + math.sin(angle) * length
-
-                    # Draw with thickness gradient
-                    for w in range(3, 0, -1):
-                        pygame.draw.line(
-                            icon_surface,
-                            (*color, 200 - (w * 30)),
-                            (inner_x, inner_y),
-                            (outer_x, outer_y),
-                            max(1, w),
-                        )
-
-                    # Add glow at the tip
-                    pygame.draw.circle(
-                        icon_surface,
-                        (*color, 150),
-                        (int(outer_x), int(outer_y)),
-                        max(1, int(icon_size // 10)),
+                for i in range(8):
+                    angle = math.radians(i * 45 + rotation)
+                    # Draw a wider base for each ray
+                    start_x = center[0] + math.cos(angle) * (icon_size // 6)
+                    start_y = center[1] + math.sin(angle) * (icon_size // 6)
+                    end_x = center[0] + math.cos(angle) * (icon_size // 2 * pulse)
+                    end_y = center[1] + math.sin(angle) * (icon_size // 2 * pulse)
+                    pygame.draw.line(
+                        icon_surface, color, (start_x, start_y), (end_x, end_y), max(1, icon_size // 6)
                     )
 
-                # Central glow
-                pygame.draw.circle(icon_surface, (*color, 200), center, int(icon_size // 5))
+                # Add central explosive burst
+                pygame.draw.circle(icon_surface, (*color, 180), center, int(icon_size // 4))
+                pygame.draw.circle(icon_surface, (255, 255, 255, 200), center, int(icon_size // 8))
+                
+            elif name == PowerupType.LASER_BEAM.name:
+                # Laser beam effect
+                center = (icon_size // 2, icon_size // 2)
+                
+                # Draw a horizontal beam from left to right
+                beam_width = max(2, int(icon_size // 4))
+                beam_length = int(icon_size * 0.9 * pulse)
+                
+                # Draw beam glow (wider, semi-transparent)
+                pygame.draw.rect(
+                    icon_surface,
+                    (*color, 80),
+                    (center[0] - beam_length//2, center[1] - beam_width, beam_length, beam_width * 2),
+                )
+                
+                # Draw main beam (thinner, brighter)
+                pygame.draw.rect(
+                    icon_surface,
+                    (*color, 220),
+                    (center[0] - beam_length//2, center[1] - beam_width//2, beam_length, beam_width),
+                )
+                
+                # Add source point glow
+                source_x = center[0] - beam_length//2
+                pygame.draw.circle(
+                    icon_surface,
+                    (*color, 150),
+                    (source_x, center[1]),
+                    max(3, int(icon_size // 6))
+                )
+                
+                # Add energy particles along beam
+                for i in range(3):
+                    particle_x = source_x + (beam_length * (i+1) // 4)
+                    particle_y = center[1] + random.randint(-1, 1)
+                    particle_size = random.randint(1, 2)
+                    pygame.draw.circle(
+                        icon_surface,
+                        (255, 255, 255, 200),
+                        (particle_x, particle_y),
+                        particle_size
+                    )
 
             else:
                 # Generic powerup glow for any other types

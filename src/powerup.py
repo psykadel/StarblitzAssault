@@ -30,6 +30,7 @@ class PowerupType(IntEnum):
     SCATTER_BOMB = 5  # Index shift: was 6
     TIME_WARP = 6  # Index shift: was 7
     MEGA_BLAST = 7  # Index shift: was 8
+    LASER_BEAM = 8  # New powerup type
 
 
 # Create a list of active powerup types for easy iteration/random selection
@@ -52,6 +53,7 @@ POWERUP_COLORS = {
     PowerupType.SCATTER_BOMB: (255, 128, 0),  # Orange
     PowerupType.TIME_WARP: (128, 0, 255),  # Purple
     PowerupType.MEGA_BLAST: (255, 0, 128),  # Pink
+    PowerupType.LASER_BEAM: (20, 255, 100),  # Bright Green (for Laser)
 }
 
 
@@ -246,11 +248,40 @@ class Powerup(AnimatedSprite):
 
         # Animation parameters
         self.pulse_timer = 0
-        self.pulse_speed = random.uniform(0.07, 0.12)  # Random pulse speed for variety
-        self.rotation_angle = random.uniform(0, 360)  # Random starting angle
-        self.rotation_speed = random.uniform(0.5, 1.5)  # Random rotation speed
+
+        # Pre-spawn some particles immediately
+        if self.particles_group is not None:
+            self._pre_spawn_initial_particles()
 
         logger.info(f"Created {self.type_name} powerup at ({x}, {y})")
+
+    def _pre_spawn_initial_particles(self):
+        """Spawn a small burst of particles when the powerup is created."""
+        # Spawn a few particles slightly ahead and behind the starting position
+        for _ in range(5):  # Spawn 5 initial particles
+            # Vary starting position slightly around the powerup center
+            offset_x = random.uniform(-10, 20) 
+            offset_y = random.uniform(-10, 10)
+            start_pos = (self.pos_x + offset_x, self.pos_y + offset_y)
+            
+            # Give them a small initial velocity mostly outwards
+            angle = random.uniform(0, 2 * math.pi)
+            speed = random.uniform(0.5, 1.5)
+            vel = (math.cos(angle) * speed, math.sin(angle) * speed)
+            
+            size = random.randint(2, 5)
+            lifetime = random.randint(20, 40)
+            
+            PowerupParticle(
+                start_pos,
+                vel,
+                self.color,
+                size,
+                lifetime,
+                0.02,
+                0.96,
+                self.particles_group,
+            )
 
     def _create_special_effect_surface(self) -> pygame.Surface:
         """Create a special effect surface for the powerup."""

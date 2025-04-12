@@ -143,8 +143,8 @@ POWERUP_ALPHA: int = 90  # Alpha value (0-255) for powerup sprite transparency
 POWERUP_GLOW_RATIO: float = 1  # Glow ratio for powerup sprite
 
 # Spawn settings
-POWERUP_MIN_SPAWN_INTERVAL_MS: int = 1500  # Minimum spawn interval in milliseconds
-POWERUP_MAX_SPAWN_INTERVAL_MS: int = 15000  # Maximum spawn interval in milliseconds
+POWERUP_MIN_SPAWN_INTERVAL_MS: int = 150  # Minimum spawn interval in milliseconds
+POWERUP_MAX_SPAWN_INTERVAL_MS: int = 1500  # Maximum spawn interval in milliseconds
 
 # Frequency scaling with difficulty
 POWERUP_DIFFICULTY_SCALING: float = (
@@ -163,6 +163,7 @@ POWERUP_SLOTS = {
     "HOMING_MISSILES": 3,  # Slot 3
     "SCATTER_BOMB": 4,  # Slot 4
     "TIME_WARP": 5,  # Slot 5
+    "LASER_BEAM": 6,  # Slot 6
     # Instant powerups don't need slots:
     # "POWER_RESTORE": N/A  # Instant effect, no persistent display
     # "MEGA_BLAST": N/A     # Instant effect, no persistent display
@@ -277,6 +278,10 @@ WAVE_TIMER_EVENT_ID: int = pygame.USEREVENT + 1
 # ------------------------------------------------------------------------------
 DEBUG_FORCE_ENEMY_TYPE: bool = False
 DEBUG_ENEMY_TYPE_INDEX: int = 3  # Enemy type to use when DEBUG_FORCE_ENEMY_TYPE is True (0-5)
+
+# Debug variables for powerups
+DEBUG_FORCE_POWERUP_TYPE: bool = False
+DEBUG_POWERUP_TYPE_INDEX: int = 8  # PowerupType index to use when DEBUG_FORCE_POWERUP_TYPE is True (0-8, 8=LASER_BEAM)
 
 # ------------------------------------------------------------------------------
 # GAME MECHANICS

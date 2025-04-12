@@ -40,6 +40,8 @@ from config.config import (
     WAVE_TIMER_EVENT_ID,
     WHITE,
     SOUNDS_DIR,
+    DEBUG_FORCE_POWERUP_TYPE,
+    DEBUG_POWERUP_TYPE_INDEX,
 )
 from src.background import BackgroundDecorations, BackgroundLayer
 from src.border import Border
@@ -61,7 +63,7 @@ from src.logger import get_logger, setup_logger
 from src.player import MAX_POWER_LEVEL, Player
 from src.power_particles import PowerParticleSystem
 from src.powerup import ACTIVE_POWERUP_TYPES, PowerupParticle, PowerupType
-from src.projectile import Bullet, ScatterProjectile
+from src.projectile import Bullet, ScatterProjectile, LaserBeam
 from src.sound_manager import SoundManager
 
 # Get logger for this module
@@ -350,7 +352,8 @@ class Game:
         self.sound_manager = SoundManager()
 
         # Start background music
-        self.sound_manager.play_music("background-music.mp3", loops=-1)
+        # Removed duplicate music initialization - intro.py already starts the music
+        # self.sound_manager.play_music("background-music.mp3", loops=-1)
 
         # Laser sound timer - for continuous fire sound
         self.last_laser_sound_time = 0
@@ -1271,34 +1274,29 @@ class Game:
         # Import for type checking
         from src.player import MAX_POWER_LEVEL
         from src.powerup import PowerupType
+        # Import debug variables
+        from config.config import DEBUG_FORCE_POWERUP_TYPE, DEBUG_POWERUP_TYPE_INDEX
 
-        # Filter out the last powerup type to avoid repetition
-        available_types = list(ACTIVE_POWERUP_TYPES)
-        if self.last_powerup_type is not None:
+        # Check if we should force a specific powerup type
+        if DEBUG_FORCE_POWERUP_TYPE:
             try:
-                available_types.remove(self.last_powerup_type)
+                # Convert index to PowerupType enum value
+                chosen_powerup_enum = PowerupType(DEBUG_POWERUP_TYPE_INDEX)
+                powerup_type_index = chosen_powerup_enum.value
+                powerup_type_name = chosen_powerup_enum.name
+                logger.info(f"Debug mode: Forcing powerup type {powerup_type_name}")
             except ValueError:
-                # Last type not in available types (shouldn't happen)
-                pass
-
-        # Filter out POWER_RESTORE if player already has max power
-        if (
-            self.player.power_level >= MAX_POWER_LEVEL
-            and PowerupType.POWER_RESTORE in available_types
-        ):
-            available_types.remove(PowerupType.POWER_RESTORE)
-            logger.debug(
-                "Removed POWER_RESTORE from available powerups because player has max power"
-            )
-
-        # If we have no available types (shouldn't happen but just in case), use defaults
-        if not available_types:
-            available_types = [PowerupType.TRIPLE_SHOT, PowerupType.RAPID_FIRE, PowerupType.SHIELD]
-
-        # Choose a random powerup type from the filtered list
-        chosen_powerup_enum = random.choice(available_types)
-        powerup_type_index = chosen_powerup_enum.value  # Get the integer value
-        powerup_type_name = chosen_powerup_enum.name  # Get the name
+                # Fallback if invalid index
+                logger.warning(f"Invalid DEBUG_POWERUP_TYPE_INDEX: {DEBUG_POWERUP_TYPE_INDEX}, using random powerup")
+                # Continue with normal random selection
+                chosen_powerup_enum = self._select_random_powerup()
+                powerup_type_index = chosen_powerup_enum.value
+                powerup_type_name = chosen_powerup_enum.name
+        else:
+            # Normal random selection
+            chosen_powerup_enum = self._select_random_powerup()
+            powerup_type_index = chosen_powerup_enum.value
+            powerup_type_name = chosen_powerup_enum.name
 
         # Remember this type to avoid repeating next time
         self.last_powerup_type = chosen_powerup_enum
@@ -1323,6 +1321,38 @@ class Game:
         )
 
         logger.info(f"Spawned powerup of type {powerup_type_name} at position ({x}, {y})")
+        
+    def _select_random_powerup(self):
+        """Select a random powerup type, filtering out ineligible ones."""
+        # Import for type checking
+        from src.player import MAX_POWER_LEVEL
+        from src.powerup import PowerupType, ACTIVE_POWERUP_TYPES
+        
+        # Filter out the last powerup type to avoid repetition
+        available_types = list(ACTIVE_POWERUP_TYPES)
+        if self.last_powerup_type is not None:
+            try:
+                available_types.remove(self.last_powerup_type)
+            except ValueError:
+                # Last type not in available types (shouldn't happen)
+                pass
+
+        # Filter out POWER_RESTORE if player already has max power
+        if (
+            self.player.power_level >= MAX_POWER_LEVEL
+            and PowerupType.POWER_RESTORE in available_types
+        ):
+            available_types.remove(PowerupType.POWER_RESTORE)
+            logger.debug(
+                "Removed POWER_RESTORE from available powerups because player has max power"
+            )
+
+        # If we have no available types (shouldn't happen but just in case), use defaults
+        if not available_types:
+            available_types = [PowerupType.TRIPLE_SHOT, PowerupType.RAPID_FIRE, PowerupType.SHIELD]
+
+        # Choose a random powerup type from the filtered list
+        return random.choice(available_types)
 
     def _spawn_powerup_of_type(self, powerup_type: int, x: float, y: float) -> None:
         """Spawn a powerup of a specific type at a specified position.
@@ -1393,6 +1423,25 @@ class Game:
                     bullet.kill()
                     enemy.kill()
                     self._process_enemy_destruction(enemy)
+                    
+        # Special collision handling for laser beams - they don't get destroyed on hit
+        from src.projectile import LaserBeam
+        for bullet in self.bullets:
+            # Only process LaserBeam instances
+            if isinstance(bullet, LaserBeam):
+                # Check collisions with all enemies
+                for enemy in self.enemies:
+                    if pygame.sprite.collide_mask(bullet, enemy):
+                        # Use the damage value from the laser beam
+                        enemy.kill()
+                        self._process_enemy_destruction(enemy)
+                        
+                        # Don't kill the laser beam - it continues through enemies
+                        # But play a hit sound
+                        try:
+                            self.sound_manager.play("hit1", "player")
+                        except Exception as e:
+                            logger.warning(f"Failed to play hit sound: {e}")
 
         # Skip collision handling if player is not alive
         if not self.player.is_alive:
@@ -1416,11 +1465,11 @@ class Game:
                 PowerupType.RAPID_FIRE: (0, 255, 255),
                 PowerupType.SHIELD: (0, 100, 255),
                 PowerupType.HOMING_MISSILES: (255, 0, 255),
-                # PowerupType.LASER_BEAM: (0, 255, 0), # Removed
                 PowerupType.POWER_RESTORE: (255, 255, 255),
                 PowerupType.SCATTER_BOMB: (255, 128, 0),
                 PowerupType.TIME_WARP: (128, 0, 255),
                 PowerupType.MEGA_BLAST: (255, 0, 128),
+                PowerupType.LASER_BEAM: (20, 255, 100),  # Bright Green (for Laser)
             }
             # Get color using the Enum member, default to white
             notification_color = notification_colors.get(powerup.powerup_type_enum, WHITE)

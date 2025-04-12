@@ -10,7 +10,7 @@ import pygame
 from config.config import PLAYER_SHOOT_DELAY
 from src.logger import get_logger
 from src.powerup import POWERUP_DURATION, Powerup, PowerupParticle, PowerupType
-from src.projectile import Bullet, ScatterProjectile
+from src.projectile import Bullet, LaserBeam, ScatterProjectile
 
 # Get a logger for this module
 logger = get_logger(__name__)
@@ -42,6 +42,7 @@ DURATION_POWERUPS = [
     PowerupType.SHIELD,
     PowerupType.HOMING_MISSILES,
     PowerupType.TIME_WARP,
+    PowerupType.LASER_BEAM,
 ]
 
 CHARGE_POWERUPS = [
@@ -291,90 +292,55 @@ class MegaBlastPowerup(PowerupBase):
     powerup_type_enum: ClassVar[PowerupType] = PowerupType.MEGA_BLAST
 
     def apply_effect(self, player) -> None:
-        """Apply the mega blast effect - immediately destroy all enemies."""
+        """Apply the mega blast effect.
+        
+        This is an instant powerup that creates a shockwave that destroys enemies.
+        """
         super().apply_effect(player)  # Call base implementation
 
-        # We'll need access to game objects, so ensure player has game_ref
-        game_ref = getattr(player, "game_ref", None)
-        if not game_ref and self.game_ref:
-            game_ref = self.game_ref  # Fallback to powerup's game_ref if player's is missing
-            logger.warning("Used powerup's game_ref for Mega Blast")
-
-        if game_ref:
-            # Get all active enemies
-            enemies = list(game_ref.enemies.sprites())
-
-            # Count how many enemies were destroyed
-            enemy_count = len(enemies)
-
-            # Create explosion for each enemy
-            for enemy in enemies:
-                # Add points
-                game_ref.score += 100
-
-                # Create explosion at enemy position
-                explosion_size = (50, 50)
-                from src.explosion import Explosion  # Import here to avoid circular imports
-
-                Explosion(
-                    enemy.rect.center,
-                    explosion_size,
-                    "enemy",
-                    game_ref.explosions,
-                    particles_group=game_ref.particles,
-                )
-
-                # Remove the enemy
-                enemy.kill()
-
-            # Create mega blast effect around the player
-            self._create_collection_effect(player.rect.center)
-
-            # Play sound
-            if hasattr(game_ref, "sound_manager"):
-                game_ref.sound_manager.play("explosion1", "player")
-
-            logger.info(f"Mega Blast destroyed {enemy_count} enemies!")
-        else:
-            logger.warning("Mega Blast couldn't access game reference")
-
-        # Note: Mega Blast does not add itself to the active_powerups_state
-        # as it's an instant effect with no duration or charges.
-
-# Template for adding new powerups
-"""
-@register_powerup(PowerupType.NEW_POWERUP_NAME)
-class NewPowerupClass(PowerupBase):
-    '''New powerup - describe what it does.'''
-    
-    # Type is set by the decorator and used by PowerupBase.__init__
-    powerup_type_enum = PowerupType.NEW_POWERUP_NAME
-
-    def apply_effect(self, player) -> None:
-        '''Apply the powerup effect.'''
-        super().apply_effect(player)  # Call base implementation for common operations
-        
-        # For duration-based powerups:
-        player.add_powerup(
-            powerup_name=PowerupType.NEW_POWERUP_NAME.name,
-            powerup_idx=PowerupType.NEW_POWERUP_NAME.value,
-            duration_ms=POWERUP_DURATION,
-            # Add any extra state needed:
-            # extra_state={"key": value},
-        )
-        
-        # OR for charge-based powerups:
-        # player.add_powerup(
-        #     powerup_name=PowerupType.NEW_POWERUP_NAME.name,
-        #     powerup_idx=PowerupType.NEW_POWERUP_NAME.value,
-        #     charges=3,
-        # )
-        
         # Create collection effect
         self._create_collection_effect(player.rect.center)
-        
-        logger.info("New Powerup activated")
-"""
+
+        # Log the effect
+        logger.info("Mega Blast activated")
+
+        # Create a mega blast effect if the game reference is available
+        if self.game_ref:
+            # Try to access the mega blast method
+            if hasattr(self.game_ref, "_create_mega_blast"):
+                try:
+                    # Call the mega blast method
+                    self.game_ref._create_mega_blast(player.rect.center)
+                except Exception as e:
+                    logger.error(f"Error creating mega blast: {e}")
+            else:
+                logger.warning("Game instance does not have _create_mega_blast method")
+        else:
+            logger.warning("No game reference available for Mega Blast powerup")
+
+@register_powerup(PowerupType.LASER_BEAM)
+class LaserBeamPowerup(PowerupBase):
+    """Laser beam powerup - player fires a powerful growing green laser beam."""
+    
+    # Explicitly define as class variable with correct type
+    powerup_type_enum: ClassVar[PowerupType] = PowerupType.LASER_BEAM
+
+    def apply_effect(self, player) -> None:
+        """Apply the laser beam effect to the player."""
+        super().apply_effect(player)  # Call base implementation
+
+        # Use the centralized state management method
+        player.add_powerup(
+            powerup_name=PowerupType.LASER_BEAM.name,
+            powerup_idx=PowerupType.LASER_BEAM.value,
+            duration_ms=POWERUP_DURATION,
+            charges=5,  # Add 5 laser beam charges
+        )
+
+        # Create collection effect
+        self._create_collection_effect(player.rect.center)
+
+        logger.info("Laser Beam activated for 10 seconds with 5 charges")
 
 # Factory function to create a powerup of a specific type
 def create_powerup(
