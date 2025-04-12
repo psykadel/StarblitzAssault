@@ -5,6 +5,7 @@ import argparse
 
 from src.game_loop import Game
 from src.intro import run_intro
+from src.objective_screen import run_objective_screen
 from src.logger import get_logger
 
 # Get logger for this module
@@ -17,6 +18,7 @@ def main():
         # Parse command line args
         parser = argparse.ArgumentParser(description="Starblitz Assault")
         parser.add_argument("--skip-intro", action="store_true", help="Skip the intro sequence")
+        parser.add_argument("--skip-objective", action="store_true", help="Skip the objective screen")
         parser.add_argument("--test-mode", action="store_true", help="Enable test mode")
         args = parser.parse_args()
         
@@ -34,6 +36,17 @@ def main():
             # Quit if user closed the game during intro
             if not intro_result:
                 logger.info("User quit during intro sequence")
+                return
+        
+        # Run objective screen if not skipped
+        if not args.skip_objective:
+            logger.info("Displaying objective screen")
+            # Pass the game's sound manager to the objective screen for smoother transitions
+            objective_result = run_objective_screen(game.screen, game.sound_manager)
+            
+            # Quit if user closed the game during objective screen
+            if not objective_result:
+                logger.info("User quit during objective screen")
                 return
                 
         # Run the game

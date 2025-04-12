@@ -477,6 +477,11 @@ class Game:
         """Starts and manages the main game loop."""
         # No longer force spawn a powerup at start
 
+        # Reset the wave timer when the game starts running
+        # This ensures waves will spawn correctly even after multiple screen transitions
+        pygame.time.set_timer(WAVE_TIMER_EVENT, WAVE_DELAY_MS)
+        logger.info("Wave timer reset at game start")
+        
         while self.is_running:
             # Check for window resize events (optional but good for resizable window) - REMOVED
             # self.handle_resize()
