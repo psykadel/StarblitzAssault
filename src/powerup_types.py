@@ -70,15 +70,27 @@ class PowerupBase(Powerup):
     ) -> None:
         """Initialize the powerup with the type stored in the class attribute."""
         # Pass the type from the class attribute to the Powerup constructor
-        super().__init__(self.powerup_type_enum, x, y, *groups, particles_group=particles_group)
+        super().__init__(self.__class__.powerup_type_enum, x, y, *groups, particles_group=particles_group)
         self.game_ref = game_ref
+    
+    @classmethod
+    def create(
+        cls,
+        x: float,
+        y: float,
+        *groups,
+        particles_group: Optional[pygame.sprite.Group] = None,
+        game_ref=None,
+    ) -> 'PowerupBase':
+        """Class method to create a powerup instance without type confusion."""
+        return cls(x, y, *groups, particles_group=particles_group, game_ref=game_ref)
 
 @register_powerup(PowerupType.TRIPLE_SHOT)
 class TripleShotPowerup(PowerupBase):
     """Triple shot powerup - player fires 3 bullets at once."""
     
-    # Type is set by the decorator and used by PowerupBase.__init__
-    powerup_type_enum = PowerupType.TRIPLE_SHOT
+    # Explicitly define as class variable with correct type
+    powerup_type_enum: ClassVar[PowerupType] = PowerupType.TRIPLE_SHOT
 
     def apply_effect(self, player) -> None:
         """Apply the triple shot effect to the player."""
@@ -100,8 +112,8 @@ class TripleShotPowerup(PowerupBase):
 class RapidFirePowerup(PowerupBase):
     """Rapid fire powerup - player shoots more frequently."""
     
-    # Type is set by the decorator and used by PowerupBase.__init__
-    powerup_type_enum = PowerupType.RAPID_FIRE
+    # Explicitly define as class variable with correct type
+    powerup_type_enum: ClassVar[PowerupType] = PowerupType.RAPID_FIRE
 
     def apply_effect(self, player) -> None:
         """Apply the rapid fire effect to the player."""
@@ -128,8 +140,8 @@ class RapidFirePowerup(PowerupBase):
 class ShieldPowerup(PowerupBase):
     """Shield powerup - temporary invulnerability."""
     
-    # Type is set by the decorator and used by PowerupBase.__init__
-    powerup_type_enum = PowerupType.SHIELD
+    # Explicitly define as class variable with correct type
+    powerup_type_enum: ClassVar[PowerupType] = PowerupType.SHIELD
 
     def apply_effect(self, player) -> None:
         """Apply the shield effect to the player."""
@@ -154,8 +166,8 @@ class ShieldPowerup(PowerupBase):
 class HomingMissilesPowerup(PowerupBase):
     """Homing missiles powerup - bullets track nearest enemy."""
     
-    # Type is set by the decorator and used by PowerupBase.__init__
-    powerup_type_enum = PowerupType.HOMING_MISSILES
+    # Explicitly define as class variable with correct type
+    powerup_type_enum: ClassVar[PowerupType] = PowerupType.HOMING_MISSILES
 
     def apply_effect(self, player) -> None:
         """Apply the homing missiles effect to the player."""
@@ -185,8 +197,8 @@ class HomingMissilesPowerup(PowerupBase):
 class PowerRestorePowerup(PowerupBase):
     """Power restore powerup - instantly restores player's power to max."""
     
-    # Type is set by the decorator and used by PowerupBase.__init__
-    powerup_type_enum = PowerupType.POWER_RESTORE
+    # Explicitly define as class variable with correct type
+    powerup_type_enum: ClassVar[PowerupType] = PowerupType.POWER_RESTORE
 
     def apply_effect(self, player) -> None:
         """Apply the power restore effect to the player."""
@@ -217,8 +229,8 @@ class PowerRestorePowerup(PowerupBase):
 class ScatterBombPowerup(PowerupBase):
     """Scatter bomb powerup - releases burst of projectiles in all directions."""
     
-    # Type is set by the decorator and used by PowerupBase.__init__
-    powerup_type_enum = PowerupType.SCATTER_BOMB
+    # Explicitly define as class variable with correct type
+    powerup_type_enum: ClassVar[PowerupType] = PowerupType.SCATTER_BOMB
 
     def apply_effect(self, player) -> None:
         """Apply the scatter bomb effect to the player."""
@@ -245,8 +257,8 @@ class ScatterBombPowerup(PowerupBase):
 class TimeWarpPowerup(PowerupBase):
     """Time warp powerup - slows down enemies and enemy bullets."""
     
-    # Type is set by the decorator and used by PowerupBase.__init__
-    powerup_type_enum = PowerupType.TIME_WARP
+    # Explicitly define as class variable with correct type
+    powerup_type_enum: ClassVar[PowerupType] = PowerupType.TIME_WARP
 
     def apply_effect(self, player) -> None:
         """Apply the time warp effect."""
@@ -275,8 +287,8 @@ class TimeWarpPowerup(PowerupBase):
 class MegaBlastPowerup(PowerupBase):
     """Mega blast powerup - screen-clearing explosion."""
     
-    # Type is set by the decorator and used by PowerupBase.__init__
-    powerup_type_enum = PowerupType.MEGA_BLAST
+    # Explicitly define as class variable with correct type
+    powerup_type_enum: ClassVar[PowerupType] = PowerupType.MEGA_BLAST
 
     def apply_effect(self, player) -> None:
         """Apply the mega blast effect - immediately destroy all enemies."""
@@ -406,14 +418,20 @@ def create_powerup(
         # Fallback to Triple Shot class
         powerup_class = POWERUP_REGISTRY[PowerupType.TRIPLE_SHOT]
 
-    # Create the powerup instance - PowerupBase will handle passing the correct type
-    return powerup_class(
+    # Use a type cast to silence the linter error
+    from typing import cast
+    
+    # Create powerup instance - the linter gets confused about parameter order
+    # pylint: disable=no-member
+    powerup = cast(Type[PowerupBase], powerup_class).create(
         x,
         y,
         *groups,
         particles_group=particles_group,
         game_ref=game_ref,
     )
+    
+    return powerup
 
 # Helper function to get all registered powerup types
 def get_all_powerup_types() -> List[PowerupType]:

@@ -238,8 +238,8 @@ class Powerup(AnimatedSprite):
         self.particle_timer = 0
         self.particle_interval = 40  # Reduced interval for more frequent particles
 
-        # Track the last time we created particles
-        self.last_particle_time = pygame.time.get_ticks()
+        # Initialize last_particle_time to 0 to create particles immediately
+        self.last_particle_time = 0
 
         # Initialize elapsed time for animations
         self.elapsed_time = 0
