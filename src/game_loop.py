@@ -361,6 +361,7 @@ class Game:
         # Simple wave management state
         self.wave_active = False
         self.wave_count = 0  # Track number of waves for difficulty progression
+        self.max_wave_count = 0  # Track maximum wave reached
         pygame.time.set_timer(WAVE_TIMER_EVENT, WAVE_DELAY_MS)  # Timer for next wave
 
         # Game over state
@@ -628,6 +629,7 @@ class Game:
 
                 # Update wave count and difficulty
                 self.wave_count += 1
+                self.max_wave_count = max(self.max_wave_count, self.wave_count)
                 self._update_difficulty()
 
                 # Select a random pattern type
@@ -1645,6 +1647,11 @@ class Game:
         difficulty_rect = difficulty_text.get_rect(topright=(SCREEN_WIDTH - 20, 45))
         self.screen.blit(difficulty_text, difficulty_rect)
 
+        # Draw max wave indicator
+        max_wave_text = self.score_font.render(f"MAX WAVE: {self.max_wave_count}", True, (200, 200, 200))  # Slightly dimmer color
+        max_wave_rect = max_wave_text.get_rect(topright=(SCREEN_WIDTH - 20, 75))
+        self.screen.blit(max_wave_text, max_wave_rect)
+
         # Draw game over message if necessary
         if self.game_over:
             current_time = pygame.time.get_ticks()
@@ -1809,6 +1816,7 @@ class Game:
         self.game_over = False
         self.score = 0
         self.wave_count = 0
+        # Note: max_wave_count is intentionally not reset to preserve the record
         self.difficulty_level = 1.0
 
         # Clear all sprite groups
