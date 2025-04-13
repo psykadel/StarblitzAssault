@@ -299,10 +299,13 @@ class ScatterProjectile(pygame.sprite.Sprite):
 class LaserBeam(pygame.sprite.Sprite):
     """Green laser beam attack that clearly emanates from the player ship."""
 
-    def __init__(self, player_pos: Tuple[int, int], charge_level: float, *groups) -> None:
+    def __init__(self, player_pos: Tuple[int, int], charge_level: float, *groups, sound_manager=None) -> None:
         """Initialize a laser beam."""
         super().__init__(*groups)
 
+        # Store sound manager reference - REMOVED SOUND LOGIC FROM HERE
+        # self.sound_manager = sound_manager
+        
         # Ensure charge level is non-negative before calculations
         charge_level = max(0.0, charge_level)
 
@@ -381,6 +384,14 @@ class LaserBeam(pygame.sprite.Sprite):
         self.damage = 2 + int(charge_level * 4)
 
         logger.debug(f"Created particle laser beam with charge {charge_level:.2f}")
+        
+        # REMOVED SOUND START LOGIC FROM HERE
+        # Start looping sound if sound manager is available
+        # if self.sound_manager:
+        #     try:
+        #         self.sound_manager.play_loop("laserbeam", "player", volume=0.7)
+        #     except Exception as e:
+        #         logger.warning(f"Failed to play looping laser beam sound: {e}")
 
     def _get_particle_color(self, distance_ratio, size_ratio):
         """Get dynamic color for particles based on position and size."""
@@ -606,4 +617,11 @@ class LaserBeam(pygame.sprite.Sprite):
 
         # Remove when expired
         if self.lifetime <= 0:
+            # REMOVED SOUND STOP LOGIC FROM HERE
+            # Stop looping sound when the beam is destroyed
+            # if self.sound_manager:
+            #     try:
+            #         self.sound_manager.stop_loop("laserbeam", "player")
+            #     except Exception as e:
+            #         logger.warning(f"Failed to stop looping laser beam sound: {e}")
             self.kill()

@@ -673,11 +673,12 @@ class EnemyType6(Enemy):
 class EnemyType7(Enemy):
     """Reflector enemy that can reflect player bullets and fire laser beams."""
 
-    def __init__(self, player_ref, bullet_group, *groups) -> None:
+    def __init__(self, player_ref, bullet_group, *groups, game_ref=None) -> None:
         super().__init__(*groups)
 
         self.player_ref = player_ref
         self.bullet_group = bullet_group
+        self.game_ref = game_ref
         
         # Load the sprite frames
         self.frames = load_sprite_sheet(
@@ -849,8 +850,12 @@ class EnemyType7(Enemy):
         # Fire from left side (facing the player)
         laser_start = (self.rect.left, self.rect.centery)
         # Direction is leftward (negative x) - laser extends toward player side
-        LaserBeam(laser_start, 8, self.bullet_group)
-        # Sound will be handled in game_loop
+        sound_manager = None
+        if hasattr(self, 'game_ref') and self.game_ref and hasattr(self.game_ref, 'sound_manager'):
+            sound_manager = self.game_ref.sound_manager
+        
+        LaserBeam(laser_start, 8, self.bullet_group, sound_manager=sound_manager)
+        # Sound is now handled in the LaserBeam class
 
 
 # Enemy Type 8: Lightboard racer that tries to collide with the player

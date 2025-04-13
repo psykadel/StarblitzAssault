@@ -13,6 +13,16 @@ import pygame
 LOG_LEVEL: int = logging.WARNING
 
 # ------------------------------------------------------------------------------
+# DEBUG SETTINGS
+# ------------------------------------------------------------------------------
+DEBUG_FORCE_ENEMY_TYPE: bool = False
+DEBUG_ENEMY_TYPE_INDEX: int = 3  # Enemy type to use when DEBUG_FORCE_ENEMY_TYPE is True (0-5)
+
+# Debug variables for powerups
+DEBUG_FORCE_POWERUP_TYPE: bool = False
+DEBUG_POWERUP_TYPE_INDEX: int = 8  # PowerupType index to use when DEBUG_FORCE_POWERUP_TYPE is True (DRONE=9)
+
+# ------------------------------------------------------------------------------
 # DIRECTORY PATHS
 # ------------------------------------------------------------------------------
 # Base directories
@@ -281,16 +291,6 @@ DEFAULT_MUSIC_VOLUME: float = 0.3
 # EVENT TYPES
 # ------------------------------------------------------------------------------
 WAVE_TIMER_EVENT_ID: int = pygame.USEREVENT + 1
-
-# ------------------------------------------------------------------------------
-# DEBUG SETTINGS
-# ------------------------------------------------------------------------------
-DEBUG_FORCE_ENEMY_TYPE: bool = False
-DEBUG_ENEMY_TYPE_INDEX: int = 3  # Enemy type to use when DEBUG_FORCE_ENEMY_TYPE is True (0-5)
-
-# Debug variables for powerups
-DEBUG_FORCE_POWERUP_TYPE: bool = False
-DEBUG_POWERUP_TYPE_INDEX: int = 10  # PowerupType index to use when DEBUG_FORCE_POWERUP_TYPE is True (DRONE=9)
 
 # ------------------------------------------------------------------------------
 # GAME MECHANICS

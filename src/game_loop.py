@@ -457,7 +457,7 @@ class Game:
         elif enemy_type_index == 5:
             return EnemyType6(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
         elif enemy_type_index == 6:
-            return EnemyType7(self.player, self.enemy_bullets, self.all_sprites, self.enemies)
+            return EnemyType7(self.player, self.enemy_bullets, self.all_sprites, self.enemies, game_ref=self)
         elif enemy_type_index == 7:
             return EnemyType8(self.player, self.all_sprites, self.enemies)
         return None
@@ -588,7 +588,7 @@ class Game:
                         EnemyType4(self.player, self.enemy_bullets, self.all_sprites, self.enemies),
                         EnemyType5(self.player, self.enemy_bullets, self.all_sprites, self.enemies),
                         EnemyType6(self.player, self.enemy_bullets, self.all_sprites, self.enemies),
-                        EnemyType7(self.player, self.enemy_bullets, self.all_sprites, self.enemies),
+                        EnemyType7(self.player, self.enemy_bullets, self.all_sprites, self.enemies, game_ref=self),
                         EnemyType8(self.player, self.all_sprites, self.enemies),
                     ]
 

@@ -209,6 +209,13 @@ class Player(AnimatedSprite):
         self.flamethrower_sound_fadeout_start = 4000  # Start fadeout at 4 seconds (1 second before end)
         self.flamethrower_next_sound_instance = None  # For smooth transition
 
+        # Laser beam sound control - Using crossfade logic now
+        self.laserbeam_sound_active = False
+        self.laserbeam_sound_start_time = 0
+        self.laserbeam_sound_duration = 0 # Will be fetched from SoundManager
+        self.laserbeam_sound_fadeout_start = 0 # Calculated from duration
+        self.laserbeam_next_sound_instance = None
+
     def load_sprites(self) -> None:
         """Loads animation frames using the utility function."""
         # Player sprite likely benefits from right-alignment for consistency
@@ -240,6 +247,8 @@ class Player(AnimatedSprite):
 
         # Skip update if player is dead
         if not self.is_alive:
+            # Ensure sound stops if player dies
+            self._manage_laserbeam_sound(False)
             return
 
         # Update hit animation if active
@@ -327,12 +336,19 @@ class Player(AnimatedSprite):
             self.rect.bottom = PLAYFIELD_BOTTOM_Y
             self._pos_y = float(self.rect.y)
 
-        # Check for continuous shooting
+        # --- Manage Laser Beam Sound --- 
+        # Check if the player is firing AND has the laser beam powerup
+        laser_beam_powerup_active = PowerupType.LASER_BEAM.name in self.active_powerups_state
+        should_laser_sound_be_active = self.is_firing and laser_beam_powerup_active
+        self._manage_laserbeam_sound(should_laser_sound_be_active)
+        # --- End Laser Beam Sound --- 
+
+        # Check for continuous shooting (handle weapon firing AFTER sound check)
         if self.is_firing:
             # Use triple shot if active, otherwise normal shot
             if PowerupType.TRIPLE_SHOT.name in self.active_powerups_state:
                 self._shoot_triple()
-            elif PowerupType.LASER_BEAM.name in self.active_powerups_state:
+            elif laser_beam_powerup_active: # Use the variable we just checked
                 self._fire_laser_beam()
             else:
                 self.shoot()  # shoot() already handles the cooldown based on powerup state
@@ -354,10 +370,15 @@ class Player(AnimatedSprite):
     def start_firing(self) -> None:
         """Begins continuous firing."""
         self.is_firing = True
+        # REMOVED: Start laser beam loop if powerup is active
+        # if PowerupType.LASER_BEAM.name in self.active_powerups_state:
+        #     self._manage_laserbeam_sound(True)
 
     def stop_firing(self) -> None:
         """Stops continuous firing."""
         self.is_firing = False
+        # REMOVED: Stop laser beam loop regardless of powerup status (only active when firing)
+        # self._manage_laserbeam_sound(False)
 
     def handle_input(self, event: pygame.event.Event) -> None:
         """Handles player input for movement (KEYDOWN/KEYUP). Shooting handled in update."""
@@ -582,9 +603,10 @@ class Player(AnimatedSprite):
                 charge_level,
                 all_sprites_group,
                 self.bullets,
+                sound_manager=self.game_ref.sound_manager if self.game_ref else None
             )
 
-            # Play sound
+            # Play initial sound effect (one-shot) in addition to the looping sound
             if self.game_ref and hasattr(self.game_ref, "sound_manager"):
                 try:
                     self.game_ref.sound_manager.play("laser", "player")
@@ -1839,3 +1861,108 @@ class Player(AnimatedSprite):
                 logger.debug("Stopped flamethrower sound loop")
             except Exception as e:
                 logger.warning(f"Failed to stop flamethrower sound: {e}")
+
+    def _manage_laserbeam_sound(self, is_active: bool) -> None:
+        """Manage the continuous laser beam sound loop using crossfading.
+        
+        Args:
+            is_active: Whether the laser beam should be making sound.
+        """
+        # No sound manager available
+        if not self.game_ref or not hasattr(self.game_ref, "sound_manager"):
+            return
+            
+        sound_manager = self.game_ref.sound_manager
+        current_time = pygame.time.get_ticks()
+
+        # Fetch duration if not already set
+        if self.laserbeam_sound_duration == 0:
+            duration = sound_manager.get_sound_duration("laserbeam", "player")
+            if duration and duration > 1000: # Ensure duration is valid and long enough
+                self.laserbeam_sound_duration = duration
+                # Start fadeout 1 second before the end, ensure it's not negative
+                self.laserbeam_sound_fadeout_start = max(0, duration - 1000) 
+            else:
+                logger.warning("Could not get valid laserbeam duration, crossfade disabled.")
+                # Fallback to simple play/stop if duration invalid
+                if is_active and not self.laserbeam_sound_active:
+                    try:
+                        sound_manager.play("laserbeam", "player", volume=0.7, loops=-1) # Simple loop
+                        self.laserbeam_sound_active = True
+                    except Exception as e:
+                        logger.error(f"Failed to start simple laserbeam loop: {e}")
+                elif not is_active and self.laserbeam_sound_active:
+                    try:
+                        # Need to find the sound object to stop it directly if using simple loop
+                        if 'laserbeam' in sound_manager.sounds['player']:
+                            sound_manager.sounds['player']['laserbeam'].stop()
+                        self.laserbeam_sound_active = False
+                    except Exception as e:
+                        logger.error(f"Failed to stop simple laserbeam loop: {e}")
+                return # Exit after handling fallback
+
+        # --- Crossfade Logic --- 
+        
+        # Laser beam was just activated
+        if is_active and not self.laserbeam_sound_active:
+            try:
+                # Start the sound immediately using standard play (no loops)
+                sound_manager.play("laserbeam", "player", volume=0.7)
+                self.laserbeam_sound_active = True
+                self.laserbeam_sound_start_time = current_time
+                self.laserbeam_next_sound_instance = None # Reset crossfade tracking
+                logger.debug("Started laser beam sound (crossfade mode)")
+            except Exception as e:
+                logger.warning(f"Failed to start laser beam sound: {e}")
+                return
+
+        # Laser beam is active and sound is playing - check if we need to crossfade
+        elif is_active and self.laserbeam_sound_active:
+            elapsed = current_time - self.laserbeam_sound_start_time
+            
+            # Check if it's time to start the next instance for crossfading
+            if elapsed >= self.laserbeam_sound_fadeout_start and self.laserbeam_next_sound_instance is None:
+                try:
+                    # Calculate fadeout time (remaining time until end of sound)
+                    fadeout_ms = self.laserbeam_sound_duration - elapsed
+                    # Ensure fadeout is not negative and reasonably short
+                    fadeout_ms = max(100, min(fadeout_ms, 1000)) 
+                    
+                    # Start the next instance with fadeout of current instance
+                    sound_manager.play("laserbeam", "player", volume=0.7, fadeout_ms=int(fadeout_ms))
+                    self.laserbeam_next_sound_instance = current_time # Mark when next instance started
+                    logger.debug(f"Starting next laser beam sound iteration with {fadeout_ms}ms fadeout")
+                except Exception as e:
+                    logger.warning(f"Failed to start next laser beam sound instance: {e}")
+            
+            # Check if we've completed a full loop cycle (based on duration)
+            if elapsed >= self.laserbeam_sound_duration:
+                # Reset timers using the start time of the *next* instance if crossfading occurred
+                self.laserbeam_sound_start_time = self.laserbeam_next_sound_instance or current_time
+                self.laserbeam_next_sound_instance = None # Reset for next cycle
+                logger.debug("Laser beam sound loop cycle completed")
+
+        # Laser beam was just deactivated
+        elif not is_active and self.laserbeam_sound_active:
+            try:
+                # Stop the sound with a short fadeout
+                # Find the specific sound object to apply fadeout
+                if 'laserbeam' in sound_manager.sounds['player']:
+                     sound_manager.sounds['player']['laserbeam'].fadeout(150) # Slightly longer fadeout
+                else:
+                    # If somehow the sound isn't found, log it but still mark as inactive
+                     logger.warning("Could not find 'laserbeam' sound object to fade out.")
+
+                self.laserbeam_sound_active = False
+                self.laserbeam_next_sound_instance = None # Ensure reset
+                logger.debug("Stopped laser beam sound (crossfade mode)")
+            except Exception as e:
+                logger.warning(f"Failed to stop laser beam sound with fadeout: {e}")
+                # Fallback stop
+                try:
+                    if 'laserbeam' in sound_manager.sounds['player']:
+                         sound_manager.sounds['player']['laserbeam'].stop()
+                    self.laserbeam_sound_active = False
+                    self.laserbeam_next_sound_instance = None
+                except Exception as e2:
+                     logger.error(f"Failed even fallback stop for laser beam sound: {e2}")

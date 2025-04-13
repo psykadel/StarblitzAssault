@@ -1,11 +1,17 @@
 """Enemy bullet types for the game."""
 
-import math
 import random
-
+import math
 import pygame
 
-from config.config import SCREEN_HEIGHT, SCREEN_WIDTH
+from config.config import (
+    SCREEN_HEIGHT,
+    SCREEN_WIDTH,
+)
+from src.logger import get_logger
+
+# Get a logger for this module
+logger = get_logger(__name__)
 
 ENEMY_BULLET_SPEED = 5
 BULLET_SIZE = (8, 8)
@@ -606,8 +612,11 @@ class WaveBullet(pygame.sprite.Sprite):
 class LaserBeam(pygame.sprite.Sprite):
     """A laser beam that extends across the screen."""
 
-    def __init__(self, start_pos: tuple, width: int = 6, *groups) -> None:
+    def __init__(self, start_pos: tuple, width: int = 6, *groups, sound_manager=None) -> None:
         super().__init__(*groups)
+        
+        # Store sound manager reference for looping sound
+        self.sound_manager = sound_manager
         
         # Laser properties
         self.start_pos = start_pos
@@ -641,6 +650,13 @@ class LaserBeam(pygame.sprite.Sprite):
         
         # Update the image for the first time
         self.update_image()
+        
+        # Start looping sound if sound manager is available
+        if self.sound_manager:
+            try:
+                self.sound_manager.play_loop("laserbeam", "enemy")
+            except Exception as e:
+                logger.warning(f"Failed to play looping laser beam sound: {e}")
 
     def update_image(self) -> None:
         """Updates the laser image based on current length and alpha."""
@@ -766,6 +782,12 @@ class LaserBeam(pygame.sprite.Sprite):
             # Fade out phase
             self.alpha = max(0, self.alpha - self.fade_speed)
             if self.alpha <= 0:
+                # Stop looping sound when the beam is destroyed
+                if self.sound_manager:
+                    try:
+                        self.sound_manager.stop_loop("laserbeam", "enemy")
+                    except Exception as e:
+                        logger.warning(f"Failed to stop looping laser beam sound: {e}")
                 self.kill()
                 return
         

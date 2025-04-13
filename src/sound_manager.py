@@ -20,6 +20,11 @@ class SoundManager:
         """Initialize the sound manager."""
         # Dictionary to store loaded sounds
         self.sounds: Dict[str, Dict[str, pygame.mixer.Sound]] = {"player": {}, "enemy": {}}
+        # Dictionary to store sound durations (in milliseconds)
+        self.sound_durations: Dict[str, Dict[str, int]] = {"player": {}, "enemy": {}}
+        
+        # Track currently looping sounds to stop them when needed
+        self.looping_sounds: Dict[str, Dict[str, pygame.mixer.Channel]] = {"player": {}, "enemy": {}}
 
         # Ensure pygame mixer is initialized
         if not pygame.mixer.get_init():
@@ -46,6 +51,7 @@ class SoundManager:
         self._create_silent_sound("flamethrower", "player")  # Add flamethrower fallback
         self._create_silent_sound("flamethrower1", "player")  # Add flamethrower1 fallback
         self._create_silent_sound("silent", "player")  # Special silent sound for stopping effects
+        self._create_silent_sound("laserbeam", "player")  # Add laserbeam fallback
 
         self._create_silent_sound("laser", "enemy")
         self._create_silent_sound("explosion2", "enemy")
@@ -58,6 +64,7 @@ class SoundManager:
         self._try_load_sound("powerup", "powerup1.ogg", "player")
         self._try_load_sound("flamethrower", "laser1.ogg", "player")  # Use laser1 for flamethrower until we have a proper sound
         self._try_load_sound("flamethrower1", "flamethrower1.ogg", "player")  # Dedicated flamethrower sound
+        self._try_load_sound("laserbeam", "laserbeam1.ogg", "player")  # Load looping laser beam sound
 
         # Use player powerup sound for enemy too
         self._try_load_sound("explosion2", "explosion2.ogg", "enemy")
@@ -124,7 +131,12 @@ class SoundManager:
             # Set volume higher for sound effects to make them more audible
             sound.set_volume(self.volume * 1.5)  # Increased volume for better audibility
             self.sounds[category][name] = sound
-            logger.debug(f"Loaded sound: {os.path.basename(sound_path)} as {category}/{name}")
+            # Store duration in milliseconds
+            duration_ms = int(sound.get_length() * 1000)
+            if category not in self.sound_durations:
+                self.sound_durations[category] = {}
+            self.sound_durations[category][name] = duration_ms
+            logger.debug(f"Loaded sound: {os.path.basename(sound_path)} as {category}/{name} (Duration: {duration_ms}ms)")
         except pygame.error as e:
             logger.error(f"Failed to load sound {filename}: {e} - using silent fallback")
 
@@ -292,3 +304,101 @@ class SoundManager:
         if pygame.mixer.music.get_busy():
             pygame.mixer.music.fadeout(fade_ms)
             self.current_music = None
+
+    def play_loop(self, name: str, category: str = "player", volume: Optional[float] = None) -> None:
+        """Play a sound effect in a loop until explicitly stopped.
+        
+        Args:
+            name: Name of the sound to play in a loop
+            category: Category the sound belongs to
+            volume: Optional volume override
+        """
+        # First make sure the category exists
+        if category not in self.sounds:
+            logger.warning(f"Sound category {category} not found")
+            return
+        
+        # Check if the sound exists and is not None
+        if name in self.sounds[category] and self.sounds[category][name] is not None:
+            try:
+                # Find an available channel for the looping sound
+                # Look for a free channel starting from channel 1 (reserving channel 0 for non-looping sounds)
+                for channel_id in range(1, pygame.mixer.get_num_channels()):
+                    channel = pygame.mixer.Channel(channel_id)
+                    if not channel.get_busy():
+                        # Apply volume settings
+                        sound = self.sounds[category][name]
+                        loop_volume = volume if volume is not None else self.volume * 0.6  # Default to 60% of normal volume for loops
+                        sound.set_volume(loop_volume)
+                        
+                        # Start looping and store the channel for later reference
+                        channel.play(sound, loops=-1)  # -1 means infinite loop
+                        
+                        # Store the channel for later reference to stop it
+                        if category not in self.looping_sounds:
+                            self.looping_sounds[category] = {}
+                        self.looping_sounds[category][name] = channel
+                        
+                        logger.debug(f"Started looping sound {category}/{name} on channel {channel_id}")
+                        return
+                
+                # If we get here, no free channel was found
+                logger.warning(f"No free channel available for looping sound {category}/{name}")
+                return
+                
+            except pygame.error as e:
+                logger.error(f"Failed to play looping sound {category}/{name}: {e}")
+                
+        # If we get here, either the sound doesn't exist or playing it failed
+        # Try to use a fallback
+        fallbacks = {
+            "laserbeam": "laser"
+        }
+        
+        # Check if we have a fallback
+        if name in fallbacks:
+            fallback_name = fallbacks[name]
+            self.play_loop(fallback_name, category, volume)  # Try playing the fallback in a loop
+        else:
+            logger.warning(f"Looping sound {category}/{name} not found and no fallback available")
+    
+    def stop_loop(self, name: str, category: str = "player", fade_ms: int = 0) -> None:
+        """Stop a looping sound.
+        
+        Args:
+            name: Name of the sound to stop
+            category: Category the sound belongs to
+            fade_ms: Optional fadeout time in milliseconds
+        """
+        # Check if we have a record of this looping sound
+        if (category in self.looping_sounds and 
+            name in self.looping_sounds[category] and 
+            self.looping_sounds[category][name] is not None):
+            
+            channel = self.looping_sounds[category][name]
+            
+            try:
+                if fade_ms > 0:
+                    channel.fadeout(fade_ms)
+                else:
+                    channel.stop()
+                
+                # Remove the reference instead of setting to None
+                del self.looping_sounds[category][name]
+                logger.debug(f"Stopped looping sound {category}/{name}")
+            except Exception as e:
+                logger.error(f"Failed to stop looping sound {category}/{name}: {e}")
+        else:
+            logger.debug(f"No looping sound found to stop: {category}/{name}")
+
+    def get_sound_duration(self, name: str, category: str = "player") -> Optional[int]:
+        """Get the duration of a loaded sound in milliseconds.
+
+        Args:
+            name: Name of the sound
+            category: Category of the sound
+
+        Returns:
+            Optional[int]: Duration in milliseconds, or None if not found.
+        """
+        return self.sound_durations.get(category, {}).get(name)
