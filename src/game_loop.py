@@ -1096,6 +1096,25 @@ class Game:
         if self.is_paused:
             return
 
+        # Skip player updates if game is over
+        if self.game_over:
+            # Still update background and visual effects
+            for layer in self.background_layers:
+                layer.update()
+            
+            # Update background decorations
+            self.bg_decorations.update()
+            
+            # Update border layers
+            for border in self.borders:
+                border.update()
+                
+            # Update explosions, particles, and text notifications
+            self.explosions.update()
+            self.particles.update()
+            self.notifications.update()
+            return
+
         # Process keyboard input for player movement
         keys = pygame.key.get_pressed()
 
@@ -1906,6 +1925,13 @@ class Game:
 
         # Make player invisible but don't remove from groups yet
         self.player.image = pygame.Surface((1, 1), pygame.SRCALPHA)
+        
+        # Explicitly set the player to not alive to prevent rendering
+        self.player.is_alive = False
+        self.player.visible = False
+        
+        # Completely remove the player from all sprite groups
+        self.player.kill()
 
         # Set game over flag and initialize animation
         self.game_over = True

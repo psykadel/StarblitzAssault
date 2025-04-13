@@ -153,6 +153,9 @@ class SoundManager:
         # Check if the sound exists and is not None
         if name in self.sounds[category] and self.sounds[category][name] is not None:
             try:
+                # Stop the sound if it's already playing to make it start over immediately
+                self.sounds[category][name].stop()
+                
                 # Temporarily boost volume for this play
                 current_volume = self.sounds[category][name].get_volume()
                 
@@ -198,6 +201,8 @@ class SoundManager:
                 and self.sounds[category][fallback_name] is not None
             ):
                 try:
+                    # Stop the fallback sound if it's already playing
+                    self.sounds[category][fallback_name].stop()
                     self.sounds[category][fallback_name].play()
                     logger.debug(f"Used fallback sound {fallback_name} for {name}")
                     return

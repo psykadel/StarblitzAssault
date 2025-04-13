@@ -4,7 +4,7 @@ import math
 import os
 import random
 import sys
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 import pygame
 
@@ -16,11 +16,6 @@ from config.config import (
     DECORATION_MIN_SIZE,
     DECORATION_TOP_PADDING,
 )
-from src.logger import get_logger
-
-if TYPE_CHECKING:
-    from src.config import SCREEN_WIDTH
-
 
 class BackgroundLayer:
     """Represents a single horizontally scrolling background layer."""

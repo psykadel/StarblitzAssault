@@ -3,3 +3,4 @@ numpy==1.26.3
 typing-extensions==4.9.0
 black==24.3.0
 isort==5.13.2
+pydub==0.25.1
