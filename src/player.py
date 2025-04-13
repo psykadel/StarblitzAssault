@@ -205,8 +205,8 @@ class Player(AnimatedSprite):
         # Flamethrower sound control
         self.flamethrower_sound_active = False
         self.flamethrower_sound_start_time = 0
-        self.flamethrower_sound_duration = 5000  # 5 seconds loop duration
-        self.flamethrower_sound_fadeout_start = 4000  # Start fadeout at 4 seconds (1 second before end)
+        self.flamethrower_sound_duration = 14000  # 5 seconds loop duration
+        self.flamethrower_sound_fadeout_start = 13000  # Start fadeout at 4 seconds (1 second before end)
         self.flamethrower_next_sound_instance = None  # For smooth transition
 
         # Laser beam sound control - Using crossfade logic now

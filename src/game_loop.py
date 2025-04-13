@@ -1434,7 +1434,8 @@ class Game:
                     except Exception as e:
                         # Fallback to another common sound if shield isn't available
                         try:
-                            self.sound_manager.play("hit1", "enemy")
+                            # self.sound_manager.play("hit1", "enemy") # Removed hit1 sound
+                            pass # No fallback sound for reflection for now
                         except Exception:
                             logger.warning(f"Failed to play shield or fallback sound: {e}")
                 else:
@@ -1507,7 +1508,8 @@ class Game:
                         # Don't kill the laser beam - it continues through enemies
                         # But play a hit sound
                         try:
-                            self.sound_manager.play("hit1", "player")
+                            # self.sound_manager.play("hit1", "player") # Removed hit1 sound
+                            pass # No sound for laser beam hitting enemy for now
                         except Exception as e:
                             logger.warning(f"Failed to play hit sound: {e}")
 
@@ -1588,7 +1590,8 @@ class Game:
 
             # Play hit sound for player
             try:
-                self.sound_manager.play("hit1", "player")
+                # self.sound_manager.play("hit1", "player") # Removed hit1 sound
+                pass # No sound for player collision with enemy for now
             except Exception as e:
                 logger.warning(f"Failed to play hit sound: {e}")
 
@@ -1616,7 +1619,8 @@ class Game:
 
             # Play hit sound
             try:
-                self.sound_manager.play("hit1", "player")
+                # self.sound_manager.play("hit1", "player") # Removed hit1 sound
+                pass # No sound for player being hit by enemy bullet for now
             except Exception as e:
                 logger.warning(f"Failed to play hit sound: {e}")
 

@@ -46,7 +46,6 @@ class SoundManager:
         # Create silent fallbacks for all required sounds
         self._create_silent_sound("laser", "player")
         self._create_silent_sound("explosion1", "player")
-        self._create_silent_sound("hit1", "player")
         self._create_silent_sound("powerup", "player")
         self._create_silent_sound("flamethrower", "player")  # Add flamethrower fallback
         self._create_silent_sound("flamethrower1", "player")  # Add flamethrower1 fallback
@@ -60,7 +59,6 @@ class SoundManager:
         # Try to load actual sound files - use .ogg files since that's what we have
         self._try_load_sound("laser", "laser1.ogg", "player")
         self._try_load_sound("explosion1", "explosion1.ogg", "player")
-        self._try_load_sound("hit1", "hit1.ogg", "player")
         self._try_load_sound("powerup", "powerup1.ogg", "player")
         self._try_load_sound("flamethrower", "laser1.ogg", "player")  # Use laser1 for flamethrower until we have a proper sound
         self._try_load_sound("flamethrower1", "flamethrower1.ogg", "player")  # Dedicated flamethrower sound
@@ -198,7 +196,6 @@ class SoundManager:
         # If we get here, either the sound doesn't exist or playing it failed
         # Try to use a fallback
         fallbacks = {
-            "powerup": "hit1", 
             "beam": "laser", 
             "scatter": "explosion1",
             "flamethrower": "laser",  # Add flamethrower -> laser fallback
