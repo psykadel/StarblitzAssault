@@ -31,6 +31,7 @@ class PowerupType(IntEnum):
     TIME_WARP = 6  # Index shift: was 7
     MEGA_BLAST = 7  # Index shift: was 8
     LASER_BEAM = 8  # New powerup type
+    DRONE = 9  # Drone powerup - spawns a drone that shoots enemies
 
 
 # Create a list of active powerup types for easy iteration/random selection
@@ -54,6 +55,7 @@ POWERUP_COLORS = {
     PowerupType.TIME_WARP: (128, 0, 255),  # Purple
     PowerupType.MEGA_BLAST: (255, 0, 128),  # Pink
     PowerupType.LASER_BEAM: (20, 255, 100),  # Bright Green (for Laser)
+    PowerupType.DRONE: (180, 180, 180),  # Light Grey (for Drone)
 }
 
 

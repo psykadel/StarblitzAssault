@@ -38,6 +38,7 @@ from src.logger import get_logger
 # Import the new constants
 # Import powerup constants
 from src.powerup import POWERUP_DURATION, PowerupType
+from src.powerup_types import ACTIVE_DRONES
 
 # Import the Bullet class
 from src.projectile import Bullet, LaserBeam, ScatterProjectile
@@ -960,6 +961,7 @@ class Player(AnimatedSprite):
             PowerupType.TIME_WARP.value: (128, 0, 255),  # Purple
             PowerupType.MEGA_BLAST.value: (255, 0, 128),  # Pink
             PowerupType.LASER_BEAM.value: (20, 255, 100),  # Bright Green for Laser
+            PowerupType.DRONE.value: (180, 180, 180),  # Light Gray for Drone
         }
 
         # Powerup full names for display
@@ -973,6 +975,7 @@ class Player(AnimatedSprite):
             PowerupType.TIME_WARP.name: "TIME WARP",
             PowerupType.MEGA_BLAST.name: "MEGA BLAST",
             PowerupType.LASER_BEAM.name: "LASER BEAM",
+            PowerupType.DRONE.name: "DRONE",
         }
 
         # Map enum values directly to Y positions - this is the key fix
@@ -986,6 +989,7 @@ class Player(AnimatedSprite):
             PowerupType.SCATTER_BOMB.value: start_y + (POWERUP_SLOTS["SCATTER_BOMB"] * spacing),
             PowerupType.TIME_WARP.value: start_y + (POWERUP_SLOTS["TIME_WARP"] * spacing),
             PowerupType.LASER_BEAM.value: start_y + (POWERUP_SLOTS["LASER_BEAM"] * spacing),
+            PowerupType.DRONE.value: start_y + (POWERUP_SLOTS["DRONE"] * spacing),
         }
 
         # Fonts for names and time
@@ -1222,26 +1226,6 @@ class Player(AnimatedSprite):
                 # Central dot
                 pygame.draw.circle(icon_surface, color, center, max(1, int(icon_size // 10)))
 
-            elif name == PowerupType.MEGA_BLAST.name:
-                # Exploding star burst effect
-                center = (icon_size // 2, icon_size // 2)
-
-                # Draw star rays
-                for i in range(8):
-                    angle = math.radians(i * 45 + rotation)
-                    # Draw a wider base for each ray
-                    start_x = center[0] + math.cos(angle) * (icon_size // 6)
-                    start_y = center[1] + math.sin(angle) * (icon_size // 6)
-                    end_x = center[0] + math.cos(angle) * (icon_size // 2 * pulse)
-                    end_y = center[1] + math.sin(angle) * (icon_size // 2 * pulse)
-                    pygame.draw.line(
-                        icon_surface, color, (start_x, start_y), (end_x, end_y), max(1, icon_size // 6)
-                    )
-
-                # Add central explosive burst
-                pygame.draw.circle(icon_surface, (*color, 180), center, int(icon_size // 4))
-                pygame.draw.circle(icon_surface, (255, 255, 255, 200), center, int(icon_size // 8))
-                
             elif name == PowerupType.LASER_BEAM.name:
                 # Laser beam effect
                 center = (icon_size // 2, icon_size // 2)
@@ -1284,6 +1268,44 @@ class Player(AnimatedSprite):
                         (particle_x, particle_y),
                         particle_size
                     )
+
+            elif name == PowerupType.DRONE.name:
+                # Drone icon
+                center = (icon_size // 2, icon_size // 2)
+                
+                # Draw drone body (triangle)
+                drone_body_points = [
+                    (center[0] + int(icon_size * 0.3), center[1]),  # Nose
+                    (center[0] - int(icon_size * 0.2), center[1] - int(icon_size * 0.2)),  # Top left
+                    (center[0] - int(icon_size * 0.2), center[1] + int(icon_size * 0.2)),  # Bottom left
+                ]
+                pygame.draw.polygon(icon_surface, color, drone_body_points)
+                
+                # Draw engine glow
+                engine_glow_points = [
+                    (center[0] - int(icon_size * 0.2), center[1] - int(icon_size * 0.1)),  # Top
+                    (center[0] - int(icon_size * 0.2), center[1] + int(icon_size * 0.1)),  # Bottom
+                    (center[0] - int(icon_size * 0.4), center[1]),  # Tip
+                ]
+                pygame.draw.polygon(icon_surface, (50, 150, 255, 200), engine_glow_points)
+                
+                # Draw weapon indicator
+                pygame.draw.circle(
+                    icon_surface,
+                    (255, 50, 50),  # Red
+                    (center[0] + int(icon_size * 0.2), center[1]),
+                    max(1, int(icon_size * 0.06))
+                )
+                
+                # Add orbit path
+                orbit_radius = int(icon_size * 0.35 * pulse)
+                pygame.draw.circle(
+                    icon_surface,
+                    (*color, 80),  # Semi-transparent
+                    center,
+                    orbit_radius,
+                    max(1, int(icon_size * 0.02))
+                )
 
             else:
                 # Generic powerup glow for any other types
@@ -1452,21 +1474,19 @@ class Player(AnimatedSprite):
                 self.visible = True
 
     def _check_powerup_expirations(self) -> None:
-        """Checks and handles powerup expirations based on active_powerups_state."""
+        """Check and remove expired powerups."""
         current_time = pygame.time.get_ticks()
         expired_powerups = []
 
-        # Make a copy of keys to iterate over, as we might modify the dict
-        powerup_names = list(self.active_powerups_state.keys())
-
-        for powerup_name in powerup_names:
-            state = self.active_powerups_state.get(powerup_name)
-            if not state:
-                continue  # Should not happen if iterating keys, but safe check
-
+        # Iterate through all active powerups and check expiry times
+        for powerup_name, state in self.active_powerups_state.items():
             expiry_time = state.get("expiry_time")
-            if expiry_time is not None and current_time > expiry_time:
-                # Don't expire scatter bombs that still have charges left
+            if expiry_time is None:
+                continue  # Skip if no expiry (permanent powerup)
+
+            # Check if expired
+            if current_time >= expiry_time:
+                # Special case for scatter bomb - keep if has charges
                 if powerup_name == PowerupType.SCATTER_BOMB.name and state.get("charges", 0) > 0:
                     continue
                 expired_powerups.append(powerup_name)
@@ -1484,12 +1504,43 @@ class Player(AnimatedSprite):
                     # Shoot delay will default back to PLAYER_SHOOT_DELAY in shoot()
                     # when "RAPID_FIRE" key is not found in dict.
                     pass
-                # LASER_BEAM Removed
-                # elif powerup_name == PowerupType.LASER_BEAM.name and state_to_cleanup:
-                #     # Ensure charging stops if expired mid-charge
-                #     if state_to_cleanup.get("is_charging", False):
-                #          state_to_cleanup["is_charging"] = False
-                #          state_to_cleanup["charge_level"] = 0
+                # Handle drone cleanup
+                elif powerup_name == PowerupType.DRONE.name:
+                    # Find and remove ALL drone instances from ALL drone powerups
+                    # This ensures all drones are removed when any drone powerup expires
+                    all_drones_removed = False
+                    
+                    # First, make a copy of active_powerups_state keys to avoid modification during iteration
+                    active_powerup_names = list(self.active_powerups_state.keys())
+                    
+                    # Loop through all active powerups looking for DRONE types
+                    for name in active_powerup_names:
+                        if name == PowerupType.DRONE.name:
+                            drone_state = self.active_powerups_state.get(name)
+                            if drone_state:
+                                # Get the drone instance from each drone powerup state
+                                drone_instance = drone_state.get("drone_instance")
+                                if drone_instance:
+                                    # Kill this drone
+                                    drone_instance.kill()
+                                    all_drones_removed = True
+                                    
+                                # Remove this drone powerup from active powerups
+                                if name in self.active_powerups_state and name != powerup_name:
+                                    del self.active_powerups_state[name]
+                    
+                    # Also clean up using the global drone list to ensure all drones are removed
+                    if ACTIVE_DRONES:
+                        for drone in ACTIVE_DRONES[:]:  # Use a copy of the list to safely modify while iterating
+                            if drone:
+                                drone.kill()
+                                if drone in ACTIVE_DRONES:
+                                    ACTIVE_DRONES.remove(drone)
+                        logger.info(f"Removed {len(ACTIVE_DRONES)} drones from global tracking")
+                        ACTIVE_DRONES.clear()  # Clear any remaining references
+                    
+                    if all_drones_removed:
+                        logger.info("All drone powerups and drones removed")
 
             # Note: Time Warp effect removal is handled in game_loop update based on player state
 

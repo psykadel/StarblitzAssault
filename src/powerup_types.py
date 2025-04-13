@@ -7,16 +7,21 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Type, ClassVar, U
 
 import pygame
 
-from config.config import PLAYER_SHOOT_DELAY
+from config.config import PLAYER_SHOOT_DELAY, DRONE_DURATION
 from src.logger import get_logger
 from src.powerup import POWERUP_DURATION, Powerup, PowerupParticle, PowerupType
 from src.projectile import Bullet, LaserBeam, ScatterProjectile
+from src.drone import Drone
 
 # Get a logger for this module
 logger = get_logger(__name__)
 
 # Global registry to store powerup classes by type
 POWERUP_REGISTRY: Dict[PowerupType, Type[Powerup]] = {}
+
+# Global collection to track all active drones
+# This ensures we can find and remove all drones even if state management fails
+ACTIVE_DRONES = []
 
 def register_powerup(powerup_type: PowerupType) -> Callable:
     """Decorator to register a powerup class with its type.
@@ -43,6 +48,7 @@ DURATION_POWERUPS = [
     PowerupType.HOMING_MISSILES,
     PowerupType.TIME_WARP,
     PowerupType.LASER_BEAM,
+    PowerupType.DRONE,
 ]
 
 CHARGE_POWERUPS = [
@@ -296,13 +302,12 @@ class MegaBlastPowerup(PowerupBase):
         
         This is an instant powerup that creates a shockwave that destroys enemies.
         """
-        super().apply_effect(player)  # Call base implementation
+        # Don't call super().apply_effect for instant powerups
+        # Log the effect directly instead
+        logger.info("Mega Blast activated")
 
         # Create collection effect
         self._create_collection_effect(player.rect.center)
-
-        # Log the effect
-        logger.info("Mega Blast activated")
 
         # Create a mega blast effect if the game reference is available
         if self.game_ref:
@@ -317,6 +322,20 @@ class MegaBlastPowerup(PowerupBase):
                 logger.warning("Game instance does not have _create_mega_blast method")
         else:
             logger.warning("No game reference available for Mega Blast powerup")
+
+        # Note: Mega Blast does not add itself to the active_powerups_state
+        # as it's an instant effect with no duration or charges.
+        
+        # Explicitly remove MEGA_BLAST from player's active powerups state to prevent artifacts
+        # if hasattr(player, "active_powerups_state"):
+        #     # Check both string literal and enum name format
+        #     if "MEGA_BLAST" in player.active_powerups_state:
+        #         del player.active_powerups_state["MEGA_BLAST"]
+        #         logger.debug("Removed MEGA_BLAST from active powerups state after effect was applied")
+            
+        #     if PowerupType.MEGA_BLAST.name in player.active_powerups_state:
+        #         del player.active_powerups_state[PowerupType.MEGA_BLAST.name]
+        #         logger.debug("Removed PowerupType.MEGA_BLAST.name from active powerups state after effect was applied")
 
 @register_powerup(PowerupType.LASER_BEAM)
 class LaserBeamPowerup(PowerupBase):
@@ -341,6 +360,47 @@ class LaserBeamPowerup(PowerupBase):
         self._create_collection_effect(player.rect.center)
 
         logger.info("Laser Beam activated for 10 seconds with 5 charges")
+
+@register_powerup(PowerupType.DRONE)
+class DronePowerup(PowerupBase):
+    """Drone powerup - spawns a drone that orbits the player and shoots enemies."""
+    
+    # Explicitly define as class variable with correct type
+    powerup_type_enum: ClassVar[PowerupType] = PowerupType.DRONE
+
+    def apply_effect(self, player) -> None:
+        """Apply the drone effect to the player."""
+        super().apply_effect(player)  # Call base implementation
+
+        # Check if we have a valid game reference
+        if not self.game_ref:
+            logger.warning("No game reference available, drone powerup might not work correctly")
+            return
+
+        # Create a drone instance
+        drone = Drone(
+            player, 
+            self.game_ref.enemies, 
+            player.bullets,
+            self.game_ref.all_sprites
+        )
+        
+        # Keep track of drone globally
+        global ACTIVE_DRONES
+        ACTIVE_DRONES.append(drone)
+        
+        # Use the centralized state management method
+        player.add_powerup(
+            powerup_name=PowerupType.DRONE.name,
+            powerup_idx=PowerupType.DRONE.value,
+            duration_ms=DRONE_DURATION,
+            extra_state={"drone_instance": drone},
+        )
+
+        # Create collection effect
+        self._create_collection_effect(player.rect.center)
+
+        logger.info(f"Drone activated for 15 seconds")
 
 # Factory function to create a powerup of a specific type
 def create_powerup(

@@ -143,8 +143,8 @@ POWERUP_ALPHA: int = 90  # Alpha value (0-255) for powerup sprite transparency
 POWERUP_GLOW_RATIO: float = 1  # Glow ratio for powerup sprite
 
 # Spawn settings
-POWERUP_MIN_SPAWN_INTERVAL_MS: int = 1500  # Minimum spawn interval in milliseconds
-POWERUP_MAX_SPAWN_INTERVAL_MS: int = 15000  # Maximum spawn interval in milliseconds
+POWERUP_MIN_SPAWN_INTERVAL_MS: int = 5000  # Minimum spawn interval in milliseconds
+POWERUP_MAX_SPAWN_INTERVAL_MS: int = 25000  # Maximum spawn interval in milliseconds
 
 # Frequency scaling with difficulty
 POWERUP_DIFFICULTY_SCALING: float = (
@@ -164,6 +164,7 @@ POWERUP_SLOTS = {
     "SCATTER_BOMB": 4,  # Slot 4
     "TIME_WARP": 5,  # Slot 5
     "LASER_BEAM": 6,  # Slot 6
+    "DRONE": 7,  # Slot 7
     # Instant powerups don't need slots:
     # "POWER_RESTORE": N/A  # Instant effect, no persistent display
     # "MEGA_BLAST": N/A     # Instant effect, no persistent display
@@ -281,7 +282,7 @@ DEBUG_ENEMY_TYPE_INDEX: int = 3  # Enemy type to use when DEBUG_FORCE_ENEMY_TYPE
 
 # Debug variables for powerups
 DEBUG_FORCE_POWERUP_TYPE: bool = False
-DEBUG_POWERUP_TYPE_INDEX: int = 8  # PowerupType index to use when DEBUG_FORCE_POWERUP_TYPE is True (0-8, 8=LASER_BEAM)
+DEBUG_POWERUP_TYPE_INDEX: int = 7  # PowerupType index to use when DEBUG_FORCE_POWERUP_TYPE is True (DRONE=9)
 
 # ------------------------------------------------------------------------------
 # GAME MECHANICS
@@ -317,3 +318,6 @@ SPAWN_V_PATTERN_BORDER_MARGIN: int = 50
 
 # Score awarded for destroying enemies
 ENEMY_BASE_SCORE: int = 100
+
+# Add this constant with other powerup-related constants
+DRONE_DURATION = 15000  # 15 seconds for drone powerup (increased from 10 seconds)

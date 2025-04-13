@@ -595,7 +595,7 @@ class LaserBeam(pygame.sprite.Sprite):
         """Update the beam animation and lifetime."""
         # Reduce lifetime
         self.lifetime -= 1
-        
+
         # Redraw with updated animation
         self._draw_beam()
         
@@ -603,7 +603,7 @@ class LaserBeam(pygame.sprite.Sprite):
         if self.lifetime < 10:
             alpha = int(255 * (self.lifetime / 10.0))
             self.image.set_alpha(alpha)
-        
+
         # Remove when expired
         if self.lifetime <= 0:
             self.kill()

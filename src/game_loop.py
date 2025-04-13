@@ -1864,6 +1864,34 @@ class Game:
 
         # No longer set a timer to end the game - player can restart with space
 
+    def _create_mega_blast(self, center_position):
+        """Creates a mega blast that destroys all enemies and projectiles on screen.
+        
+        Args:
+            center_position: The center position of the mega blast (usually player's position)
+        """
+        logger.info("Creating mega blast effect")
+        
+        # Play powerful explosion sound
+        try:
+            self.sound_manager.play("explosion1", "player")
+        except Exception as e:
+            logger.warning(f"Failed to play mega blast explosion sound: {e}")
+        
+        # Destroy all enemies
+        for enemy in list(self.enemies):
+            # Process each enemy's destruction to get points and effects
+            self._process_enemy_destruction(enemy)
+        
+        # Clear all projectiles (player and enemy bullets)
+        for bullet in list(self.bullets):
+            bullet.kill()
+            
+        for enemy_bullet in list(self.enemy_bullets):
+            enemy_bullet.kill()
+            
+        logger.info("Mega blast complete - cleared all enemies and projectiles")
+
     def _reset_game(self):
         """Reset the game state to start a new game."""
         # Reset core game state
