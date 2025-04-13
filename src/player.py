@@ -27,6 +27,10 @@ from config.config import (
     SPRITES_DIR,
     WHITE,
     YELLOW,
+    FLAME_PARTICLE_DAMAGE,
+    FLAME_PARTICLE_LIFETIME,
+    FLAME_SPAWN_DELAY,
+    FLAME_SPRAY_ANGLE,
 )
 
 # Import base animated sprite
@@ -45,6 +49,9 @@ from src.projectile import Bullet, LaserBeam, ScatterProjectile
 
 # Import the sprite loading utility
 from src.sprite_loader import load_sprite_sheet
+
+# Import the necessary modules for flamethrower
+from src.particle import FlameParticle
 
 # Get a logger for this module
 logger = get_logger(__name__)
@@ -195,6 +202,13 @@ class Player(AnimatedSprite):
         # self.has_time_warp = False
         # self.time_warp_expiry = 0
 
+        # Flamethrower sound control
+        self.flamethrower_sound_active = False
+        self.flamethrower_sound_start_time = 0
+        self.flamethrower_sound_duration = 5000  # 5 seconds loop duration
+        self.flamethrower_sound_fadeout_start = 4000  # Start fadeout at 4 seconds (1 second before end)
+        self.flamethrower_next_sound_instance = None  # For smooth transition
+
     def load_sprites(self) -> None:
         """Loads animation frames using the utility function."""
         # Player sprite likely benefits from right-alignment for consistency
@@ -209,14 +223,27 @@ class Player(AnimatedSprite):
         # Error handling is done within load_sprite_sheet, which raises SystemExit
 
     def update(self) -> None:
-        """Updates the player's position, animation, and handles continuous shooting."""
+        """Update the player's position and state."""
+        # Call the parent class update
+        super().update()
+
+        # FIRST, check for flamethrower activation - must happen early in the update cycle
+        flamethrower_active = PowerupType.FLAMETHROWER.name in self.active_powerups_state
+        if flamethrower_active:
+            self._shoot_flamethrower()  # Create flame particles
+            self._manage_flamethrower_sound(True)  # Play sound
+        else:
+            self._manage_flamethrower_sound(False)
+
+        # Timing variables
+        current_time = pygame.time.get_ticks()
+
         # Skip update if player is dead
         if not self.is_alive:
             return
 
         # Update hit animation if active
         if self.is_hit_animating:
-            current_time = pygame.time.get_ticks()
             elapsed = current_time - self.hit_animation_start
 
             if elapsed < self.hit_animation_duration:
@@ -254,29 +281,16 @@ class Player(AnimatedSprite):
                 # Maintain invincibility fade effect after animation ends
                 if self.is_invincible and hasattr(self.image, "set_alpha"):
                     # Get the current alpha from our fade calculation
-                    current_time = pygame.time.get_ticks()
                     elapsed = current_time - self.invincibility_timer
                     cycle_position = (elapsed % 1500) / 1500.0
                     fade_factor = 0.5 + 0.5 * math.sin(cycle_position * 2 * math.pi)
                     alpha = int(40 + 180 * fade_factor)
                     self.image.set_alpha(alpha)
-        else:
-            # Call parent update for animation and movement
-            super().update()
-
-            # Apply fade effect to the new frame if invincible
-            if self.is_invincible and hasattr(self.image, "set_alpha"):
-                current_time = pygame.time.get_ticks()
-                elapsed = current_time - self.invincibility_timer
-                cycle_position = (elapsed % 1500) / 1500.0
-                fade_factor = 0.5 + 0.5 * math.sin(cycle_position * 2 * math.pi)
-                alpha = int(40 + 180 * fade_factor)
-                self.image.set_alpha(alpha)
 
         # Check if power level has changed
         if self.power_level != self.previous_power_level:
             # Record the time of power change for particle effects
-            self.power_change_time = pygame.time.get_ticks()
+            self.power_change_time = current_time
             self.previous_power_level = self.power_level
 
         # Update position based on speed
@@ -332,6 +346,10 @@ class Player(AnimatedSprite):
         #     self.shield_value = time_remaining
         # else:
         #     self.shield_value = 0
+
+        # Handle continuous firing if key is held down
+        if self.key_states["key_fire"]:
+            self.shoot()
 
     def start_firing(self) -> None:
         """Begins continuous firing."""
@@ -395,50 +413,42 @@ class Player(AnimatedSprite):
             self.speed_y = 0
 
     def shoot(self) -> None:
-        """Creates a projectile sprite (bullet) firing forward."""
-        now = pygame.time.get_ticks()
-        # Use rapid fire delay if active, otherwise normal delay
-        shoot_delay = self.active_powerups_state.get("RAPID_FIRE", {}).get(
-            "delay", PLAYER_SHOOT_DELAY
-        )
-
-        if now - self.last_shot_time > shoot_delay:
-            self.last_shot_time = now
+        """Fire a bullet if the shoot delay has elapsed."""
+        try:
+            # Check if shoot delay has elapsed
+            current_time = pygame.time.get_ticks()
             
-            # Bullet starts at the front-center of the player
-            all_sprites_group = self.groups()[0] if self.groups() else None
-            if all_sprites_group:
-                # Create the bullet
-                bullet = Bullet(self.rect.right, self.rect.centery, all_sprites_group, self.bullets)
-
-                # Make bullet home in on enemies if that powerup is active
-                if "HOMING_MISSILES" in self.active_powerups_state and self.game_ref:
-                    # Find closest enemy
-                    closest_enemy = None
-                    closest_dist = float("inf")
-
-                    # Safely get the enemies group
-                    enemies = getattr(self.game_ref, "enemies", None)
-
-                    # Make sure enemies is iterable before trying to iterate
-                    if enemies and hasattr(enemies, "__iter__"):
-                        for enemy in enemies:
-                            if hasattr(enemy, "rect") and enemy.alive():
-                                dist = (
-                                    (enemy.rect.centerx - self.rect.centerx) ** 2
-                                    + (enemy.rect.centery - self.rect.centery) ** 2
-                                ) ** 0.5
-                                if dist < closest_dist:
-                                    closest_dist = dist
-                                    closest_enemy = enemy
-
-                    if closest_enemy:
-                        bullet.make_homing(closest_enemy)
-
-                logger.debug(
-                    f"Player fired bullet at position {self.rect.right}, {self.rect.centery}"
-                )
-            # The sound is now played in the game_loop when firing starts
+            # Get rapid fire state if exists
+            rapid_fire_state = self.active_powerups_state.get(PowerupType.RAPID_FIRE.name, {})
+            
+            # Use rapid fire delay if available, otherwise use standard delay
+            shoot_delay = rapid_fire_state.get("delay", PLAYER_SHOOT_DELAY)
+            
+            if current_time - self.last_shot_time > shoot_delay:
+                self.last_shot_time = current_time
+                
+                # If we have triple shot active, fire triple bullets
+                if PowerupType.TRIPLE_SHOT.name in self.active_powerups_state:
+                    self._shoot_triple()
+                else:
+                    # Default single bullet
+                    self._shoot_single_bullet()
+                
+                # Always try to fire flamethrower if active (has its own cooldown)
+                self._shoot_flamethrower()
+                
+                # Play sound effect
+                if self.game_ref and hasattr(self.game_ref, "sound_manager"):
+                    try:
+                        self.game_ref.sound_manager.play("laser", "player")
+                    except Exception as e:
+                        logger.warning(f"Failed to play laser sound: {e}")
+                
+                # Reset the shoot flag since we've handled the shot
+                self.key_states["key_fire"] = False
+                
+        except Exception as e:
+            logger.error(f"Error in shoot method: {e}")
 
     def _handle_special_attacks(self) -> None:
         """Handle special attacks like homing missiles or laser beam."""
@@ -962,6 +972,7 @@ class Player(AnimatedSprite):
             PowerupType.MEGA_BLAST.value: (255, 0, 128),  # Pink
             PowerupType.LASER_BEAM.value: (20, 255, 100),  # Bright Green for Laser
             PowerupType.DRONE.value: (180, 180, 180),  # Light Gray for Drone
+            PowerupType.FLAMETHROWER.value: (255, 60, 0),  # Fiery Orange-Red for Flamethrower
         }
 
         # Powerup full names for display
@@ -976,6 +987,7 @@ class Player(AnimatedSprite):
             PowerupType.MEGA_BLAST.name: "MEGA BLAST",
             PowerupType.LASER_BEAM.name: "LASER BEAM",
             PowerupType.DRONE.name: "DRONE",
+            PowerupType.FLAMETHROWER.name: "FLAMETHROWER",
         }
 
         # Map enum values directly to Y positions - this is the key fix
@@ -990,6 +1002,7 @@ class Player(AnimatedSprite):
             PowerupType.TIME_WARP.value: start_y + (POWERUP_SLOTS["TIME_WARP"] * spacing),
             PowerupType.LASER_BEAM.value: start_y + (POWERUP_SLOTS["LASER_BEAM"] * spacing),
             PowerupType.DRONE.value: start_y + (POWERUP_SLOTS["DRONE"] * spacing),
+            PowerupType.FLAMETHROWER.value: start_y + (POWERUP_SLOTS["FLAMETHROWER"] * spacing),
         }
 
         # Fonts for names and time
@@ -1307,6 +1320,49 @@ class Player(AnimatedSprite):
                     max(1, int(icon_size * 0.02))
                 )
 
+            elif name == PowerupType.FLAMETHROWER.name:
+                # Flamethrower effect
+                center = (icon_size // 2, icon_size // 2)
+                
+                # Draw a flame-like pattern
+                flame_width = max(2, int(icon_size // 4))
+                flame_length = int(icon_size * 0.9 * pulse)
+                
+                # Draw flame glow (wider, semi-transparent)
+                pygame.draw.rect(
+                    icon_surface,
+                    (*color, 80),
+                    (center[0] - flame_length//2, center[1] - flame_width, flame_length, flame_width * 2),
+                )
+                
+                # Draw main flame (thinner, brighter)
+                pygame.draw.rect(
+                    icon_surface,
+                    (*color, 220),
+                    (center[0] - flame_length//2, center[1] - flame_width//2, flame_length, flame_width),
+                )
+                
+                # Add source point glow
+                source_x = center[0] - flame_length//2
+                pygame.draw.circle(
+                    icon_surface,
+                    (*color, 150),
+                    (source_x, center[1]),
+                    max(3, int(icon_size // 6))
+                )
+                
+                # Add energy particles along flame
+                for i in range(3):
+                    particle_x = source_x + (flame_length * (i+1) // 4)
+                    particle_y = center[1] + random.randint(-1, 1)
+                    particle_size = random.randint(1, 2)
+                    pygame.draw.circle(
+                        icon_surface,
+                        (255, 255, 255, 200),
+                        (particle_x, particle_y),
+                        particle_size
+                    )
+
             else:
                 # Generic powerup glow for any other types
                 center = (icon_size // 2, icon_size // 2)
@@ -1609,3 +1665,177 @@ class Player(AnimatedSprite):
     # def add_powerup_old(self, powerup_name: str, powerup_idx: int) -> None:
     #     """Add a powerup to the active powerups list, preventing duplicates."""
     # ... (old implementation removed)
+
+    def _shoot_flamethrower(self, force=False) -> None:
+        """Create flame particles when the flamethrower powerup is active.
+        
+        Args:
+            force: If True, bypasses cooldown check for immediate activation
+        """
+        # Check if powerup is active
+        if PowerupType.FLAMETHROWER.name not in self.active_powerups_state:
+            return
+
+        # Get current time for cooldown check
+        current_time = pygame.time.get_ticks()
+        
+        # Initialize flame_timer if it doesn't exist
+        if not hasattr(self, 'flame_timer'):
+            self.flame_timer = 0
+        
+        # Check cooldown (unless force=True)
+        if not force and current_time - self.flame_timer < FLAME_SPAWN_DELAY:
+            return
+        
+        # Update timer
+        self.flame_timer = current_time
+        
+        # Get sprite groups
+        all_sprites_group = self.groups()[0] if self.groups() else None
+        if not all_sprites_group or not self.bullets:
+            return
+        
+        # Base position slightly in front of player
+        base_x = self.rect.right
+        base_y = self.rect.centery
+        
+        # Base velocity with forward movement
+        base_vx = 8.0  # Forward speed
+        
+        # Create multiple flame particles with random spread for a fuller effect
+        num_flames = random.randint(2, 4)  # Random number of flames per burst
+        
+        for _ in range(num_flames):
+            # Calculate random vertical angle for spray effect
+            angle = random.uniform(-FLAME_SPRAY_ANGLE, FLAME_SPRAY_ANGLE)
+            
+            # Calculate velocity components with spray angle
+            vel_x = base_vx * math.cos(angle)
+            vel_y = base_vx * math.sin(angle)
+            
+            # Add small position variation
+            pos_x = base_x + random.uniform(-5, 5)
+            pos_y = base_y + random.uniform(-5, 5)
+            
+            # Random size variation for the flames
+            size = random.randint(6, 10)
+            
+            # Random lifetime variation
+            lifetime = random.randint(
+                int(FLAME_PARTICLE_LIFETIME * 0.8),
+                int(FLAME_PARTICLE_LIFETIME * 1.2)
+            )
+            
+            # Create flame particle
+            FlameParticle(
+                (pos_x, pos_y),
+                (vel_x, vel_y),
+                (255, 60, 0),  # Fiery orange-red color
+                size,
+                lifetime,
+                FLAME_PARTICLE_DAMAGE,
+                all_sprites_group,
+                self.bullets  # Add to bullets group for collision detection
+            )
+        
+        # Sound is now handled by _manage_flamethrower_sound method
+
+    def _shoot_single_bullet(self) -> None:
+        """Create a single bullet projectile."""
+        # Bullet starts at the front-center of the player
+        all_sprites_group = self.groups()[0] if self.groups() else None
+        if all_sprites_group:
+            # Create the bullet
+            bullet = Bullet(self.rect.right, self.rect.centery, all_sprites_group, self.bullets)
+
+            # Make bullet home in on enemies if that powerup is active
+            if PowerupType.HOMING_MISSILES.name in self.active_powerups_state and self.game_ref:
+                # Find closest enemy
+                closest_enemy = None
+                closest_dist = float("inf")
+
+                # Safely get the enemies group
+                enemies = getattr(self.game_ref, "enemies", None)
+
+                # Make sure enemies is iterable before trying to iterate
+                if enemies and hasattr(enemies, "__iter__"):
+                    for enemy in enemies:
+                        if hasattr(enemy, "rect") and enemy.alive():
+                            dist = (
+                                (enemy.rect.centerx - self.rect.centerx) ** 2
+                                + (enemy.rect.centery - self.rect.centery) ** 2
+                            ) ** 0.5
+                            if dist < closest_dist:
+                                closest_dist = dist
+                                closest_enemy = enemy
+
+                if closest_enemy:
+                    bullet.make_homing(closest_enemy)
+
+            logger.debug(
+                f"Player fired bullet at position {self.rect.right}, {self.rect.centery}"
+            )
+
+    def _manage_flamethrower_sound(self, is_active: bool) -> None:
+        """Manage the continuous flamethrower sound loop with smooth transitions.
+        
+        Args:
+            is_active: Whether the flamethrower is currently active
+        """
+        # No sound manager available
+        if not self.game_ref or not hasattr(self.game_ref, "sound_manager"):
+            return
+        
+        current_time = pygame.time.get_ticks()
+        
+        # Flamethrower was just activated
+        if is_active and not self.flamethrower_sound_active:
+            try:
+                # Start the sound immediately
+                self.game_ref.sound_manager.play("flamethrower1", "player")
+                self.flamethrower_sound_active = True
+                self.flamethrower_sound_start_time = current_time
+                logger.debug("Started flamethrower sound loop")
+            except Exception as e:
+                logger.warning(f"Failed to start flamethrower sound: {e}")
+                return
+        
+        # Flamethrower is active and sound is playing - check if we need to loop
+        elif is_active and self.flamethrower_sound_active:
+            elapsed = current_time - self.flamethrower_sound_start_time
+            
+            # Start fadeout/fadein transition in the last second
+            if elapsed >= self.flamethrower_sound_fadeout_start and self.flamethrower_next_sound_instance is None:
+                try:
+                    # Calculate fadeout time (remaining time until end of sound)
+                    fadeout_ms = self.flamethrower_sound_duration - elapsed
+                    
+                    # Start the next instance with fadeout of current instance
+                    # This creates the smooth transition effect
+                    self.game_ref.sound_manager.play("flamethrower1", "player", fadeout_ms=int(fadeout_ms))
+                    self.flamethrower_next_sound_instance = current_time
+                    logger.debug(f"Starting next flamethrower sound iteration with {fadeout_ms}ms fadeout")
+                except Exception as e:
+                    logger.warning(f"Failed to start next flamethrower sound: {e}")
+            
+            # Check if we've completed a full loop
+            if elapsed >= self.flamethrower_sound_duration:
+                # Reset timers for the next loop
+                self.flamethrower_sound_start_time = self.flamethrower_next_sound_instance or current_time
+                self.flamethrower_next_sound_instance = None
+                logger.debug("Flamethrower sound loop restarted")
+        
+        # Flamethrower was just deactivated
+        elif not is_active and self.flamethrower_sound_active:
+            try:
+                # Stop the sound with a short fadeout
+                if hasattr(self.game_ref.sound_manager, 'sounds') and 'player' in self.game_ref.sound_manager.sounds:
+                    if 'flamethrower1' in self.game_ref.sound_manager.sounds['player']:
+                        # Use fadeout for a smoother stop
+                        self.game_ref.sound_manager.sounds['player']['flamethrower1'].fadeout(300)
+                
+                self.flamethrower_sound_active = False
+                self.flamethrower_next_sound_instance = None
+                logger.debug("Stopped flamethrower sound loop")
+            except Exception as e:
+                logger.warning(f"Failed to stop flamethrower sound: {e}")

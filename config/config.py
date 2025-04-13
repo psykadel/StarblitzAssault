@@ -144,7 +144,7 @@ POWERUP_GLOW_RATIO: float = 1  # Glow ratio for powerup sprite
 
 # Spawn settings
 POWERUP_MIN_SPAWN_INTERVAL_MS: int = 5000  # Minimum spawn interval in milliseconds
-POWERUP_MAX_SPAWN_INTERVAL_MS: int = 25000  # Maximum spawn interval in milliseconds
+POWERUP_MAX_SPAWN_INTERVAL_MS: int = 2500  # Maximum spawn interval in milliseconds
 
 # Frequency scaling with difficulty
 POWERUP_DIFFICULTY_SCALING: float = (
@@ -153,6 +153,13 @@ POWERUP_DIFFICULTY_SCALING: float = (
 POWERUP_MIN_DIFFICULTY_INTERVAL_MS: int = (
     10000  # Minimum spawn interval at max difficulty in milliseconds
 )
+
+# Flamethrower powerup settings
+FLAMETHROWER_DURATION: int = 8000  # 8 seconds for the flamethrower powerup
+FLAME_PARTICLE_DAMAGE: int = 5  # Damage per flame particle hit (less than a regular bullet)
+FLAME_PARTICLE_LIFETIME: int = 60  # Lifetime of flame particles in frames
+FLAME_SPAWN_DELAY: int = 80  # Milliseconds between flame particle spawns
+FLAME_SPRAY_ANGLE: float = 0.8  # Maximum vertical angle deviation in radians (about 45 degrees)
 
 # Powerup slot constants for display positioning
 # These define fixed vertical positions for each powerup type in the status area
@@ -165,6 +172,7 @@ POWERUP_SLOTS = {
     "TIME_WARP": 5,  # Slot 5
     "LASER_BEAM": 6,  # Slot 6
     "DRONE": 7,  # Slot 7
+    "FLAMETHROWER": 8,  # Slot 8 (new)
     # Instant powerups don't need slots:
     # "POWER_RESTORE": N/A  # Instant effect, no persistent display
     # "MEGA_BLAST": N/A     # Instant effect, no persistent display
@@ -282,7 +290,7 @@ DEBUG_ENEMY_TYPE_INDEX: int = 3  # Enemy type to use when DEBUG_FORCE_ENEMY_TYPE
 
 # Debug variables for powerups
 DEBUG_FORCE_POWERUP_TYPE: bool = False
-DEBUG_POWERUP_TYPE_INDEX: int = 7  # PowerupType index to use when DEBUG_FORCE_POWERUP_TYPE is True (DRONE=9)
+DEBUG_POWERUP_TYPE_INDEX: int = 10  # PowerupType index to use when DEBUG_FORCE_POWERUP_TYPE is True (DRONE=9)
 
 # ------------------------------------------------------------------------------
 # GAME MECHANICS

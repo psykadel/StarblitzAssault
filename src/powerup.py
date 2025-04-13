@@ -32,6 +32,7 @@ class PowerupType(IntEnum):
     MEGA_BLAST = 7  # Index shift: was 8
     LASER_BEAM = 8  # New powerup type
     DRONE = 9  # Drone powerup - spawns a drone that shoots enemies
+    FLAMETHROWER = 10  # Flamethrower powerup - sprays fire up and down
 
 
 # Create a list of active powerup types for easy iteration/random selection
@@ -56,6 +57,7 @@ POWERUP_COLORS = {
     PowerupType.MEGA_BLAST: (255, 0, 128),  # Pink
     PowerupType.LASER_BEAM: (20, 255, 100),  # Bright Green (for Laser)
     PowerupType.DRONE: (180, 180, 180),  # Light Grey (for Drone)
+    PowerupType.FLAMETHROWER: (255, 60, 0),  # Fiery Orange-Red (for Flamethrower)
 }
 
 

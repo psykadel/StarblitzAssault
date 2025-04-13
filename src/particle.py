@@ -141,6 +141,142 @@ class Particle(pygame.sprite.Sprite):
                 self.image.set_alpha(self.alpha)
 
 
+class FlameParticle(pygame.sprite.Sprite):
+    """Particle effect for flamethrower weapon."""
+
+    def __init__(
+        self,
+        position: Tuple[float, float],
+        velocity: Tuple[float, float],
+        color: Tuple[int, int, int],
+        size: int,
+        lifetime: int,
+        damage: int = 5,
+        *groups
+    ) -> None:
+        """Initialize a new flame particle.
+
+        Args:
+            position: Starting position (x, y)
+            velocity: Initial velocity (vx, vy)
+            color: RGB color tuple
+            size: Particle size in pixels
+            lifetime: How many frames the particle lives
+            damage: How much damage the particle does on hit
+            groups: Sprite groups to add to
+        """
+        super().__init__(*groups)
+        self.pos_x, self.pos_y = position
+        self.vel_x, self.vel_y = velocity
+        self.base_color = color
+        self.size = size
+        self.initial_size = size
+        self.lifetime = lifetime
+        self.age = 0
+        self.damage = damage
+        
+        # Vertical drift parameters for "spray" effect
+        self.drift_direction = random.choice([-1, 1])  # Up or down
+        self.drift_amount = random.uniform(0.02, 0.05)  # Subtle drift
+        self.drift_cycle = random.uniform(0, math.pi*2)  # Random start phase
+        
+        # Create the initial flame particle image
+        self._create_flame_image()
+        
+        # Setup collision rect
+        self.rect = self.image.get_rect(center=(int(self.pos_x), int(self.pos_y)))
+        
+        # Set up a mask for better collision detection
+        self.mask = pygame.mask.from_surface(self.image)
+        
+    def _create_flame_image(self):
+        """Create a flame particle with realistic fire colors and glow."""
+        # Create larger surface to accommodate glow
+        glow_size = self.size * 3
+        total_size = glow_size * 2
+        
+        self.image = pygame.Surface((total_size, total_size), pygame.SRCALPHA)
+        center = (total_size // 2, total_size // 2)
+        
+        # Base fire colors (from center to edge)
+        colors = [
+            (255, 255, 220),  # White-yellow (core)
+            (255, 200, 50),   # Yellow
+            (255, 130, 0),    # Orange
+            self.base_color,  # Base color (usually red)
+            (80, 0, 0)        # Dark red (edge)
+        ]
+        
+        # Life factor affects appearance (new particles are brighter)
+        life_factor = 1 - (self.age / self.lifetime)
+        
+        # Draw flame layers from outside in
+        for i, color in enumerate(reversed(colors)):
+            radius = int(self.size * (1 - i/len(colors)) * 2)
+            alpha = int(200 * life_factor) if i < len(colors)-1 else int(100 * life_factor)
+            pygame.draw.circle(
+                self.image,
+                (*color, alpha),
+                center,
+                radius
+            )
+            
+        # Add some random flicker/sparks
+        if random.random() < 0.4:
+            spark_pos = (
+                center[0] + random.randint(-int(self.size/2), int(self.size/2)),
+                center[1] + random.randint(-int(self.size/2), int(self.size/2))
+            )
+            spark_size = max(2, int(self.size / 4 * life_factor))
+            pygame.draw.circle(
+                self.image,
+                (255, 255, 200, 200),  # Bright yellow spark
+                spark_pos,
+                spark_size
+            )
+
+    def update(self) -> None:
+        """Update the flame particle position, appearance and lifetime."""
+        # Update age
+        self.age += 1
+        if self.age >= self.lifetime:
+            self.kill()
+            return
+        
+        # Apply "spray" drift - oscillating vertical movement
+        self.drift_cycle += 0.1
+        vertical_drift = math.sin(self.drift_cycle) * self.drift_amount * self.drift_direction
+        self.vel_y += vertical_drift
+        
+        # Slightly slow down over time for more natural look
+        slowdown_factor = 0.98
+        self.vel_x *= slowdown_factor
+        
+        # Update position
+        self.pos_x += self.vel_x
+        self.pos_y += self.vel_y
+        self.rect.center = (int(self.pos_x), int(self.pos_y))
+        
+        # Update appearance every few frames for performance
+        if self.age % 3 == 0:
+            life_factor = 1 - (self.age / self.lifetime)
+            
+            # Gradually decrease size as flame burns out
+            new_size = max(2, int(self.initial_size * (0.8 + 0.2 * life_factor)))
+            if new_size != self.size:
+                self.size = new_size
+                
+            # Update flame appearance
+            self._create_flame_image()
+            
+            # Keep the same center position
+            old_center = self.rect.center
+            self.rect = self.image.get_rect(center=old_center)
+            
+            # Update mask for accurate collision detection
+            self.mask = pygame.mask.from_surface(self.image)
+
+
 class ParticleSystem:
     """Manages groups of particles for effects like explosions."""
 

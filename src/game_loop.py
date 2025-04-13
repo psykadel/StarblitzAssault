@@ -4,6 +4,7 @@ import logging
 import os
 import random
 import sys
+import math
 from enum import IntEnum  # Add IntEnum import
 from typing import Dict, List, Optional, Tuple, Set, Union, Any
 
@@ -42,6 +43,7 @@ from config.config import (
     SOUNDS_DIR,
     DEBUG_FORCE_POWERUP_TYPE,
     DEBUG_POWERUP_TYPE_INDEX,
+    FLAME_PARTICLE_DAMAGE,
 )
 from src.background import BackgroundDecorations, BackgroundLayer
 from src.border import Border
@@ -65,6 +67,7 @@ from src.power_particles import PowerParticleSystem
 from src.powerup import ACTIVE_POWERUP_TYPES, PowerupParticle, PowerupType
 from src.projectile import Bullet, ScatterProjectile, LaserBeam
 from src.sound_manager import SoundManager
+from src.particle import FlameParticle
 
 # Get logger for this module
 logger = get_logger(__name__)
@@ -1416,11 +1419,60 @@ class Game:
                         except Exception:
                             logger.warning(f"Failed to play shield or fallback sound: {e}")
                 else:
-                    # Regular enemy hit handling
-                    bullet.kill()
-                    enemy.kill()
-                    self._process_enemy_destruction(enemy)
-                    
+                    # Check if this is a flame particle or a regular bullet
+                    if isinstance(bullet, FlameParticle):
+                        # Flame particles apply partial damage and continue burning
+                        if hasattr(enemy, "health"):
+                            # Apply damage to existing health attribute
+                            try:
+                                # Get current health
+                                current_health = getattr(enemy, "health", 100)
+                                # Apply damage
+                                new_health = current_health - bullet.damage
+                                # Set new health
+                                setattr(enemy, "health", new_health)
+                                
+                                # Create small flame effect at hit position
+                                if self.particles:
+                                    for _ in range(3):  # Create a few sparks
+                                        # Random direction
+                                        angle = random.uniform(0, 2 * math.pi)
+                                        speed = random.uniform(0.5, 2.0)
+                                        vel_x = math.cos(angle) * speed
+                                        vel_y = math.sin(angle) * speed
+                                        
+                                        # Create spark particle
+                                        FlameParticle(
+                                            (bullet.rect.centerx, bullet.rect.centery),
+                                            (vel_x, vel_y),
+                                            (255, 60, 0),  # Fiery color
+                                            random.randint(2, 4),  # Small size
+                                            random.randint(10, 20),  # Short lifetime
+                                            0,  # No additional damage for sparks
+                                            self.particles
+                                        )
+                                
+                                # Kill enemy if health <= 0
+                                if new_health <= 0:
+                                    self._process_enemy_destruction(enemy)
+                                    enemy.kill()
+                            except (AttributeError, TypeError):
+                                # Fallback if attribute assignment fails
+                                self._process_enemy_destruction(enemy)
+                                enemy.kill()
+                        else:
+                            # Fallback if enemy doesn't use health system
+                            self._process_enemy_destruction(enemy)
+                            enemy.kill()
+                        
+                        # Kill the flame particle regardless (it's "used up" on contact)
+                        bullet.kill()
+                    else:
+                        # Regular bullet behavior - instant kill
+                        self._process_enemy_destruction(enemy)
+                        enemy.kill()
+                        bullet.kill()
+
         # Special collision handling for laser beams - they don't get destroyed on hit
         from src.projectile import LaserBeam
         for bullet in self.bullets:

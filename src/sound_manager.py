@@ -43,6 +43,9 @@ class SoundManager:
         self._create_silent_sound("explosion1", "player")
         self._create_silent_sound("hit1", "player")
         self._create_silent_sound("powerup", "player")
+        self._create_silent_sound("flamethrower", "player")  # Add flamethrower fallback
+        self._create_silent_sound("flamethrower1", "player")  # Add flamethrower1 fallback
+        self._create_silent_sound("silent", "player")  # Special silent sound for stopping effects
 
         self._create_silent_sound("laser", "enemy")
         self._create_silent_sound("explosion2", "enemy")
@@ -53,9 +56,10 @@ class SoundManager:
         self._try_load_sound("explosion1", "explosion1.ogg", "player")
         self._try_load_sound("hit1", "hit1.ogg", "player")
         self._try_load_sound("powerup", "powerup1.ogg", "player")
+        self._try_load_sound("flamethrower", "laser1.ogg", "player")  # Use laser1 for flamethrower until we have a proper sound
+        self._try_load_sound("flamethrower1", "flamethrower1.ogg", "player")  # Dedicated flamethrower sound
 
         # Use player powerup sound for enemy too
-        self._try_load_sound("laser", "laser2.ogg", "enemy")
         self._try_load_sound("explosion2", "explosion2.ogg", "enemy")
         self._try_load_sound("powerup1", "powerup1.ogg", "enemy")  # Load powerup1.ogg as enemy/powerup1
 
@@ -124,30 +128,48 @@ class SoundManager:
         except pygame.error as e:
             logger.error(f"Failed to load sound {filename}: {e} - using silent fallback")
 
-    def play(self, name: str, category: str = "player") -> None:
+    def play(self, name: str, category: str = "player", volume: Optional[float] = None, fadeout_ms: int = 0) -> None:
         """Play a sound effect.
 
         Args:
             name: Name of the sound to play
             category: Category the sound belongs to
+            volume: Optional volume override for this play only
+            fadeout_ms: Optional fadeout time in milliseconds for currently playing instances
         """
         # First make sure the category exists
         if category not in self.sounds:
             logger.warning(f"Sound category {category} not found")
             return
 
+        # If we need to fadeout other instances of this sound before playing
+        if fadeout_ms > 0 and name in self.sounds[category]:
+            try:
+                # Fadeout previous instances of this sound
+                self.sounds[category][name].fadeout(fadeout_ms)
+            except Exception as e:
+                logger.warning(f"Failed to fadeout sound {category}/{name}: {e}")
+
         # Check if the sound exists and is not None
         if name in self.sounds[category] and self.sounds[category][name] is not None:
             try:
                 # Temporarily boost volume for this play
                 current_volume = self.sounds[category][name].get_volume()
+                
+                # Use override volume if provided
+                if volume is not None:
+                    self.sounds[category][name].set_volume(volume)
                 # Make sure laser sounds are much quieter
-                if name == "laser":
+                elif name == "laser":
                     # For laser sounds, set a fixed volume rather than multiplying the current volume
                     # This prevents volume decay over repeated plays
                     self.sounds[category][name].set_volume(self.volume * 0.25)  # 25% of base volume
                 else:
                     self.sounds[category][name].set_volume(min(1.0, current_volume * 1.5))
+
+                # Adjust volume for flamethrower1 sound to be slightly lower
+                if name == "flamethrower1":
+                    self.sounds[category][name].set_volume(min(0.8, current_volume))
 
                 # Play the sound
                 self.sounds[category][name].play()
@@ -160,7 +182,13 @@ class SoundManager:
 
         # If we get here, either the sound doesn't exist or playing it failed
         # Try to use a fallback
-        fallbacks = {"powerup": "hit1", "beam": "laser", "scatter": "explosion1"}
+        fallbacks = {
+            "powerup": "hit1", 
+            "beam": "laser", 
+            "scatter": "explosion1",
+            "flamethrower": "laser",  # Add flamethrower -> laser fallback
+            "flamethrower1": "flamethrower"  # Fallback to regular flamethrower sound
+        }
 
         # Check if we have a fallback
         if name in fallbacks:

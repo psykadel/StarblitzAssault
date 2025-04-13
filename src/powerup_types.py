@@ -7,11 +7,12 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Type, ClassVar, U
 
 import pygame
 
-from config.config import PLAYER_SHOOT_DELAY, DRONE_DURATION
+from config.config import PLAYER_SHOOT_DELAY, DRONE_DURATION, FLAMETHROWER_DURATION, FLAME_PARTICLE_DAMAGE, FLAME_PARTICLE_LIFETIME, FLAME_SPRAY_ANGLE
 from src.logger import get_logger
 from src.powerup import POWERUP_DURATION, Powerup, PowerupParticle, PowerupType
 from src.projectile import Bullet, LaserBeam, ScatterProjectile
 from src.drone import Drone
+from src.particle import FlameParticle
 
 # Get a logger for this module
 logger = get_logger(__name__)
@@ -49,6 +50,7 @@ DURATION_POWERUPS = [
     PowerupType.TIME_WARP,
     PowerupType.LASER_BEAM,
     PowerupType.DRONE,
+    PowerupType.FLAMETHROWER,
 ]
 
 CHARGE_POWERUPS = [
@@ -401,6 +403,103 @@ class DronePowerup(PowerupBase):
         self._create_collection_effect(player.rect.center)
 
         logger.info(f"Drone activated for 15 seconds")
+
+@register_powerup(PowerupType.FLAMETHROWER)
+class FlamethrowerPowerup(PowerupBase):
+    """Flamethrower powerup - player sprays flames up and down in a fiery effect."""
+    
+    # Explicitly define as class variable with correct type
+    powerup_type_enum: ClassVar[PowerupType] = PowerupType.FLAMETHROWER
+
+    def apply_effect(self, player) -> None:
+        """Apply the flamethrower effect to the player."""
+        super().apply_effect(player)  # Call base implementation
+
+        # Import required modules and constants
+        from config.config import FLAMETHROWER_DURATION, FLAME_PARTICLE_DAMAGE, FLAME_PARTICLE_LIFETIME, FLAME_SPRAY_ANGLE
+        from src.particle import FlameParticle
+        import random
+        import math
+
+        # Use the centralized state management method
+        player.add_powerup(
+            powerup_name=PowerupType.FLAMETHROWER.name,
+            powerup_idx=PowerupType.FLAMETHROWER.value,
+            duration_ms=FLAMETHROWER_DURATION,
+        )
+
+        # Create collection effect
+        self._create_collection_effect(player.rect.center)
+        
+        # ===== DIRECT FLAME PARTICLE CREATION =====
+        # Instead of relying on Player's _shoot_flamethrower, we'll create particles directly
+        
+        # 1. Reset flame timer to allow future particle creation
+        if hasattr(player, 'flame_timer'):
+            player.flame_timer = 0
+        
+        # Get necessary references
+        game = self.game_ref
+        if not game or not hasattr(game, 'all_sprites'):
+            logger.warning("Cannot create immediate flame particles: no game reference or sprite groups")
+        else:
+            # Get sprite groups for particles
+            all_sprites_group = game.all_sprites
+            bullets_group = player.bullets if hasattr(player, 'bullets') else None
+            
+            if all_sprites_group and bullets_group:
+                # Base position slightly in front of player
+                base_x = player.rect.right
+                base_y = player.rect.centery
+                
+                # Create an initial burst of flames (more than usual for dramatic effect)
+                for _ in range(10):  # Create 10 particles for a big initial burst
+                    # Calculate random vertical angle for spray effect
+                    angle = random.uniform(-FLAME_SPRAY_ANGLE, FLAME_SPRAY_ANGLE)
+                    
+                    # Random velocity with forward momentum
+                    speed = random.uniform(6.0, 10.0)  # Faster than normal for dramatic effect
+                    vel_x = speed * math.cos(angle)
+                    vel_y = speed * math.sin(angle)
+                    
+                    # Add position variation
+                    pos_x = base_x + random.uniform(-10, 10)
+                    pos_y = base_y + random.uniform(-10, 10)
+                    
+                    # Random size and lifetime
+                    size = random.randint(6, 12)  # Slightly larger than normal
+                    lifetime = random.randint(
+                        int(FLAME_PARTICLE_LIFETIME * 0.8),
+                        int(FLAME_PARTICLE_LIFETIME * 1.5)  # Longer lifetimes for initial burst
+                    )
+                    
+                    # Create flame particle
+                    FlameParticle(
+                        (pos_x, pos_y),
+                        (vel_x, vel_y),
+                        (255, 60, 0),  # Fiery orange-red color
+                        size,
+                        lifetime,
+                        FLAME_PARTICLE_DAMAGE,
+                        all_sprites_group,
+                        bullets_group  # Add to bullets group for collision detection
+                    )
+                
+                logger.info("Created immediate flame particles on powerup collection")
+        
+        # 3. Activate sound immediately
+        if hasattr(player, '_manage_flamethrower_sound'):
+            player._manage_flamethrower_sound(True)
+        
+        # Also try the player's method (as a backup)
+        if hasattr(player, '_shoot_flamethrower'):
+            try:
+                player._shoot_flamethrower(force=True)
+            except Exception as e:
+                logger.warning(f"Failed to call player's _shoot_flamethrower: {e}")
+
+        # Log activation
+        logger.info(f"Flamethrower activated for {FLAMETHROWER_DURATION/1000} seconds with immediate effect")
 
 # Factory function to create a powerup of a specific type
 def create_powerup(
