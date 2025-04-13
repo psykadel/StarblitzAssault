@@ -683,9 +683,6 @@ class Game:
                     count, pattern_type=pattern_type, enemy_type_index=enemy_type_index
                 )
 
-                # Play wave spawn sound
-                self.sound_manager.play("explosion2", "enemy")
-
                 # Calculate next wave delay based on difficulty (quicker waves at higher difficulty)
                 # Base delay decreases as difficulty increases
                 base_delay = max(3000, 7000 - int(self.difficulty_level * 400))
@@ -1411,7 +1408,7 @@ class Game:
                     
                     # Play reflection sound effect
                     try:
-                        self.sound_manager.play("shield", "enemy")
+                        self.sound_manager.play("powerup1", "enemy") # Use powerup1 for reflection
                     except Exception as e:
                         # Fallback to another common sound if shield isn't available
                         try:
@@ -1499,12 +1496,13 @@ class Game:
             self.player, self.enemies, True, pygame.sprite.collide_mask
         )
         if enemy_hits:
-            # Play player explosion sound for each enemy hit
+            # Play enemy explosion sound for each enemy hit (when player collides with enemy)
             for enemy in enemy_hits:
                 try:
+                    # This plays the sound for the *enemy* exploding due to the collision
                     self.sound_manager.play("explosion2", "enemy")
                 except Exception as e:
-                    logger.warning(f"Failed to play explosion sound: {e}")
+                    logger.warning(f"Failed to play explosion sound: {e}") # Generic warning
 
                 # Create explosion at enemy position
                 explosion_size = (50, 50)

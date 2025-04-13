@@ -547,7 +547,7 @@ class Player(AnimatedSprite):
             # Play sound
             if self.game_ref and hasattr(self.game_ref, "sound_manager"):
                 try:
-                    self.game_ref.sound_manager.play("explosion2", "player")
+                    self.game_ref.sound_manager.play("explosion1", "player")
                 except Exception as e:
                     logger.warning(f"Failed to play explosion sound: {e}")
 
