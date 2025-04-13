@@ -154,7 +154,7 @@ POWERUP_GLOW_RATIO: float = 1  # Glow ratio for powerup sprite
 
 # Spawn settings
 POWERUP_MIN_SPAWN_INTERVAL_MS: int = 5000  # Minimum spawn interval in milliseconds
-POWERUP_MAX_SPAWN_INTERVAL_MS: int = 2500  # Maximum spawn interval in milliseconds
+POWERUP_MAX_SPAWN_INTERVAL_MS: int = 25000  # Maximum spawn interval in milliseconds
 
 # Frequency scaling with difficulty
 POWERUP_DIFFICULTY_SCALING: float = (
