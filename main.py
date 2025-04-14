@@ -19,7 +19,6 @@ def main():
         parser = argparse.ArgumentParser(description="Starblitz Assault")
         parser.add_argument("--skip-intro", action="store_true", help="Skip the intro sequence")
         parser.add_argument("--skip-objective", action="store_true", help="Skip the objective screen")
-        parser.add_argument("--test-mode", action="store_true", help="Enable test mode")
         args = parser.parse_args()
         
         logger.info("Starting Starblitz Assault")
@@ -27,8 +26,12 @@ def main():
         # Create the game instance
         game = Game()
         
-        # Run intro sequence if not skipped
-        if not args.skip_intro:
+        # Run intro sequence if not skipped - fix: ensure we're not reading from stored args
+        skip_intro = False
+        if hasattr(args, 'skip_intro'):
+            skip_intro = args.skip_intro
+            
+        if not skip_intro:
             logger.info("Running intro sequence")
             # Pass the game's sound manager to the intro for smoother music transitions
             intro_result = run_intro(game.screen, game.sound_manager)
@@ -39,7 +42,11 @@ def main():
                 return
         
         # Run objective screen if not skipped
-        if not args.skip_objective:
+        skip_objective = False
+        if hasattr(args, 'skip_objective'):
+            skip_objective = args.skip_objective
+            
+        if not skip_objective:
             logger.info("Displaying objective screen")
             # Pass the game's sound manager to the objective screen for smoother transitions
             objective_result = run_objective_screen(game.screen, game.sound_manager)

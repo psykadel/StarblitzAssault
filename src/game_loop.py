@@ -1,5 +1,7 @@
 """Main game loop and game state management."""
 
+from __future__ import annotations
+
 import logging
 import os
 import random
@@ -44,6 +46,8 @@ from config.config import (
     DEBUG_FORCE_POWERUP_TYPE,
     DEBUG_POWERUP_TYPE_INDEX,
     FLAME_PARTICLE_DAMAGE,
+    BOSS_WAVE_NUMBER,
+    BOSS_BULLET_COLORS,
 )
 from src.background import BackgroundDecorations, BackgroundLayer
 from src.border import Border
@@ -69,6 +73,9 @@ from src.projectile import Bullet, ScatterProjectile, LaserBeam
 from src.sound_manager import SoundManager
 from src.particle import FlameParticle
 
+# Near the top of the file, add the boss import
+from src.boss_battle import Boss, RainbowBullet, create_boss
+
 # Get logger for this module
 logger = get_logger(__name__)
 
@@ -80,6 +87,82 @@ WAVE_TIMER_EVENT = WAVE_TIMER_EVENT_ID
 
 # Add at the beginning of the file, near other imports:
 from collections import deque
+
+# Rainbow colors for boss blood explosions
+BOSS_BLOOD_COLORS = [
+    (255, 0, 0),    # Red
+    (255, 165, 0),  # Orange
+    (255, 255, 0),  # Yellow
+    (0, 255, 0),    # Green
+    (0, 0, 255),    # Blue
+    (75, 0, 130),   # Indigo
+    (148, 0, 211),  # Violet
+    (255, 192, 203) # Pink
+]
+
+# Add a new custom explosion class for rainbow blood
+class RainbowBloodExplosion(Explosion):
+    """Special rainbow blood explosion for boss hits."""
+    
+    def __init__(self, position, size, color, *groups):
+        """Initialize the rainbow blood explosion.
+        
+        Args:
+            position: Position tuple (x, y)
+            size: Size tuple (width, height)
+            color: RGB color tuple for the blood
+            *groups: Sprite groups to add to. The caller should use the 
+                     pattern `*(group,) if group else ()` to pass arguments.
+        """
+        # Pass the received groups tuple directly to the parent class.
+        # The parent class's __init__ will handle filtering Nones if necessary, 
+        # but our calling pattern ensures groups is already safe.
+        super().__init__(position, size, "enemy", *groups)
+        
+        self.rainbow_color = color
+        
+        # Recreate frames with custom color if parent created them.
+        if hasattr(self, 'frames') and self.frames:
+            self._recreate_frames_with_color(color)
+        else:
+            logger.warning("RainbowBloodExplosion: Parent Explosion did not create frames.")
+    
+    def _recreate_frames_with_color(self, color):
+        """Recreate explosion frames with the specified color."""
+        for i, frame in enumerate(self.frames):
+            # Create a copy of the frame
+            new_frame = pygame.Surface(frame.get_size(), pygame.SRCALPHA)
+            
+            # Get alpha data from original frame
+            alpha_data = pygame.surfarray.array_alpha(frame)
+            
+            # Fill with the new color
+            new_frame.fill((0, 0, 0, 0))  # Clear with transparent
+            
+            # Get frame dimensions
+            width, height = frame.get_size()
+            center = (width // 2, height // 2)
+            radius = min(width, height) // 2
+            
+            # Main explosion circle with custom color
+            pygame.draw.circle(new_frame, color, center, radius)
+            
+            # Add glow effect
+            glow_color = (
+                min(255, color[0] + 50),
+                min(255, color[1] + 50),
+                min(255, color[2] + 50)
+            )
+            pygame.draw.circle(new_frame, glow_color, center, max(1, radius // 2))
+            
+            # Apply original alpha
+            pygame.surfarray.pixels_alpha(new_frame)[:] = alpha_data
+            
+            # Replace the frame
+            self.frames[i] = new_frame
+        
+        # Reset current frame
+        self.image = self.frames[self.frame_index]
 
 
 # Define pattern types as IntEnum for better type checking and readability
@@ -105,6 +188,8 @@ class PowerupNotification(pygame.sprite.Sprite):
             position: Starting position (x, y)
             groups: Sprite groups to add to
         """
+        # Filter out None values from groups to avoid errors
+        groups = [g for g in groups if g is not None]
         super().__init__(*groups)
 
         # Text properties
@@ -176,6 +261,8 @@ class Game:
         # Game state
         self.is_running = True
         self.is_paused = False
+        self.debug_mode = True  # Enable debug mode by default
+        self.boss_defeat_handled = False  # Track if we've handled the boss defeat
 
         # Difficulty progression
         self.difficulty_level = 1.0  # Starting difficulty (will increase over time)
@@ -412,6 +499,13 @@ class Game:
         # Initialize enemy pools and preload sprites
         self._init_enemy_pools()
 
+        # Add boss-related attributes
+        self.boss = None
+        self.is_boss_battle = False
+        self.boss_bullets = pygame.sprite.Group()  # Initialize as empty group
+        self.boss_sprites = pygame.sprite.Group()  # Initialize boss sprites group
+        self.boss_defeated = False
+
     def _init_enemy_pools(self):
         """Initialize object pools for enemies to reduce instantiation overhead."""
         # Create sprite sheet cache to avoid reloading the same sheets
@@ -513,6 +607,10 @@ class Game:
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     self.is_running = False
+                # Add debug key handlers
+                elif event.key in [pygame.K_F1, pygame.K_F2, pygame.K_F3, pygame.K_F4, 
+                                  pygame.K_F5, pygame.K_F6, pygame.K_F7, pygame.K_F8]:
+                    self._handle_debug_keys(event)
                 elif event.key == pygame.K_SPACE:
                     if self.game_over and self.game_over_animation_complete:
                         # Only allow restart when animation is complete
@@ -642,6 +740,14 @@ class Game:
                 self.wave_count += 1
                 self.max_wave_count = max(self.max_wave_count, self.wave_count)
                 self._update_difficulty()
+
+                # Check if it's time for the boss battle
+                if self.wave_count == BOSS_WAVE_NUMBER and not self.is_boss_battle and not self.boss_defeated:
+                    logger.info("BOSS WAVE! Spawning boss battle!")
+                    self._start_boss_battle()
+                    # Longer delay before any further waves after boss is defeated
+                    pygame.time.set_timer(WAVE_TIMER_EVENT, 0)  # Stop regular wave timer
+                    return  # Skip normal wave spawning
 
                 # Select a random pattern type
                 pattern_type = random.randint(0, 3)  # 0-3 for our four pattern types
@@ -1090,29 +1196,15 @@ class Game:
                 enemy.topleft = (x_pos, y_pos)
 
     def _update(self):
-        """Updates the state of all game objects and handles collisions."""
-        # Skip updates if game is paused or over
-        # (We'll implement a proper pause later, for now we don't use this)
+        """Update game state for the current frame."""
+        # Don't update if paused
         if self.is_paused:
             return
 
-        # Skip player updates if game is over
+        # Don't update if game over (only animate explosions)
         if self.game_over:
-            # Still update background and visual effects
-            for layer in self.background_layers:
-                layer.update()
-            
-            # Update background decorations
-            self.bg_decorations.update()
-            
-            # Update border layers
-            for border in self.borders:
-                border.update()
-                
-            # Update explosions, particles, and text notifications
+            # Still update explosions during game over
             self.explosions.update()
-            self.particles.update()
-            self.notifications.update()
             return
 
         # Process keyboard input for player movement
@@ -1237,6 +1329,84 @@ class Game:
 
         # Check for collisions
         self._handle_collisions()
+
+        # Update boss
+        if self.is_boss_battle and self.boss:
+            try:
+                # Update the boss sprite (handles regular movement or death animation)
+                self.boss_sprites.update()
+
+                # Check if the boss death animation is complete and cleanup is needed
+                if self.boss.is_defeated and not self.boss_defeat_handled and hasattr(self.boss, 'animation_complete') and self.boss.animation_complete:
+                    logger.info("Boss animation complete flag detected. Handling boss defeat.")
+                    self._handle_boss_defeated()
+                    # No need to set self.boss_defeat_handled = True here, _handle_boss_defeated does it.
+
+                # --- Boss Firing Logic (only if not defeated/animating) --- 
+                elif not self.boss.is_defeated and not self.boss.death_animation_active:
+                    try:
+                        # Calculate current interval based on phase
+                        current_interval = self.boss.bullet_interval * (1.0 - (self.boss.phase - 1) * 0.2)
+                        
+                        # Check if it's time to fire
+                        if self.boss.bullet_timer >= current_interval:
+                            # Fire bullets using the pattern system
+                            new_bullets = self.boss.fire_bullet()
+                            bullet_count = 0
+                            if new_bullets:
+                                for bullet in new_bullets:
+                                    if bullet is not None:
+                                        self.boss_bullets.add(bullet)
+                                        bullet_count += 1
+                            
+                            # Log for debugging
+                            logger.debug(f"Boss fired {bullet_count} bullets using pattern: {self.boss.attack_pattern}")
+                            
+                            # Reset the boss's bullet timer
+                            self.boss.bullet_timer = 0
+                            
+                    except Exception as e:
+                        logger.error(f"Error creating boss bullets: {e}")
+                
+                # Update boss bullets (always update even during death anim to let them fly off)
+                self.boss_bullets.update()
+                
+                # Remove bullets that are off-screen
+                for bullet in list(self.boss_bullets):
+                    if (bullet.rect.right < 0 or bullet.rect.left > SCREEN_WIDTH or
+                        bullet.rect.bottom < 0 or bullet.rect.top > SCREEN_HEIGHT):
+                        bullet.kill()
+
+            except Exception as e:
+                # Catch potential errors if self.boss becomes None unexpectedly during the try block
+                if isinstance(e, AttributeError) and "'NoneType' object" in str(e):
+                    logger.warning("Boss object became None during update, likely handled.")
+                else:
+                    logger.error(f"Error updating boss or its bullets: {e}")
+
+        # Check for boss bullets hitting player
+        if self.is_boss_battle and not self.player.is_invincible:
+            boss_bullet_hits = pygame.sprite.spritecollide(
+                self.player, self.boss_bullets, True, pygame.sprite.collide_mask
+            )
+            
+            if boss_bullet_hits:
+                # Calculate total damage
+                total_damage = sum(getattr(bullet, 'damage', 1) for bullet in boss_bullet_hits)
+                
+                # Apply damage to player - take_damage() doesn't take any parameters
+                self.player.take_damage()
+                
+                # Play hit sound - changed to a sound that likely exists
+                if hasattr(self, 'sound_manager') and self.sound_manager:
+                    try:
+                        self.sound_manager.play("explosion1", "player")
+                    except Exception as e:
+                        logger.warning(f"Could not play player hit sound: {e}")
+                
+                # Check if player destroyed
+                if not self.player.is_alive:
+                    self._handle_game_over()
 
     def _check_powerup_spawn(self):
         """Check if it's time to spawn a powerup."""
@@ -1403,7 +1573,7 @@ class Game:
         logger.info(f"Spawned powerup of type {powerup_name} at position ({x}, {y})")
 
     def _handle_collisions(self):
-        """Checks and handles collisions between game objects."""
+        """Check for and handle all game object collisions."""
         # Collision: Player Bullets vs Enemies
         # First, get all bullet-enemy collisions without killing them yet
         bullet_enemy_dict = pygame.sprite.groupcollide(
@@ -1627,6 +1797,61 @@ class Game:
             # Check for game over
             if not player_survived:
                 self._handle_game_over()
+
+        # Check for player bullets hitting boss
+        if self.is_boss_battle and self.boss and not self.boss.is_defeated:
+            try:
+                boss_hits = pygame.sprite.spritecollide(
+                    self.boss, self.bullets, True, pygame.sprite.collide_mask
+                )
+                
+                # Process damage if boss was hit
+                if boss_hits:
+                    # Use a default damage of 1 for each bullet that doesn't have a damage attribute
+                    total_damage = sum(getattr(bullet, 'damage', 1) for bullet in boss_hits)
+                    
+                    # Flag to store defeat status from take_damage
+                    boss_was_defeated_this_frame = False
+                    
+                    try:
+                        # Call take_damage, which returns True if this hit defeats the boss
+                        boss_was_defeated_this_frame = self.boss.take_damage(total_damage, boss_hits[0].rect.center) # Pass hit position
+                        
+                        # Create rainbow blood explosions at each hit position, regardless of defeat status
+                        for bullet in boss_hits:
+                            # Pick a random rainbow color
+                            color_idx = random.randint(0, len(BOSS_BULLET_COLORS) - 1) 
+                            color = BOSS_BULLET_COLORS[color_idx]
+                            
+                            # Create a blood explosion
+                            size = (random.randint(15, 30), random.randint(15, 30))
+                            # Use the new RainbowBloodExplosion class
+                            blood = RainbowBloodExplosion(bullet.rect.center, size, color)
+                            
+                            # Manually add to explosions group
+                            if hasattr(self, 'explosions'): # Ensure explosions group exists
+                                self.explosions.add(blood)
+                        
+                    except Exception as e:
+                        logger.error(f"Error in boss take_damage or creating blood effects: {e}")
+                    
+                    # Play hit sound
+                    if hasattr(self, 'sound_manager') and self.sound_manager:
+                        try:
+                            self.sound_manager.play("explosion2", "enemy")
+                        except Exception as e:
+                            logger.warning(f"Could not play boss hit sound: {e}")
+                    
+                    # Update score for the hits
+                    self.score += len(boss_hits) * 50
+                    
+                    # REMOVED: Do NOT call _handle_boss_defeated here immediately.
+                    # The Game._update loop will handle calling it after the animation finishes.
+                    # if boss_was_defeated_this_frame:
+                    #    self._handle_boss_defeated() # <-- This was the bug!
+
+            except Exception as e:
+                logger.error(f"Error in boss collision detection: {e}")
 
     def _process_enemy_destruction(self, enemy):
         """Process an enemy that was destroyed."""
@@ -1868,6 +2093,20 @@ class Game:
         # Draw help text with controls info
         self._draw_help_text()
 
+        # Draw boss and boss bullets
+        if self.is_boss_battle and self.boss:
+            # Draw tentacles behind the boss
+            self.boss.draw_tentacles(self.screen)
+            
+            # Draw the boss using the boss_sprites group
+            self.boss_sprites.draw(self.screen)
+            
+            # Draw boss bullets
+            self.boss_bullets.draw(self.screen)
+            
+            # Draw boss health bar
+            self.boss.draw_health_bar(self.screen)
+
         pygame.display.flip()
 
     def _draw_power_bar(self):
@@ -2009,6 +2248,18 @@ class Game:
 
         logger.info("Game reset - starting new game")
 
+        # Reset boss battle state
+        self.is_boss_battle = False
+        self.boss_defeated = False
+        self.boss_defeat_handled = False
+        self.boss = None
+        
+        # Reset boss sprites group
+        if hasattr(self, 'boss_sprites'):
+            self.boss_sprites.empty()
+        else:
+            self.boss_sprites = pygame.sprite.Group()
+
     def _preload_sounds(self):
         """Preload sound effects."""
         # These sounds don't need to be explicitly preloaded anymore
@@ -2045,3 +2296,118 @@ class Game:
 
             self.screen.blit(text_surf, (10, y_pos))
             y_pos += 22  # Increased spacing
+
+    def _start_boss_battle(self):
+        """Initialize and start the boss battle."""
+        try:
+            # Make sure we have a sprites group for the boss
+            if not hasattr(self, 'boss_sprites'):
+                self.boss_sprites = pygame.sprite.Group()
+            
+            # Create the boss and add it to the boss_sprites group
+            self.boss = create_boss(self.player)
+            if self.boss is not None:
+                self.boss_sprites.add(self.boss)
+                self.is_boss_battle = True
+                
+                # Set the game reference on the boss so it can create explosions
+                self.boss.game_ref = self
+                
+                # Stop all regular enemy spawning
+                pygame.time.set_timer(WAVE_TIMER_EVENT, 0)
+                
+                # Clear any existing enemies to focus on the boss battle
+                for enemy in self.enemies:
+                    enemy.kill()
+                
+                # Play boss music or sound effect
+                if hasattr(self, 'sound_manager') and self.sound_manager:
+                    # TODO: Add boss music if available
+                    pass
+                    
+                logger.info("Boss battle started!")
+            else:
+                logger.error("Failed to create boss - boss is None")
+        except Exception as e:
+            logger.error(f"Error starting boss battle: {e}")
+
+    def _handle_boss_defeated(self):
+        """Handle the boss being defeated."""
+        try:
+            logger.info("Boss defeated! Victory!")
+            
+            # Prevent calling this method multiple times
+            if self.boss_defeat_handled:
+                return
+                
+            # Award bonus points
+            bonus_points = 10000
+            self.score += bonus_points
+    
+            # Clean up boss battle
+            self.is_boss_battle = False
+            self.boss_defeated = True
+            self.boss_defeat_handled = True
+            
+            # Safely clear boss and boss sprites
+            if hasattr(self, 'boss_sprites') and self.boss_sprites is not None:
+                self.boss_sprites.empty()
+            self.boss = None
+            
+            # Clear all boss bullets
+            if hasattr(self, 'boss_bullets') and self.boss_bullets is not None:
+                self.boss_bullets.empty()
+            
+            # Resume regular waves after a delay
+            logger.info("Resuming regular waves after boss defeat")
+            pygame.time.set_timer(WAVE_TIMER_EVENT, WAVE_DELAY_MS * 2)  # Longer delay
+            
+            # Force a wave spawn after a short delay
+            pygame.time.set_timer(WAVE_TIMER_EVENT, WAVE_DELAY_MS * 2, True)
+        except Exception as e:
+            logger.error(f"Error in boss defeated handler: {e}")
+            
+    def _handle_debug_keys(self, event):
+        """Handle debug key presses."""
+        if not self.debug_mode:
+            return False
+        
+        if event.key == pygame.K_F1:
+            # Toggle debug mode
+            self.debug_mode = not self.debug_mode
+            logger.info(f"Debug mode: {self.debug_mode}")
+            return True
+        elif event.key == pygame.K_F2:
+            # Toggle god mode for player
+            if hasattr(self.player, 'is_invincible'):
+                self.player.is_invincible = not self.player.is_invincible
+                logger.info(f"God mode: {self.player.is_invincible}")
+            return True
+        elif event.key == pygame.K_F7:
+            # Test boss battle
+            self._test_boss_battle()
+            return True
+        elif event.key == pygame.K_F8:
+            # Test boss death animation
+            self._test_boss_death_animation()
+            return True
+        
+        return False
+
+    def _test_boss_battle(self):
+        """Start a boss battle for debugging."""
+        logger.info("Starting test boss battle")
+        self._start_boss_battle()
+
+    def _test_boss_death_animation(self):
+        """Test the boss death animation by making the boss take lethal damage."""
+        if self.boss and hasattr(self.boss, 'health'):
+            # Put boss at 1 health so next hit will defeat it
+            self.boss.health = 1
+            logger.info("Set boss health to 1 for testing death animation")
+            # Make the boss take 10 damage, which should defeat it
+            if hasattr(self.boss, 'take_damage'):
+                self.boss.take_damage(10)
+            else:
+                logger.error("Boss does not have take_damage method")
+            

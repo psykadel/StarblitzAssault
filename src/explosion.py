@@ -33,8 +33,11 @@ class Explosion(AnimatedSprite):
             *groups: Sprite groups to add this explosion to
             particles_group: Optional group to add particles to (separate from explosion)
         """
+        # Filter out None values from groups
+        valid_groups = [g for g in groups if g is not None]
+        
         # Use a faster animation speed for explosion
-        super().__init__(80, *groups)
+        super().__init__(80, *valid_groups)
 
         # Create an explosion animation with growing circles
         self.frames = self._create_explosion_frames(size)

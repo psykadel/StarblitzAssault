@@ -1,4 +1,4 @@
-**Plan**
+# Plan
 
 1. Read and understand the complete power-up system in this project.  Identify everything about how power-ups are implemented.
 
@@ -6,7 +6,7 @@
 
 If the user explains the basics of the powerup to you, use them.  If the user does not explain, use your creativity to decide.
 
-**Execute**
+# Execute
 
 3. Add a new power-up to the system.  Insert a new, fully functional power-up into the game that fits naturally within the existing system but brings a fresh mechanic or strategic twist.
 

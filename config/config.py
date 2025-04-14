@@ -329,3 +329,21 @@ ENEMY_BASE_SCORE: int = 100
 
 # Add this constant with other powerup-related constants
 DRONE_DURATION = 15000  # 15 seconds for drone powerup (increased from 10 seconds)
+
+# ------------------------------------------------------------------------------
+# BOSS BATTLE SETTINGS
+# ------------------------------------------------------------------------------
+# Wave number when the boss appears
+BOSS_WAVE_NUMBER: int = 2
+# Rainbow colors for boss bullets, tentacles, and other effects
+BOSS_BULLET_COLORS: List[Tuple[int, int, int]] = [
+    (255, 0, 0),    # Red
+    (255, 165, 0),  # Orange
+    (255, 255, 0),  # Yellow
+    (0, 255, 0),    # Green
+    (0, 0, 255),    # Blue
+    (75, 0, 130),   # Indigo
+    (148, 0, 211),  # Violet
+    (255, 192, 203) # Pink
+]
+# Other boss settings are defined in boss_battle.py
