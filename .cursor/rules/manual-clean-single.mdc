@@ -1,0 +1,13 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Clean and simplify
+
+- Clean and simplify the code in this file, but ensure nothing is broken in the process.
+- Ensure the file is highly organized.
+- Remove unused defs, variables, constants, etc.
+- Clean up the comments; make them explain the code.  Ensure they explain code.  Do not allow comments that explain fixes or other artifacts of the development process.
+- Remove items that are commented out.
+- Overall make this file ready for the public, something I can be proud of publishing.
