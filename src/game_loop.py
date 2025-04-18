@@ -273,11 +273,11 @@ class Game:
 
         # Consider adding mixer init for sounds later: pygame.mixer.init()
 
-        # Load configuration - Use config for window size, remove RESIZABLE
+        # Load configuration - Use config for window size, add FULLSCREEN and SCALED
         self.screen = pygame.display.set_mode(
-            (SCREEN_WIDTH, SCREEN_HEIGHT)
-        )  # Removed RESIZABLE flag
-        # Store screen size directly from config for windowed mode
+            (SCREEN_WIDTH, SCREEN_HEIGHT), pygame.FULLSCREEN | pygame.SCALED
+        )
+        # Store the configured resolution, not necessarily the actual display resolution
         self.current_screen_width = SCREEN_WIDTH
         self.current_screen_height = SCREEN_HEIGHT
 
@@ -2142,16 +2142,6 @@ class Game:
         # Play explosion sound
         self.sound_manager.play("explosion1", "player")
         logger.warning("Game over - Player destroyed!")
-
-        # Create explosion effect at the player's position
-        explosion_size = (120, 120)  # Larger size for the player explosion
-        Explosion(
-            self.player.rect.center,
-            explosion_size,
-            "player",
-            self.explosions,
-            particles_group=self.particles,
-        )
 
         # Make player invisible but don't remove from groups yet
         self.player.image = pygame.Surface((1, 1), pygame.SRCALPHA)
