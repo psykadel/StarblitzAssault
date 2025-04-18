@@ -26,6 +26,8 @@ from src.logger import get_logger
 from src.enemy_bullet import EnemyBullet
 from src.explosion import Explosion
 from src.particle import ParticleSystem
+from src.powerup import PowerupType
+from src.powerup_types import create_powerup
 
 # Get logger for this module
 logger = get_logger(__name__)
@@ -41,6 +43,210 @@ ATTACK_PATTERN_RADIAL = 1
 ATTACK_PATTERN_WAVE = 2
 ATTACK_PATTERN_TARGETED = 3
 ATTACK_PATTERN_RAIN = 4
+
+class RainbowParticle(pygame.sprite.Sprite):
+    """A special particle with rainbow trail effect for boss death animation."""
+    
+    # Class variable to track total active particles and limit them
+    active_particles = 0
+    max_particles = 150  # Limit total particles for performance
+    
+    def __init__(
+        self,
+        position: Tuple[float, float],
+        velocity: Tuple[float, float],
+        color: Tuple[int, int, int],
+        size: int,
+        lifetime: int,
+        trail_length: int = 5,
+        particles_group: Optional[pygame.sprite.Group] = None
+    ) -> None:
+        """Initialize a rainbow particle.
+        
+        Args:
+            position: Starting position (x, y)
+            velocity: Initial velocity (vx, vy)
+            color: Initial RGB color
+            size: Particle size in pixels
+            lifetime: How many frames the particle lives
+            trail_length: Number of trail segments to maintain
+            particles_group: Sprite group to add to
+        """
+        # Check if we've reached the particle limit
+        if RainbowParticle.active_particles >= RainbowParticle.max_particles:
+            # Don't create this particle if we're at the limit
+            return
+            
+        # Filter out None values from groups
+        valid_groups = [g for g in [particles_group] if g is not None]
+        super().__init__(*valid_groups)
+        
+        # Increment active particle count
+        RainbowParticle.active_particles += 1
+        
+        # Position and movement
+        self.pos = list(position)  # Exact position as float
+        self.velocity = list(velocity)
+        
+        # Appearance
+        self.color = color
+        self.size = size
+        self.initial_size = size
+        self.glow = True
+        
+        # Lifetime
+        self.lifetime = lifetime
+        self.age = 0
+        
+        # Trail properties - use shorter trails for better performance
+        self.trail_length = min(trail_length, 7)  # Cap trail length for performance
+        
+        # Store positions more efficiently - just store the positions, not copies
+        self.trail_positions = []
+        for _ in range(self.trail_length):
+            self.trail_positions.append([position[0], position[1]])
+        
+        self.trail_colors = []
+        
+        # Initialize trail colors (rainbow sequence)
+        for i in range(self.trail_length):
+            # Get color from rainbow palette with offset
+            color_idx = (i * 2) % len(BOSS_BULLET_COLORS)
+            self.trail_colors.append(BOSS_BULLET_COLORS[color_idx])
+        
+        # Create initial image
+        self._update_image()
+        
+        # Optimization: Only update the image every few frames
+        self.update_frequency = 2  # Update image every 2 frames
+    
+    def _update_image(self):
+        """Update the particle image with current properties."""
+        # Calculate fade factor based on age (1.0 at start, 0.0 at end)
+        life_factor = 1.0 - (self.age / self.lifetime)
+        
+        # Calculate current size with slight pulsation
+        pulse = 1.0 + (math.sin(self.age * 0.2) * 0.15)  # Subtle pulse effect
+        current_size = int(self.size * life_factor * pulse * 1.5)  # 50% larger particles
+        
+        # Simplified size calculation - use fixed size based on max possible trail
+        width = max(96, current_size * 8)  # Larger surface for bigger particles
+        height = max(96, current_size * 8)
+        
+        # Create surface with alpha channel
+        self.image = pygame.Surface((width, height), pygame.SRCALPHA)
+        
+        # Calculate center position in the image
+        center_x = width // 2
+        center_y = height // 2
+        
+        # Draw trail first (so particle appears on top) - simplified for performance
+        for i, (trail_pos, trail_color) in enumerate(zip(self.trail_positions, self.trail_colors)):
+            # Only draw every other trail segment for better performance
+            if i % 2 == 0 or i == len(self.trail_positions) - 1:
+                # Calculate relative position on image
+                rel_x = center_x + int(trail_pos[0] - self.pos[0])
+                rel_y = center_y + int(trail_pos[1] - self.pos[1])
+                
+                # Calculate size and alpha based on position in trail
+                segment_factor = 1.0 - (i / self.trail_length)
+                # Larger trail segments
+                segment_size = max(2, int(current_size * segment_factor * 0.8))
+                # Higher baseline opacity (less transparent)
+                segment_alpha = int(220 * segment_factor * life_factor)
+                
+                # Make trail colors more vibrant by increasing saturation
+                r, g, b = trail_color
+                # Find dominant color channel and enhance it
+                max_channel = max(r, g, b)
+                if max_channel > 0:
+                    boost_factor = 1.3  # Boost color saturation
+                    if r == max_channel:
+                        r = min(255, int(r * boost_factor))
+                    elif g == max_channel:
+                        g = min(255, int(g * boost_factor))
+                    elif b == max_channel:
+                        b = min(255, int(b * boost_factor))
+                enhanced_color = (r, g, b)
+                    
+                # Draw trail segment with enhanced color
+                segment_color = (*enhanced_color, segment_alpha)
+                pygame.draw.circle(self.image, segment_color, (rel_x, rel_y), segment_size)
+                
+                # Add improved glow
+                if self.glow and segment_size > 1:
+                    glow_size = segment_size * 1.8  # Larger glow
+                    glow_color = (*enhanced_color, segment_alpha // 2)  # More visible glow
+                    pygame.draw.circle(self.image, glow_color, (rel_x, rel_y), glow_size)
+        
+        # Draw main particle on top with enhanced color
+        r, g, b = self.color
+        max_channel = max(r, g, b)
+        if max_channel > 0:
+            boost_factor = 1.3
+            if r == max_channel:
+                r = min(255, int(r * boost_factor))
+            elif g == max_channel:
+                g = min(255, int(g * boost_factor))
+            elif b == max_channel:
+                b = min(255, int(b * boost_factor))
+        enhanced_main_color = (r, g, b)
+        
+        # More opaque main particle
+        main_color = (*enhanced_main_color, min(255, int(255 * life_factor)))
+        pygame.draw.circle(self.image, main_color, (center_x, center_y), current_size)
+        
+        # Add enhanced glow to main particle
+        if self.glow:
+            glow_size = current_size * 1.8  # Larger glow
+            glow_color = (min(255, enhanced_main_color[0] + 70), 
+                           min(255, enhanced_main_color[1] + 70), 
+                           min(255, enhanced_main_color[2] + 70), 
+                           min(255, int(120 * life_factor)))  # Brighter, more visible glow
+            pygame.draw.circle(self.image, glow_color, (center_x, center_y), glow_size)
+        
+        # Position the sprite correctly
+        self.rect = self.image.get_rect(center=(int(self.pos[0]), int(self.pos[1])))
+    
+    def update(self):
+        """Update the particle position, appearance and lifetime."""
+        # Update age and kill if expired
+        self.age += 1
+        if self.age >= self.lifetime:
+            self.kill()
+            # Decrement active particle count when killed
+            RainbowParticle.active_particles -= 1
+            return
+        
+        # Update trail positions (shift old positions down)
+        # Only update every other frame for performance
+        if self.age % 2 == 0:
+            # Remove oldest position
+            if len(self.trail_positions) > 0:
+                self.trail_positions.pop()
+            # Add current position at front
+            self.trail_positions.insert(0, [self.pos[0], self.pos[1]])
+        
+        # Apply movement
+        self.pos[0] += self.velocity[0]
+        self.pos[1] += self.velocity[1]
+        
+        # Apply drag (slow down gradually)
+        self.velocity[0] *= 0.98
+        self.velocity[1] *= 0.98
+        
+        # Update rect position even if we don't update the image
+        self.rect.center = (int(self.pos[0]), int(self.pos[1]))
+        
+        # Shift colors for rainbow cycling effect less frequently
+        if self.age % 6 == 0:  # Was 3
+            self.trail_colors.append(self.trail_colors.pop(0))  # Rotate colors
+            # Update main particle color too
+            self.color = self.trail_colors[0]
+        
+        # Only update the image periodically for better performance
+        if self.age % self.update_frequency == 0:
+            self._update_image()
 
 class BossTentacle:
     """A tentacle extension from the boss that moves independently."""
@@ -270,7 +476,6 @@ class Boss(pygame.sprite.Sprite):
         # Health and state variables
         self.max_health = BOSS_MAX_HEALTH
         self.health = self.max_health
-        self.hit_flash_timer = 0
         self.is_defeated = False
         self.phase = 1  # Boss phases (1-3) increasing in difficulty
         
@@ -291,17 +496,13 @@ class Boss(pygame.sprite.Sprite):
         # Tentacles
         self.tentacles = [BossTentacle(self, i) for i in range(BOSS_TENTACLE_COUNT)]
         
-        # Special effects 
-        self.particles = []
+        # Special effects
         self.glow_intensity = 0
         self.glow_direction = 1
         self.sparkle_timer = 0
-        self.static_intensity = 0
-        self.static_direction = 1
         self.distortion_phase = 0
         
         # Sound effect timers
-        self.ambient_sound_timer = 0
         
         # Add new variables for death animation
         self.death_animation_active = False
@@ -334,15 +535,6 @@ class Boss(pygame.sprite.Sprite):
             self.glow_intensity = 0.2
             self.glow_direction = 1
         
-        # Update static effect
-        self.static_intensity += 0.03 * self.static_direction
-        if self.static_intensity > 0.7:
-            self.static_intensity = 0.7
-            self.static_direction = -1
-        elif self.static_intensity < 0.1:
-            self.static_intensity = 0.1
-            self.static_direction = 1
-            
         # Update sparkle timer
         self.sparkle_timer += 1
         
@@ -929,53 +1121,63 @@ class Boss(pygame.sprite.Sprite):
             # CREATE MUCH MORE FREQUENT EXPLOSIONS - every 3 frames for first half, every 2 frames for second half
             explosion_interval = 3 if animation_progress < 0.5 else 2
             
-            # Create periodic explosions on the boss body
-            if self.death_animation_timer % explosion_interval == 0:
-                try:
-                    # Create 2-4 explosions per interval instead of just 1
-                    for _ in range(random.randint(2, 4)):
-                        # Random position in wider area around the boss
-                        offset_factor = 1.0 + animation_progress  # Increase area over time
-                        offset_x = random.randint(int(-self.rect.width * offset_factor), 
-                                                int(self.rect.width * offset_factor))
-                        offset_y = random.randint(int(-self.rect.height * offset_factor), 
-                                                int(self.rect.height * offset_factor))
-                        
-                        pos_x = self.rect.centerx + offset_x
-                        pos_y = self.rect.centery + offset_y
-                        
-                        # Get explosions group
-                        explosions_group = getattr(self.game_ref, 'explosions', None)
-                        
-                        # More dramatic explosions as time progresses
-                        size_factor = 1.0 + animation_progress * 2.0  # Much larger explosions later
-                        size_variation = random.uniform(0.7, 1.3)  # Add size variation
-                        size = (int(80 * size_factor * size_variation), 
-                               int(80 * size_factor * size_variation))
-                        
-                        # Create explosion with safe group passing
-                        if explosions_group:
-                            explosion = Explosion((int(pos_x), int(pos_y)), size, "enemy", explosions_group)
+            # Create rainbow stream effects throughout the animation
+            # More intense as the animation progresses - but with fewer particles
+            # Reduce frequency - only create streams every 6 frames to reduce load
+            rainbow_interval = 6  # Was 2 - much less frequent for performance
+            if self.death_animation_timer % rainbow_interval == 0:
+                # Intensity increases as animation progresses
+                intensity = 0.5 + (animation_progress * 0.5)  # Still visually impressive
+                
+                # Create fewer emission points for better performance
+                if random.random() < 0.8:  # 80% chance for boss body emissions
+                    # Create only 1-2 emission points on the boss
+                    num_boss_points = 1 if animation_progress < 0.5 else 2
+                    for _ in range(num_boss_points):
+                        offset_x = random.randint(-int(self.rect.width * 0.3), int(self.rect.width * 0.3))
+                        offset_y = random.randint(-int(self.rect.height * 0.3), int(self.rect.height * 0.3))
+                        pos = (self.rect.centerx + offset_x, self.rect.centery + offset_y)
+                        self._create_rainbow_stream_effect(pos, intensity)
+                
+                # Only add screen-wide emissions if we have particle capacity
+                if animation_progress > 0.3 and RainbowParticle.active_particles < RainbowParticle.max_particles * 0.7:
+                    # Much fewer emission points for performance - scale with animation progress
+                    # Just 1-4 points maximum instead of scaling up to larger numbers
+                    num_emission_points = 1 + int(animation_progress * 3)
+                    
+                    for _ in range(num_emission_points):
+                        # Choose random position on screen
+                        if random.random() < 0.6:  # 60% chance to stay near boss
+                            max_dist = 150 + int(animation_progress * 200)  # Reduced range
+                            pos_x = self.rect.centerx + random.randint(-max_dist, max_dist)
+                            pos_y = self.rect.centery + random.randint(-max_dist, max_dist)
                         else:
-                            explosion = Explosion((int(pos_x), int(pos_y)), size, "enemy")
+                            # Fully random position across playable area
+                            pos_x = random.randint(100, SCREEN_WIDTH - 100)
+                            pos_y = random.randint(PLAYFIELD_TOP_Y, PLAYFIELD_BOTTOM_Y)
                         
-                        # Create colored particles for additional effect
-                        color_idx = random.randint(0, len(BOSS_BULLET_COLORS) - 1)
-                        color = BOSS_BULLET_COLORS[color_idx]
-                        particle_count = int(25 + 50 * animation_progress)  # More particles as animation progresses
-                        self._create_colored_particles((pos_x, pos_y), color, particle_count)
-                except Exception as e:
-                    logger.error(f"Error creating periodic explosions: {e}")
+                        # Ensure position is within screen bounds
+                        pos_x = max(0, min(SCREEN_WIDTH, pos_x))
+                        pos_y = max(PLAYFIELD_TOP_Y, min(PLAYFIELD_BOTTOM_Y, pos_y))
+                        
+                        # Create rainbow stream at this position with reduced intensity for performance
+                        self._create_rainbow_stream_effect((pos_x, pos_y), intensity * 0.6)
+                        
+                # Create mega burst for dramatic effect at key animation points
+                # Only at 2 key points instead of 3 for better performance
+                if (animation_progress > 0.5 and animation_progress < 0.52) or \
+                   (animation_progress > 0.85 and animation_progress < 0.87):
+                    # Only create mega burst if we have particle capacity
+                    if RainbowParticle.active_particles < RainbowParticle.max_particles * 0.5:
+                        self._create_rainbow_mega_burst()
             
-            # Create shockwave effects more frequently
-            if self.death_animation_timer % 30 == 0 or (animation_progress > 0.7 and self.death_animation_timer % 15 == 0):
+            # Create shockwave effects less frequently for performance
+            if self.death_animation_timer % 45 == 0:  # Was 30 or 15
                 try:
                     # More intense shockwaves as animation progresses
-                    size = 100 + int(animation_progress * 200)  # 100-300 size range
+                    size = 80 + int(animation_progress * 150)  # Reduced size range
                     self._create_shockwave_effect(size=size)
-                    
-                    # Create ongoing explosions too
-                    self._create_ongoing_explosions()
+
                 except Exception as e:
                     logger.error(f"Error creating shockwave effect: {e}")
             
@@ -994,47 +1196,20 @@ class Boss(pygame.sprite.Sprite):
                                 break
                             
                             tentacle = random.choice(self.tentacles)
-                            self._create_tentacle_explosion(tentacle)
                             self.tentacles.remove(tentacle)
                 except Exception as e:
                     logger.error(f"Error destroying tentacles: {e}")
-            
-            # Create more ongoing explosions in later phases
-            if (animation_progress >= 0.4 and self.death_animation_timer % 10 == 0) or \
-               (animation_progress >= 0.7 and self.death_animation_timer % 5 == 0):
-                self._create_ongoing_explosions()
             
             # Signal that the animation is nearly complete at 90%
             if animation_progress >= 0.9 and not self.animation_near_complete:
                 self.animation_near_complete = True
                 logger.info("Boss death animation nearly complete")
                 
-                # Final burst of explosions
-                try:
-                    explosions_group = getattr(self.game_ref, 'explosions', None)
-                    for _ in range(15):  # Create a massive burst of final explosions
-                        offset_x = random.randint(-self.rect.width * 2, self.rect.width * 2)
-                        offset_y = random.randint(-self.rect.height * 2, self.rect.height * 2)
-                        
-                        pos_x = self.rect.centerx + offset_x
-                        pos_y = self.rect.centery + offset_y
-                        size = (random.randint(80, 120), random.randint(80, 120))
-                        
-                        if explosions_group:
-                            explosion = Explosion((int(pos_x), int(pos_y)), size, "enemy", explosions_group)
-                        else:
-                            explosion = Explosion((int(pos_x), int(pos_y)), size, "enemy")
-                    
-                    # Create a massive shockwave at the center
-                    self._create_shockwave_effect(size=400)
-                except Exception as e:
-                    logger.error(f"Error creating final explosions: {e}")
-                
                 # Boss is fully destroyed, remove it from sprite groups
                 self.kill()
                 self.animation_complete = True
                 logger.info("Boss death animation complete - 8 SECONDS COMPLETED, BOSS REMOVED")
-                
+
         except Exception as e:
             logger.error(f"Error in boss death animation: {e}")
             # Failsafe: if animation errors, just remove the boss
@@ -1068,7 +1243,7 @@ class Boss(pygame.sprite.Sprite):
                 ]
                 
                 # Create particles in a ring pattern
-                num_particles = int(size / 2)  # Scales with size
+                num_particles = int(size / 2)
                 for i in range(num_particles):
                     angle = random.uniform(0, math.pi * 2)
                     distance = size * 0.8  # Fixed distance for ring effect
@@ -1099,142 +1274,219 @@ class Boss(pygame.sprite.Sprite):
         except Exception as e:
             logger.error(f"Error creating shockwave effect: {e}")
     
-    def _create_tentacle_explosion(self, tentacle):
-        """Create explosion effects when a tentacle is destroyed.
+    def _create_rainbow_stream_effect(self, position=None, intensity=1.0):
+        """Create a stream of rainbow-colored particles from the boss.
         
         Args:
-            tentacle: The tentacle being destroyed
+            position: Center position to emit particles from, defaults to boss center
+            intensity: Controls the number and speed of particles (0.0-1.0)
         """
         try:
             if hasattr(self, 'game_ref') and self.game_ref is not None:
-                # Get the tentacle points
-                boss_center = self.rect.center
-                points = []
-                for i in range(tentacle.segments + 1):
-                    progress = i / tentacle.segments
-                    segment_length = tentacle.length * progress
+                particles_group = getattr(self.game_ref, 'particles', None)
+                
+                # Use boss center if no position provided
+                if position is None:
+                    position = self.rect.center
+                
+                # Check if we have too many particles already - stop creating more if over 80% capacity
+                if RainbowParticle.active_particles > RainbowParticle.max_particles * 0.8:
+                    return
+                
+                # Scale particle count with intensity - dramatically reduced count
+                base_particle_count = 3  # Was 6
+                particle_count = min(int(base_particle_count * intensity) + 1, 4)  # Cap at 4 particles 
+                
+                # Create streams in fewer directions for better performance
+                directions = 6  # Was 12
+                # Only use a subset of directions each time for variety
+                direction_offset = random.randint(0, directions-1)
+                actual_directions = min(directions, 4)  # Cap at 4 directions
+                
+                for i in range(actual_directions):
+                    # Distribute directions evenly but with offset for variety
+                    dir_idx = (direction_offset + i * (directions // actual_directions)) % directions
+                    base_angle = (dir_idx * math.pi * 2 / directions)  # Evenly spaced angles
                     
-                    # Calculate wave effect
-                    wave_intensity = 10 + tentacle.extension * progress
-                    wave_x = math.sin(tentacle.angle + progress * 5) * wave_intensity * progress
-                    wave_y = math.cos(tentacle.angle + progress * 5) * wave_intensity * progress
-                    
-                    # Calculate base position based on angle and length
-                    x = boss_center[0] - math.cos(tentacle.angle) * segment_length + wave_x
-                    y = boss_center[1] - math.sin(tentacle.angle) * segment_length + wave_y
-                    
-                    points.append((x, y))
-                
-                # Determine base color from tentacle
-                color_index = int(tentacle.base_color_index) % len(BOSS_BULLET_COLORS)
-                base_color = BOSS_BULLET_COLORS[color_index]
-                
-                # Get explosions group if available
-                explosions_group = getattr(self.game_ref, 'explosions', None)
-                groups_to_add = (explosions_group,) if explosions_group else ()
-                
-                # Create sequential chain of explosions along the tentacle
-                chain_delay_ms = 15  # Slightly faster chain reaction
-                num_explosion_points = min(12, len(points))  # More explosion points (up from 8)
-                
-                # Choose spread out explosion points along the tentacle
-                explosion_indices = []
-                if len(points) <= num_explosion_points:
-                    explosion_indices = list(range(len(points)))
-                else:
-                    # Ensure start and end points are included
-                    explosion_indices = [0, len(points)-1]
-                    # Add some random intermediate points
-                    available_indices = list(range(1, len(points)-1))
-                    random.shuffle(available_indices)
-                    explosion_indices.extend(available_indices[:num_explosion_points-2])
-                    explosion_indices.sort()  # Sort for sequential explosions
-                
-                # Create a shockwave at the tentacle base (where it connects to the boss)
-                if explosion_indices and explosion_indices[0] == 0 and points:
-                    base_pos = (int(points[0][0]), int(points[0][1]))
-                    self._create_shockwave_effect(position=base_pos, size=80, color=base_color)
-                
-                # Store explosion positions for creating electrical arcs later
-                explosion_positions = []
-                
-                # Create explosions at each chosen point with chain reaction timing
-                for idx, point_idx in enumerate(explosion_indices):
-                    if point_idx < len(points):
-                        pos_x, pos_y = int(points[point_idx][0]), int(points[point_idx][1])
-                        explosion_positions.append((pos_x, pos_y))
+                    # For each direction, create a stream of particles with rainbow colors
+                    for j in range(particle_count):
+                        # Skip some particles randomly for better performance
+                        if random.random() > 0.7:  # 30% chance to skip
+                            continue
+                            
+                        # Randomize angle slightly within the direction
+                        angle = base_angle + random.uniform(-0.2, 0.2)  # Reduced spread
                         
-                        # Progressive sizes - bigger near the boss, smaller at the tip
-                        progress = point_idx / len(points)
-                        inverse_progress = 1 - progress
-                        size_factor = 0.7 + (inverse_progress * 0.8)  # 0.7-1.5x scaling
-                        size = (int(45 * size_factor), int(45 * size_factor))  # Slightly larger explosions
+                        # Calculate randomized distance from center
+                        distance = random.uniform(5, 30)  # Reduced range
                         
-                        # Create explosion with slight delay for chain effect - use safe group passing
-                        pygame.time.delay(int(chain_delay_ms * idx))
-                        if explosions_group:
-                            explosion = Explosion((pos_x, pos_y), size, "enemy", explosions_group)
-                        else:
-                            explosion = Explosion((pos_x, pos_y), size, "enemy")
+                        # Emission position (slightly randomized from center)
+                        x = position[0] + math.cos(angle) * distance * 0.2
+                        y = position[1] + math.sin(angle) * distance * 0.2
                         
-                        # Color variations based on the tentacle's color
-                        # Slightly modify the color for visual variety
-                        r, g, b = base_color
-                        color_variation = random.uniform(0.8, 1.2)  # +/- 20% color variation
-                        color = (
-                            min(255, int(r * color_variation)),
-                            min(255, int(g * color_variation)),
-                            min(255, int(b * color_variation))
-                        )
+                        # Direction vector
+                        direction = (math.cos(angle), math.sin(angle))
                         
-                        # Create more particles for each explosion point
-                        num_particles = int(15 + (20 * inverse_progress))  # More particles overall
-                        self._create_colored_particles((pos_x, pos_y), color, num_particles)
+                        # Speed increases with intensity - reduced for performance
+                        base_speed = 2.5 + (3.0 * intensity)  # Reduced base speed
+                        speed = random.uniform(base_speed * 0.7, base_speed * 1.2)
+                        velocity = (direction[0] * speed, direction[1] * speed)
                         
-                        # Add secondary mini-explosions randomly - use safe group passing
-                        if random.random() < 0.8:  # Increased chance for secondary explosions
-                            for _ in range(random.randint(1, 4)):  # More secondary explosions
-                                offset_x = random.randint(-25, 25)
-                                offset_y = random.randint(-25, 25)
-                                secondary_pos = (pos_x + offset_x, pos_y + offset_y)
-                                secondary_size = (random.randint(15, 30), random.randint(15, 30))
-                                # Slight delay for secondary explosions
-                                pygame.time.delay(random.randint(5, 15))
-                                if explosions_group:
-                                    secondary = Explosion(
-                                        secondary_pos,
-                                        secondary_size, 
-                                        "enemy", 
-                                        explosions_group
-                                    )
-                                else:
-                                    secondary = Explosion(
-                                        secondary_pos,
-                                        secondary_size, 
-                                        "enemy"
-                                    )
-                                
-                                # Add particles for secondary explosions
-                                self._create_colored_particles(secondary_pos, color, 8)
+                        # Get rainbow color
+                        color_index = (i + j) % len(BOSS_BULLET_COLORS)
+                        color = BOSS_BULLET_COLORS[color_index]
+                        
+                        # Enhanced color - make it more vibrant
+                        r, g, b = color
+                        max_channel = max(r, g, b)
+                        if max_channel > 0:
+                            # Boost the dominant color channel to make colors more vibrant
+                            boost_factor = 1.3
+                            if r == max_channel:
+                                r = min(255, int(r * boost_factor))
+                            elif g == max_channel:
+                                g = min(255, int(g * boost_factor))
+                            elif b == max_channel:
+                                b = min(255, int(b * boost_factor))
+                        color = (r, g, b)
+                        
+                        # Larger size for more visibility but maintain performance
+                        size = random.randint(5, 9)  # Increased from 3-7
+                        
+                        # Maintain optimized lifetime
+                        lifetime = random.randint(int(30 * intensity), int(50 * intensity))
+                        
+                        # Maintain optimized trail length
+                        trail_length = random.randint(3, 6)
+                        
+                        # Create rainbow particle
+                        if particles_group:
+                            RainbowParticle(
+                                position=(x, y),
+                                velocity=velocity,
+                                color=color,
+                                size=size,
+                                lifetime=lifetime,
+                                trail_length=trail_length,
+                                particles_group=particles_group
+                            )
                 
-                # Create electrical arcs between some explosion points
-                if len(explosion_positions) >= 2:
-                    # Create arcs between sequential points with some randomness
-                    arc_count = min(len(explosion_positions) - 1, 5)  # Limit number of arcs
-                    for i in range(arc_count):
-                        if i + 1 < len(explosion_positions) and random.random() < 0.7:
-                            start_pos = explosion_positions[i]
-                            end_pos = explosion_positions[i+1]
-                            self._create_electrical_arc(start_pos, end_pos, base_color)
-                
-                # Final shockwave at the tip of the tentacle for dramatic effect
-                if explosion_positions:
-                    tip_pos = explosion_positions[-1]
-                    pygame.time.delay(chain_delay_ms * len(explosion_positions))
-                    self._create_shockwave_effect(position=tip_pos, size=50, color=base_color)
-                
+                # Add fewer radial burst particles for better performance - reduced probability
+                if intensity > 0.4 and random.random() < 0.4 and RainbowParticle.active_particles < RainbowParticle.max_particles * 0.7:
+                    burst_count = min(int(8 * intensity), 10)  # Was 15, now capped at 10
+                    for _ in range(burst_count):
+                        # Skip some particles randomly for performance
+                        if random.random() > 0.7:  # 30% chance to skip
+                            continue
+                            
+                        # Random angle (full 360 degrees)
+                        angle = random.uniform(0, math.pi * 2)
+                        
+                        # Random distance from center
+                        distance = random.uniform(15, 40)  # Reduced slightly
+                        
+                        # Emission position
+                        x = position[0] + math.cos(angle) * distance * 0.3
+                        y = position[1] + math.sin(angle) * distance * 0.3
+                        
+                        # Reduced velocity for better performance
+                        speed = random.uniform(4.0, 7.0) * intensity  # Reduced from 6.0-10.0
+                        velocity = (math.cos(angle) * speed, math.sin(angle) * speed)
+                        
+                        # Random color from rainbow palette
+                        color = BOSS_BULLET_COLORS[random.randint(0, len(BOSS_BULLET_COLORS) - 1)]
+                        
+                        # Moderate size, shorter lifetime
+                        if particles_group:
+                            RainbowParticle(
+                                position=(x, y),
+                                velocity=velocity,
+                                color=color,
+                                size=random.randint(4, 8),  # Reduced from 5-10
+                                lifetime=random.randint(20, 40),  # Reduced from 25-50
+                                trail_length=3,  # Reduced from 4
+                                particles_group=particles_group
+                            )
         except Exception as e:
-            logger.error(f"Error creating tentacle explosion: {e}")
+            logger.error(f"Error creating rainbow stream effect: {e}")
+    
+    def _create_rainbow_mega_burst(self):
+        """Create a spectacular burst of rainbow particles that fills the screen."""
+        try:
+            if hasattr(self, 'game_ref') and self.game_ref is not None:
+                particles_group = getattr(self.game_ref, 'particles', None)
+                
+                if not particles_group:
+                    return
+                
+                # Reduced number of emission centers for better performance
+                num_centers = random.randint(2, 4)  # Was 5-8
+                
+                # Create multiple emission centers around the screen
+                for _ in range(num_centers):
+                    # Check if we have too many particles already
+                    if RainbowParticle.active_particles > RainbowParticle.max_particles * 0.9:
+                        return
+                        
+                    # Choose a position - biased toward the boss
+                    if random.random() < 0.7:  # Increased chance to stay near boss
+                        # Near boss
+                        pos_x = self.rect.centerx + random.randint(-150, 150)  # Reduced range
+                        pos_y = self.rect.centery + random.randint(-150, 150)  # Reduced range
+                    else:
+                        # Anywhere on screen
+                        pos_x = random.randint(100, SCREEN_WIDTH - 100)
+                        pos_y = random.randint(PLAYFIELD_TOP_Y + 50, PLAYFIELD_BOTTOM_Y - 50)
+                    
+                    # Ensure within screen bounds
+                    pos_x = max(0, min(SCREEN_WIDTH, pos_x))
+                    pos_y = max(PLAYFIELD_TOP_Y, min(PLAYFIELD_BOTTOM_Y, pos_y))
+                    
+                    # Create a moderate number of particles from this center
+                    num_particles = random.randint(10, 15)  # Was 20-30
+                    
+                    for i in range(num_particles):
+                        # Skip some particles randomly for performance
+                        if random.random() > 0.8:  # 20% chance to skip
+                            continue
+                            
+                        # Random angle in all directions
+                        angle = random.uniform(0, math.pi * 2)
+                        
+                        # Moderate speed for good performance
+                        speed = random.uniform(5.0, 9.0)  # Reduced from 7.0-12.0
+                        velocity = (math.cos(angle) * speed, math.sin(angle) * speed)
+                        
+                        # Random rainbow color
+                        color_index = (i * 397) % len(BOSS_BULLET_COLORS)  # Use prime number for better distribution
+                        color = BOSS_BULLET_COLORS[color_index]
+                        
+                        # Enhance color vibrancy
+                        r, g, b = color
+                        max_channel = max(r, g, b)
+                        if max_channel > 0:
+                            # Boost the dominant color channel to make colors more vibrant
+                            boost_factor = 1.3
+                            if r == max_channel:
+                                r = min(255, int(r * boost_factor))
+                            elif g == max_channel:
+                                g = min(255, int(g * boost_factor))
+                            elif b == max_channel:
+                                b = min(255, int(b * boost_factor))
+                        color = (r, g, b)
+                        
+                        # Create particle with moderate trail but larger size
+                        RainbowParticle(
+                            position=(pos_x, pos_y),
+                            velocity=velocity,
+                            color=color,
+                            size=random.randint(6, 12),  # Increased from 4-10
+                            lifetime=random.randint(40, 80),  # Reduced from 60-120
+                            trail_length=random.randint(4, 7),  # Keep trail length reasonable
+                            particles_group=particles_group
+                        )
+        except Exception as e:
+            logger.error(f"Error creating rainbow mega burst: {e}")
     
     def _create_electrical_arc(self, start_pos, end_pos, color):
         """Create an electrical arc effect between two points.
@@ -1260,7 +1512,6 @@ class Boss(pygame.sprite.Sprite):
                 
                 # Create jagged lightning effect with particles
                 steps = int(distance / 5)  # One particle every ~5 pixels
-                prev_x, prev_y = start_pos
                 
                 for i in range(steps):
                     # Calculate base position along the line
@@ -1304,85 +1555,8 @@ class Boss(pygame.sprite.Sprite):
                             gravity=0.0,
                             group=particles_group
                         )
-                    
-                    # Draw line between previous point and this point
-                    prev_x, prev_y = x, y
         except Exception as e:
             logger.error(f"Error creating electrical arc: {e}")
-    
-    def _create_colored_particles(self, position, *args, **kwargs):
-        """Create colored particles for explosions.
-        
-        Supports two call patterns:
-        1. (position, color, count) - simplified for death animation
-        2. (position, count, size_range, color_ranges, speed_range, explosions_group) - full control
-        """
-        try:
-            int_position = (int(position[0]), int(position[1]))
-            
-            # Default values
-            particles_group = None
-            
-            # Handle the different call patterns
-            if len(args) == 2 and isinstance(args[1], int):
-                # Pattern 1: (position, color, count)
-                color, count = args[0], args[1]
-                
-                # Create color range from the color tuple
-                r, g, b = color
-                color_ranges = [
-                    (max(0, r-30), min(255, r+30), 
-                     max(0, g-30), min(255, g+30), 
-                     max(0, b-30), min(255, b+30))
-                ]
-                
-                # Default ranges
-                size_range = (3, 10)
-                speed_range = (2.0, 6.0)
-                
-                # Get particles group from game_ref
-                if hasattr(self, 'game_ref') and self.game_ref is not None:
-                    particles_group = getattr(self.game_ref, 'particles', None)
-                
-            elif len(args) >= 3:
-                # Pattern 2: Full parameters
-                count = args[0]
-                size_range = args[1]
-                color_ranges = args[2]
-                speed_range = args[3] if len(args) > 3 else (2.0, 6.0)
-                particles_group = args[4] if len(args) > 4 else None
-                
-                # If no particles_group was specified, try to get it from game_ref
-                if particles_group is None and hasattr(self, 'game_ref') and self.game_ref is not None:
-                    particles_group = getattr(self.game_ref, 'explosions', None)
-            else:
-                # Not enough arguments
-                logger.error(f"Invalid arguments to _create_colored_particles: {args}")
-                return
-            
-            # Fallback: if we still don't have a particles group, try 'particles'
-            if particles_group is None and hasattr(self, 'game_ref') and self.game_ref is not None:
-                particles_group = getattr(self.game_ref, 'particles', None)
-            
-            # Ensure we have an integer count
-            try:
-                count = int(count)
-            except (ValueError, TypeError):
-                count = 10  # Default to 10 if conversion fails
-            
-            # Now create the particles using the static method
-            ParticleSystem.create_explosion(
-                position=int_position,
-                count=count,
-                size_range=size_range,
-                color_ranges=color_ranges,
-                speed_range=speed_range,
-                lifetime_range=(30, 75),
-                gravity=0.05,
-                group=particles_group
-            )
-        except Exception as e:
-            logger.error(f"Error creating colored particles: {e}")
     
     def _apply_glitch_effect(self, intensity):
         """Apply a glitch/distortion effect to the boss image.
@@ -1455,29 +1629,6 @@ class Boss(pygame.sprite.Sprite):
         # Clamp health to minimum of zero
         self.health = max(0, self.health)
         
-        # Create explosion at hit location if provided
-        if hit_position:
-            try:
-                if hasattr(self, 'game_ref') and self.game_ref is not None:
-                    explosions_group = getattr(self.game_ref, 'explosions', None)
-                    
-                    # Create particles for the hit effect
-                    if hasattr(self, '_create_colored_particles'):
-                        # Pick a random rainbow color for the particles
-                        color_index = random.randint(0, len(BOSS_BULLET_COLORS) - 1)
-                        color = BOSS_BULLET_COLORS[color_index]
-                        self._create_colored_particles(hit_position, 1, (3, 10), [(0, 255, 0, 255), (0, 200, 0, 255)], (2.0, 6.0), explosions_group)
-                    
-                    # Create explosion - use safe group passing pattern
-                    size = (random.randint(20, 35), random.randint(20, 35))
-                    if explosions_group:
-                        explosion = Explosion(hit_position, size, "enemy", explosions_group)
-                    else:
-                        explosion = Explosion(hit_position, size, "enemy")
-
-            except Exception as e:
-                logger.error(f"Error creating hit explosion: {e}")
-        
         # Check for boss defeated
         if self.health <= 0 and not self.is_defeated:
             self.is_defeated = True
@@ -1505,34 +1656,24 @@ class Boss(pygame.sprite.Sprite):
                         except Exception as e2:
                             logger.error(f"All attempts to play bossexplode1.ogg failed: {e2}")
             
-            # Create initial big multi-part explosion for defeat
-            try:
-                if hasattr(self, 'game_ref') and self.game_ref is not None:
-                    explosions_group = getattr(self.game_ref, 'explosions', None)
-                    # Create more explosions initially to make it obvious the death sequence has started
-                    for _ in range(20):  # Create a massive initial burst
-                        offset_x = random.randint(-self.rect.width, self.rect.width)
-                        offset_y = random.randint(-self.rect.height, self.rect.height)
-                        pos_x = self.rect.centerx + offset_x
-                        pos_y = self.rect.centery + offset_y
-                        
-                        # Vary the explosion size
-                        size_factor = random.uniform(1.0, 2.5)
-                        size = (int(50 * size_factor), int(50 * size_factor))
-                        
-                        # Create explosion with safe group pattern
-                        if explosions_group:
-                            explosion = Explosion((int(pos_x), int(pos_y)), size, "enemy", explosions_group)
-                        else:
-                            explosion = Explosion((int(pos_x), int(pos_y)), size, "enemy")
-                    
-                    # Then call the regular defeat explosion method for additional effects
-                    self._create_defeat_explosion(explosions_group)
-                    
-                    # Log boss defeated event
-                    logger.info("Starting 8-second death animation sequence")
-            except Exception as e:
-                logger.error(f"Error creating initial defeat explosions: {e}")
+            # Spawn Power Restore powerup
+            if hasattr(self, 'game_ref') and self.game_ref is not None:
+                try:
+                    from src.powerup import PowerupType
+                    from src.powerup_types import create_powerup
+
+                    # Corrected arguments for create_powerup
+                    powerup = create_powerup(
+                        PowerupType.POWER_RESTORE,
+                        self.rect.centerx,
+                        self.rect.centery,
+                        self.game_ref.all_sprites,  # Group 1
+                        self.game_ref.powerups,     # Group 2
+                        particles_group=self.game_ref.particles, # Keyword arg
+                        game_ref=self.game_ref                   # Keyword arg
+                    )
+                except Exception as e:
+                    logger.error(f"Error spawning Power Restore powerup: {e}")
             
             return True
         
@@ -1544,51 +1685,12 @@ class Boss(pygame.sprite.Sprite):
             new_phase = 3
             self.phase = new_phase
             logger.info(f"Boss advancing to phase {self.phase}")
-            self._handle_phase_transition()
         elif health_percent <= 0.6 and self.phase < 2:
             new_phase = 2
             self.phase = new_phase
             logger.info(f"Boss advancing to phase {self.phase}")
-            self._handle_phase_transition()
         
         return False
-    
-    def _handle_phase_transition(self):
-        """Handle visual effects for phase transition."""
-        try:
-            if hasattr(self, 'game_ref') and self.game_ref is not None:
-                explosions_group = getattr(self.game_ref, 'explosions', None)
-                
-                # Create colorful shockwave effect for phase transition
-                if hasattr(self, '_create_shockwave_effect'):
-                    self._create_shockwave_effect(size=200)
-                
-                # Create smaller explosion burst around boss - use safe group passing
-                for _ in range(8):
-                    offset_x = random.randint(-self.rect.width // 2, self.rect.width // 2)
-                    offset_y = random.randint(-self.rect.height // 2, self.rect.height // 2)
-                    pos_x = self.rect.centerx + offset_x
-                    pos_y = self.rect.centery + offset_y
-                    size = (random.randint(30, 50), random.randint(30, 50))
-                    pos = (self.rect.centerx + offset_x, self.rect.centery + offset_y)
-                    if explosions_group:
-                        explosion = Explosion(pos, size, "enemy", explosions_group)
-                    else:
-                        explosion = Explosion(pos, size, "enemy")
-                
-                # Note: Camera shake functionality is commented out as it's
-                # not available in this version of the game
-                # Just check if attributes exist but don't access them directly
-                if hasattr(self.game_ref, 'camera'):
-                    # Safe way to handle optional camera functionality
-                    camera = getattr(self.game_ref, 'camera', None)
-                    if camera is not None and hasattr(camera, 'shake'):
-                        try:
-                            camera.shake(15, 0.7)
-                        except Exception as e:
-                            logger.error(f"Error shaking camera: {e}")
-        except Exception as e:
-            logger.error(f"Error creating phase transition effects: {e}")
     
     def _create_defeat_explosion(self, explosions_group=None):
         """Create a spectacular multi-part explosion when the boss is defeated."""
@@ -1646,45 +1748,6 @@ class Boss(pygame.sprite.Sprite):
                             )
         except Exception as e:
             logger.error(f"Error creating defeat explosion: {e}")
-    
-    def _create_ongoing_explosions(self):
-        """Create ongoing explosions during death animation."""
-        try:
-            explosions_group = getattr(self.game_ref, 'explosions', None) if hasattr(self, 'game_ref') and self.game_ref is not None else None
-            for _ in range(random.randint(2, 5)):
-                # ... (calculate x, y, size) ...
-                x = random.randint(self.rect.left, self.rect.right)
-                y = random.randint(self.rect.top, self.rect.bottom)
-                size_factor = random.uniform(0.8, 3.0)
-                size = (int(60 * size_factor), int(60 * size_factor))
-
-                # Use safe group passing pattern
-                if explosions_group:
-                    explosion = Explosion((x, y), size, "enemy", explosions_group)
-                else:
-                    explosion = Explosion((x, y), size, "enemy")
-                
-                # Secondary explosions - use safe group passing
-                if random.random() < 0.5:
-                    # ... (calculate offset, secondary_size) ...
-                    offset_x = random.randint(-60, 60)
-                    offset_y = random.randint(-60, 60)
-                    secondary_size = (int(40 * random.uniform(0.8, 1.8)), int(40 * random.uniform(0.8, 1.8)))
-                    if explosions_group:
-                        secondary = Explosion(
-                            (x + offset_x, y + offset_y), 
-                            secondary_size, 
-                            "enemy", 
-                            explosions_group
-                        )
-                    else:
-                        secondary = Explosion(
-                            (x + offset_x, y + offset_y), 
-                            secondary_size, 
-                            "enemy"
-                        )
-        except Exception as e:
-            logger.error(f"Error creating ongoing explosion: {e}")
 
 def create_boss(player) -> Boss:
     """Factory function to create a boss instance.

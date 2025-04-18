@@ -334,7 +334,7 @@ DRONE_DURATION = 15000  # 15 seconds for drone powerup (increased from 10 second
 # BOSS BATTLE SETTINGS
 # ------------------------------------------------------------------------------
 # Wave number when the boss appears
-BOSS_WAVE_NUMBER: int = 2
+BOSS_WAVE_NUMBER: int = 25
 # Rainbow colors for boss bullets, tentacles, and other effects
 BOSS_BULLET_COLORS: List[Tuple[int, int, int]] = [
     (255, 0, 0),    # Red

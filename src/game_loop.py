@@ -75,6 +75,7 @@ from src.particle import FlameParticle
 
 # Near the top of the file, add the boss import
 from src.boss_battle import Boss, RainbowBullet, create_boss
+from src.boss_intro import run_boss_intro # Add this import
 
 # Get logger for this module
 logger = get_logger(__name__)
@@ -1460,11 +1461,12 @@ class Game:
 
     def _spawn_powerup(self):
         """Spawn a random powerup."""
+        # Don't spawn powerups during the boss battle
+        if self.is_boss_battle:
+            return
+
         # Import for type checking
         from src.player import MAX_POWER_LEVEL
-        from src.powerup import PowerupType
-        # Import debug variables
-        from config.config import DEBUG_FORCE_POWERUP_TYPE, DEBUG_POWERUP_TYPE_INDEX
 
         # Check if we should force a specific powerup type
         if DEBUG_FORCE_POWERUP_TYPE:
@@ -1758,12 +1760,12 @@ class Game:
                 )
                 logger.debug(f"Enemy destroyed by collision at {enemy.rect.center}")
 
-            # Play hit sound for player
-            try:
-                # self.sound_manager.play("hit1", "player") # Removed hit1 sound
-                pass # No sound for player collision with enemy for now
-            except Exception as e:
-                logger.warning(f"Failed to play hit sound: {e}")
+            # Play hit sound for player - REMOVED, now handled in Player.take_damage
+            # try:
+            #     # self.sound_manager.play("hit1", "player") # Removed hit1 sound
+            #     pass # No sound for player collision with enemy for now
+            # except Exception as e:
+            #     logger.warning(f"Failed to play hit sound: {e}")
 
             logger.warning("Player hit by enemy!")
             # Apply damage to player
@@ -1787,12 +1789,12 @@ class Game:
                     power_bar_pos, power_color, is_decrease=True, group=self.particles
                 )
 
-            # Play hit sound
-            try:
-                # self.sound_manager.play("hit1", "player") # Removed hit1 sound
-                pass # No sound for player being hit by enemy bullet for now
-            except Exception as e:
-                logger.warning(f"Failed to play hit sound: {e}")
+            # Play hit sound - REMOVED, now handled in Player.take_damage
+            # try:
+            #     # self.sound_manager.play("hit1", "player") # Removed hit1 sound
+            #     pass # No sound for player being hit by enemy bullet for now
+            # except Exception as e:
+            #     logger.warning(f"Failed to play hit sound: {e}")
 
             # Check for game over
             if not player_survived:
@@ -1815,25 +1817,10 @@ class Game:
                     
                     try:
                         # Call take_damage, which returns True if this hit defeats the boss
-                        boss_was_defeated_this_frame = self.boss.take_damage(total_damage, boss_hits[0].rect.center) # Pass hit position
-                        
-                        # Create rainbow blood explosions at each hit position, regardless of defeat status
-                        for bullet in boss_hits:
-                            # Pick a random rainbow color
-                            color_idx = random.randint(0, len(BOSS_BULLET_COLORS) - 1) 
-                            color = BOSS_BULLET_COLORS[color_idx]
-                            
-                            # Create a blood explosion
-                            size = (random.randint(15, 30), random.randint(15, 30))
-                            # Use the new RainbowBloodExplosion class
-                            blood = RainbowBloodExplosion(bullet.rect.center, size, color)
-                            
-                            # Manually add to explosions group
-                            if hasattr(self, 'explosions'): # Ensure explosions group exists
-                                self.explosions.add(blood)
+                        boss_was_defeated_this_frame = self.boss.take_damage(total_damage, boss_hits[0].rect.center) # Pass hit positio
                         
                     except Exception as e:
-                        logger.error(f"Error in boss take_damage or creating blood effects: {e}")
+                        logger.error(f"Error in boss take_damage: {e}")
                     
                     # Play hit sound
                     if hasattr(self, 'sound_manager') and self.sound_manager:
@@ -2300,6 +2287,23 @@ class Game:
     def _start_boss_battle(self):
         """Initialize and start the boss battle."""
         try:
+            # --- Play the boss intro sequence --- 
+            logger.info("Starting boss intro sequence...")
+            intro_completed = run_boss_intro(self.screen, self.sound_manager)
+            if not intro_completed:
+                logger.warning("Boss intro aborted, game might exit.")
+                # Handle intro abortion (e.g., quit game or skip boss battle)
+                # For now, we'll just log it and proceed, but might need specific handling.
+                # If the user quits during the intro, the main loop should catch it.
+                pass # Or handle differently if needed
+            logger.info("Boss intro sequence finished.")
+            # --- End boss intro sequence --- 
+
+            # Explicitly stop player firing state
+            if self.player:
+                self.player.stop_firing()
+                logger.info("Stopped player firing for boss battle.")
+
             # Make sure we have a sprites group for the boss
             if not hasattr(self, 'boss_sprites'):
                 self.boss_sprites = pygame.sprite.Group()

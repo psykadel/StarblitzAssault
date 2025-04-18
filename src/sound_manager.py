@@ -63,11 +63,13 @@ class SoundManager:
         self._try_load_sound("flamethrower", "laser1.ogg", "player")  # Use laser1 for flamethrower until we have a proper sound
         self._try_load_sound("flamethrower1", "flamethrower1.ogg", "player")  # Dedicated flamethrower sound
         self._try_load_sound("laserbeam", "laserbeam1.ogg", "player")  # Load looping laser beam sound
+        self._try_load_sound("shiphit1", "shiphit1.ogg", "player") # Load player hit sound
 
         # Use player powerup sound for enemy too
         self._try_load_sound("explosion2", "explosion2.ogg", "enemy")
         self._try_load_sound("powerup1", "powerup1.ogg", "enemy")  # Load powerup1.ogg as enemy/powerup1
         self._try_load_sound("bossexplode1", "bossexplode1.ogg", "enemy") # Load boss explosion sound
+        self._try_load_sound("siren1", "siren1.ogg", "enemy") # Load siren sound for boss intro
 
     def _create_silent_sound(self, name: str, category: str) -> None:
         """Create a silent sound as a fallback.

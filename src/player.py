@@ -636,6 +636,13 @@ class Player(AnimatedSprite):
             self.power_level -= 1
             logger.info(f"Player took damage! Power level: {self.power_level}/{MAX_POWER_LEVEL}")
 
+            # Play hit sound effect
+            if self.game_ref and hasattr(self.game_ref, "sound_manager"):
+                try:
+                    self.game_ref.sound_manager.play("shiphit1", "player")
+                except Exception as e:
+                    logger.warning(f"Failed to play shiphit1 sound: {e}")
+
             if self.power_level <= 0:
                 self.is_alive = False
                 logger.warning("Player power depleted! Game over!")
