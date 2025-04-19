@@ -3,10 +3,8 @@ description:
 globs: 
 alwaysApply: false
 ---
-- Clean and simplify the code without breaking anything.
-- Organize the file clearly and logically.
 - Remove any unused functions, variables, constants, imports, etc.
 - Delete commented-out code.
-- Keep comments that explain what the code does.
-- Remove comments that explain old fixes or development notes.
+- Rewrite comments to clearly describe code, not fixes nor value changes.
+- Ensure consistent comment style across similar code elements.
 - Make the file look clean, professional, and ready to publish.

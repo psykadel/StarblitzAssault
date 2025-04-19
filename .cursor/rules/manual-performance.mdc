@@ -3,6 +3,10 @@ description:
 globs: 
 alwaysApply: false
 ---
+GOAL: optimize performance.
+
+- Deeply understand the codebase.
+- Understand the game loop deeply.
 - Keep all existing functionality.
 - Improve speed, efficiency, and responsiveness.
 - Find and fix slow or redundant parts of the code.
