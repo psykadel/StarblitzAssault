@@ -3,6 +3,4 @@ description:
 globs: 
 alwaysApply: false
 ---
-# Clean and simplify
-
 Review and refine this entire codebase to preserve existing functionality while enhancing readability and consistency. Search for unused files and move them to .unused, including code, assets, and media. Remove any unnecessary code, unnecessary variables, unnecessary constants, or unnecessary comments. Simplify logic, centralize common capabilities and constants, ensure consistent style, and rename variables or functions for clarity. Document the code as needed without altering its core behavior or introducing new features.  Do not break anything. Ensure comments are about what something does or how it works, not what you did.

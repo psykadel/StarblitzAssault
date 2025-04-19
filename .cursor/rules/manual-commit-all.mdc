@@ -3,10 +3,10 @@ description:
 globs: 
 alwaysApply: false
 ---
-# Commit all
-
-- First look to see what all has changed or been added to the workspace.  Get everything we need to commit
-- Commit granular changes writing a nice commit message for each granular change.  Logically group the changes and use multiple commits
-- Use git best practices for your descriptions and grouping of changes
-- Ensure everything changed, added, or removed is committed
-- Just commit do not push
+- Check what has changed or been added in the workspace.
+- Stage everything that needs to be committed.
+- Commit changes in logical, small groups.
+- Write a clear, meaningful commit message for each group.
+- Follow git best practices for commit messages and grouping.
+- Make sure all changes, additions, and deletions are committed.
+- Only commit — do not push.

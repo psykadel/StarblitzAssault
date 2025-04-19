@@ -6,8 +6,8 @@ alwaysApply: false
 <!-- Rule Type: Agent Requested -->
 <!-- Description: When asked to "lint". -->
 
-# IMPORTANT: Review every file in workspace
-- DO NOT make a .pylintrc file
-- DO NOT update a .pylintrc file to avoid fixing linting issues
-- Fix every linter issue completely
+- IMPORTANT: Review every file.
+- Do not create a .pylintrc file.
+- Do not change an existing .pylintrc to skip fixing issues.
+- Fully fix every linter issue in the code.
 

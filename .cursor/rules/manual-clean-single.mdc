@@ -3,11 +3,10 @@ description:
 globs: 
 alwaysApply: false
 ---
-# Clean and simplify
-
-- Clean and simplify the code in this file, but ensure nothing is broken in the process.
-- Ensure the file is highly organized.
-- Remove unused defs, variables, constants, etc.
-- Clean up the comments; make them explain the code.  Ensure they explain code.  Do not allow comments that explain fixes or other artifacts of the development process.
-- Remove items that are commented out.
-- Overall make this file ready for the public, something I can be proud of publishing.
+- Clean and simplify the code without breaking anything.
+- Organize the file clearly and logically.
+- Remove any unused functions, variables, constants, imports, etc.
+- Delete commented-out code.
+- Keep comments that explain what the code does.
+- Remove comments that explain old fixes or development notes.
+- Make the file look clean, professional, and ready to publish.

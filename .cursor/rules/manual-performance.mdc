@@ -3,6 +3,12 @@ description:
 globs: 
 alwaysApply: false
 ---
-# Optimize for performance
-
-Analyze this entire codebase to preserve existing functionality while improving execution speed, resource efficiency, and responsiveness. Identify and address bottlenecks, redundant operations, and inefficient patterns. Optimize data structures, reduce computational overhead, and streamline critical paths. Leverage caching, lazy loading, and concurrency where beneficial. Ensure performance gains do not compromise clarity, maintainability, or correctness. Do not break anything.
+- Keep all existing functionality.
+- Improve speed, efficiency, and responsiveness.
+- Find and fix slow or redundant parts of the code.
+- Use better data structures where needed.
+- Cut down on unnecessary computation.
+- Focus on speeding up the most important code paths.
+- Use caching, lazy loading, or concurrency if helpful.
+- Do not make the code harder to understand or maintain.
+- Do not break anything.

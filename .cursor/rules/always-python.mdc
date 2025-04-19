@@ -3,8 +3,6 @@ description:
 globs: 
 alwaysApply: true
 ---
-# STANDARDS
-
 ## MOST IMPORTANT
 IMPORTANT: try to fix things at the cause, not the symptom.  No workarounds, no duct tape.
 
