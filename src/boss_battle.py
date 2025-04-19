@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 import os
 import random
-from typing import List, Optional, Tuple, Any, TYPE_CHECKING
+from typing import List, Optional, Tuple, TYPE_CHECKING
 
 import pygame
 import numpy
@@ -26,8 +26,6 @@ from src.logger import get_logger
 from src.enemy_bullet import EnemyBullet
 from src.explosion import Explosion
 from src.particle import ParticleSystem
-from src.powerup import PowerupType
-from src.powerup_types import create_powerup
 
 # Get logger for this module
 logger = get_logger(__name__)
@@ -37,12 +35,13 @@ BOSS_MAX_HEALTH = 150
 BOSS_MOVEMENT_SPEED = 2
 BOSS_TENTACLE_COUNT = 15
 
-# Boss attack patterns
-ATTACK_PATTERN_SPIRAL = 0
-ATTACK_PATTERN_RADIAL = 1
-ATTACK_PATTERN_WAVE = 2
-ATTACK_PATTERN_TARGETED = 3
-ATTACK_PATTERN_RAIN = 4
+# Enumerate attack patterns directly for clarity
+class AttackPattern:
+    SPIRAL = 0
+    RADIAL = 1
+    WAVE = 2
+    TARGETED = 3
+    RAIN = 4
 
 class RainbowParticle(pygame.sprite.Sprite):
     """A special particle with rainbow trail effect for boss death animation."""
@@ -168,7 +167,7 @@ class RainbowParticle(pygame.sprite.Sprite):
                     elif b == max_channel:
                         b = min(255, int(b * boost_factor))
                 enhanced_color = (r, g, b)
-                    
+                
                 # Draw trail segment with enhanced color
                 segment_color = (*enhanced_color, segment_alpha)
                 pygame.draw.circle(self.image, segment_color, (rel_x, rel_y), segment_size)
@@ -200,8 +199,8 @@ class RainbowParticle(pygame.sprite.Sprite):
         if self.glow:
             glow_size = current_size * 1.8  # Larger glow
             glow_color = (min(255, enhanced_main_color[0] + 70), 
-                           min(255, enhanced_main_color[1] + 70), 
-                           min(255, enhanced_main_color[2] + 70), 
+                min(255, enhanced_main_color[1] + 70),
+                min(255, enhanced_main_color[2] + 70),
                            min(255, int(120 * life_factor)))  # Brighter, more visible glow
             pygame.draw.circle(self.image, glow_color, (center_x, center_y), glow_size)
         
@@ -271,7 +270,7 @@ class BossTentacle:
         self.segments = 12
         self.color_shift = random.randint(0, 7)  # Start at a random color in the rainbow
         self.base_color_index = self.color_shift
-        
+    
     def update(self):
         """Update tentacle position and animation."""
         # Update angle
@@ -449,8 +448,7 @@ class Boss(pygame.sprite.Sprite):
         # Load boss sprite
         self.original_image = pygame.image.load(os.path.join(IMAGES_DIR, "boss.png")).convert_alpha()
         
-        # Flip the boss image horizontally - FALSE means DON'T flip it (keep original orientation)
-        # We change this from True to False based on user feedback that it was backwards
+        # Flip the boss image horizontally
         self.original_image = pygame.transform.flip(self.original_image, False, False)
         
         # Scale the boss to an appropriate size
@@ -480,14 +478,14 @@ class Boss(pygame.sprite.Sprite):
         self.phase = 1  # Boss phases (1-3) increasing in difficulty
         
         # Attack pattern variables - SIMPLIFIED
-        self.attack_pattern = ATTACK_PATTERN_TARGETED
+        self.attack_pattern = AttackPattern.TARGETED
         
         # Base bullet firing cooldown
         self.bullet_timer = 0
-        self.bullet_interval = 500  # Increased from 450 to 500 ms between bullet groups (even slower firing)
+        self.bullet_interval = 500
         
         # Pattern-specific timers
-        self.pattern_timer = 0 
+        self.pattern_timer = 0
         self.pattern_duration = 8000  # Pattern lasts for 8 seconds
         
         # Bullet properties
@@ -507,7 +505,7 @@ class Boss(pygame.sprite.Sprite):
         # Add new variables for death animation
         self.death_animation_active = False
         self.death_animation_timer = 0
-        self.death_animation_duration = 480  # Increased to 8 seconds at 60 FPS (was 180)
+        self.death_animation_duration = 480
         self.death_explosion_interval = 8  # Create new explosions every 8 frames
         self.opacity = 255  # For fade out effect
         self.animation_complete = False  # Flag to indicate when death animation has finished
@@ -521,7 +519,7 @@ class Boss(pygame.sprite.Sprite):
         if self.death_animation_active:
             self._update_death_animation()
             return
-            
+        
         # Don't update if defeated
         if self.is_defeated:
             return
@@ -561,7 +559,7 @@ class Boss(pygame.sprite.Sprite):
         if self.pos_y < self.target_y:
             self.pos_y += self.movement_speed
         else:
-            self.pos_y -= self.movement_speed
+             self.pos_y -= self.movement_speed
         
         # Apply small random horizontal movement
         if random.random() < 0.03:
@@ -591,7 +589,7 @@ class Boss(pygame.sprite.Sprite):
         # Reduce update frequency slightly further
         if self.sparkle_timer % 4 != 0:
             return
-            
+        
         # Start with the original image
         self.image = self.original_image.copy()
         
@@ -649,7 +647,7 @@ class Boss(pygame.sprite.Sprite):
         
         # Add occasional glitch lines (horizontal) - only on non-transparent areas
         # Reduce intensity calculation slightly and frequency check
-        glitch_intensity_factor = distortion_intensity * 0.8 
+        glitch_intensity_factor = distortion_intensity * 0.8
         if random.random() < 0.25 * glitch_intensity_factor: # Reduced base chance
             num_lines = max(1, int(2.5 * glitch_intensity_factor)) # Reduced max lines
             for _ in range(num_lines):
@@ -696,17 +694,17 @@ class Boss(pygame.sprite.Sprite):
         """Change to a different attack pattern."""
         # Choose a new pattern different from the current one
         available_patterns = [
-            ATTACK_PATTERN_SPIRAL, 
-            ATTACK_PATTERN_RADIAL, 
-            ATTACK_PATTERN_WAVE, 
-            ATTACK_PATTERN_TARGETED,
-            ATTACK_PATTERN_RAIN
+            AttackPattern.SPIRAL,
+            AttackPattern.RADIAL,
+            AttackPattern.WAVE,
+            AttackPattern.TARGETED,
+            AttackPattern.RAIN
         ]
-            
+        
         if self.attack_pattern in available_patterns:
             available_patterns.remove(self.attack_pattern)
-            
-        self.attack_pattern = random.choice(available_patterns)
+        
+            self.attack_pattern = random.choice(available_patterns)
         
         logger.info(f"Boss changed to attack pattern: {self.attack_pattern}")
     
@@ -735,10 +733,10 @@ class Boss(pygame.sprite.Sprite):
             dy = player_y - start_y
             target_angle = math.atan2(dy, dx)
         
-        if self.attack_pattern == ATTACK_PATTERN_TARGETED:
+        if self.attack_pattern == AttackPattern.TARGETED:
             # TARGETED PATTERN: Shoots directly at player with minimal spread
             # Reduced bullet count for lower difficulty
-            count = max(1, self.phase // 2) # Was 1 + (self.phase // 2)
+            count = max(1, self.phase // 2)
             
             for i in range(count):
                 # Small aim variation to make player dodge
@@ -765,7 +763,7 @@ class Boss(pygame.sprite.Sprite):
                 )
                 bullets.append(bullet)
         
-        elif self.attack_pattern == ATTACK_PATTERN_SPIRAL:
+        elif self.attack_pattern == AttackPattern.SPIRAL:
             # SPIRAL PATTERN: Shoots in an expanding spiral
             # Use time-based angle for continuous spinning effect
             base_angle = pygame.time.get_ticks() * 0.001 * (1.0 + self.phase * 0.15)  # Slower rotation
@@ -794,10 +792,10 @@ class Boss(pygame.sprite.Sprite):
                 )
                 bullets.append(bullet)
         
-        elif self.attack_pattern == ATTACK_PATTERN_RADIAL:
+        elif self.attack_pattern == AttackPattern.RADIAL:
             # RADIAL PATTERN: Shoots in all directions
             # Reduced bullet count for lower difficulty
-            count = 4 + self.phase  # Was 6 + self.phase
+            count = 4 + self.phase
             
             # Phase 3 adds an alternating rotation to the radial pattern
             rotation_offset = 0
@@ -827,7 +825,7 @@ class Boss(pygame.sprite.Sprite):
                 )
                 bullets.append(bullet)
         
-        elif self.attack_pattern == ATTACK_PATTERN_WAVE:
+        elif self.attack_pattern == AttackPattern.WAVE:
             # WAVE PATTERN: Shoots in a wave formation toward player's general direction
             # Reduced bullet count for lower difficulty
             count = max(1, self.phase) # Was 1 + self.phase
@@ -840,7 +838,7 @@ class Boss(pygame.sprite.Sprite):
                 base_angle = target_angle
                 
                 # Vertical spacing
-                vertical_spacing = 40  # Wider spacing (from 30-20)
+                vertical_spacing = 40
                 vertical_offset = (i - (count - 1) / 2) * vertical_spacing
                 bullet_y = start_y + vertical_offset
                 
@@ -870,8 +868,8 @@ class Boss(pygame.sprite.Sprite):
                 )
                 bullets.append(bullet)
         
-        elif self.attack_pattern == ATTACK_PATTERN_RAIN:
-            # RAIN PATTERN: Bullets come from top of screen (EASIER VERSION)
+        elif self.attack_pattern == AttackPattern.RAIN:
+            # RAIN PATTERN: Bullets come from top of screen
             # Reduced bullet count for lower difficulty
             count = max(1, self.phase // 2) # Was max(1, self.phase // 2 + 1)
             
@@ -886,7 +884,7 @@ class Boss(pygame.sprite.Sprite):
                 else:
                     min_x = 50
                     max_x = SCREEN_WIDTH - 50
-                    
+                
                 rain_x = random.randint(min_x, max_x)
                 rain_y = PLAYFIELD_TOP_Y
                 
@@ -900,15 +898,15 @@ class Boss(pygame.sprite.Sprite):
                         aim_x = self.player.rect.centerx + (self.player.speed_x * prediction_factor * 60)
                         aim_y = self.player.rect.centery + (self.player.speed_y * prediction_factor * 60)
                     else:
-                        aim_x = self.player.rect.centerx
-                        aim_y = self.player.rect.centery
+                     aim_x = self.player.rect.centerx
+                     aim_y = self.player.rect.centery
                 else:
                     # Default aiming if no player
                     aim_x = SCREEN_WIDTH // 2
                     aim_y = SCREEN_HEIGHT // 2
                 
-                # Add MUCH more randomness to aim to make it easier to dodge
-                aim_variance = 200  # Much larger variance (was 130-90)
+                # Add more randomness to aim to make it easier to dodge
+                aim_variance = 200
                 aim_x += random.uniform(-aim_variance, aim_variance)
                 
                 # Calculate direction vector
@@ -938,7 +936,6 @@ class Boss(pygame.sprite.Sprite):
                 bullets.append(bullet)
         
         # Phase 3: Occasionally fire from tentacle tips for ultimate challenge
-        # Reduced chance from 15% to 5%
         if self.phase == 3 and random.random() < 0.05:  # 5% chance in phase 3
             # Choose a random tentacle
             tentacle = random.choice(self.tentacles)
@@ -969,7 +966,7 @@ class Boss(pygame.sprite.Sprite):
             else:
                 # Random direction
                 angle = random.uniform(0, 2 * math.pi)
-            
+                
             # Calculate velocity - these are faster than normal bullets
             tentacle_bullet_speed = self.bullet_speed * 1.3  # Reduced from 1.5
             speed_x = math.cos(angle) * tentacle_bullet_speed
@@ -989,9 +986,8 @@ class Boss(pygame.sprite.Sprite):
             bullets.append(bullet)
         
         # Add an occasional "surprise burst" (sporadic extra shots) to make player move
-        # Reduced chance from 10% to 5%
         if random.random() < 0.05:  # 5% chance for surprise burst
-            surprise_count = 1  # Reduced from 1-3 to just 1
+            surprise_count = 1
             for _ in range(surprise_count):
                 # Fire in a semi-random direction, but with player bias
                 if self.player and self.player.is_alive:
@@ -1004,9 +1000,9 @@ class Boss(pygame.sprite.Sprite):
                 else:
                     # Random angle if no player
                     angle = random.uniform(0, 2 * math.pi)
-                
+            
                 # Higher speed for surprise shots
-                surprise_speed = self.bullet_speed * 1.1  # Reduced from 1.2
+                surprise_speed = self.bullet_speed * 1.1
                 speed_x = math.cos(angle) * surprise_speed
                 speed_y = math.sin(angle) * surprise_speed
                 
@@ -1022,7 +1018,7 @@ class Boss(pygame.sprite.Sprite):
                     color_index
                 )
                 bullets.append(bullet)
-            
+        
         return bullets
     
     def draw_tentacles(self, surface: pygame.Surface):
@@ -1118,16 +1114,16 @@ class Boss(pygame.sprite.Sprite):
                 except Exception as e:
                     logger.error(f"Error applying death visual effects: {e}")
             
-            # CREATE MUCH MORE FREQUENT EXPLOSIONS - every 3 frames for first half, every 2 frames for second half
+            # Every 3 frames for first half, every 2 frames for second half
             explosion_interval = 3 if animation_progress < 0.5 else 2
             
             # Create rainbow stream effects throughout the animation
             # More intense as the animation progresses - but with fewer particles
             # Reduce frequency - only create streams every 6 frames to reduce load
-            rainbow_interval = 6  # Was 2 - much less frequent for performance
+            rainbow_interval = 6
             if self.death_animation_timer % rainbow_interval == 0:
                 # Intensity increases as animation progresses
-                intensity = 0.5 + (animation_progress * 0.5)  # Still visually impressive
+                intensity = 0.5 + (animation_progress * 0.5)
                 
                 # Create fewer emission points for better performance
                 if random.random() < 0.8:  # 80% chance for boss body emissions
@@ -1162,7 +1158,7 @@ class Boss(pygame.sprite.Sprite):
                         
                         # Create rainbow stream at this position with reduced intensity for performance
                         self._create_rainbow_stream_effect((pos_x, pos_y), intensity * 0.6)
-                        
+                
                 # Create mega burst for dramatic effect at key animation points
                 # Only at 2 key points instead of 3 for better performance
                 if (animation_progress > 0.5 and animation_progress < 0.52) or \
@@ -1239,9 +1235,9 @@ class Boss(pygame.sprite.Sprite):
                 # Create color ranges with higher alpha at center
                 r, g, b = color
                 color_ranges = [
-                    (max(0, r-30), min(255, r+30), max(0, g-30), min(255, g+30), max(0, b-30), min(255, b+30))
+                        (max(0, r-30), min(255, r+30), max(0, g-30), min(255, g+30), max(0, b-30), min(255, b+30))
                 ]
-                
+            
                 # Create particles in a ring pattern
                 num_particles = int(size / 2)
                 for i in range(num_particles):
@@ -1284,30 +1280,30 @@ class Boss(pygame.sprite.Sprite):
         try:
             if hasattr(self, 'game_ref') and self.game_ref is not None:
                 particles_group = getattr(self.game_ref, 'particles', None)
-                
+            
                 # Use boss center if no position provided
                 if position is None:
                     position = self.rect.center
-                
+            
                 # Check if we have too many particles already - stop creating more if over 80% capacity
                 if RainbowParticle.active_particles > RainbowParticle.max_particles * 0.8:
                     return
-                
+            
                 # Scale particle count with intensity - dramatically reduced count
                 base_particle_count = 3  # Was 6
                 particle_count = min(int(base_particle_count * intensity) + 1, 4)  # Cap at 4 particles 
                 
                 # Create streams in fewer directions for better performance
-                directions = 6  # Was 12
+                directions = 6
                 # Only use a subset of directions each time for variety
                 direction_offset = random.randint(0, directions-1)
                 actual_directions = min(directions, 4)  # Cap at 4 directions
-                
+            
                 for i in range(actual_directions):
                     # Distribute directions evenly but with offset for variety
                     dir_idx = (direction_offset + i * (directions // actual_directions)) % directions
                     base_angle = (dir_idx * math.pi * 2 / directions)  # Evenly spaced angles
-                    
+                
                     # For each direction, create a stream of particles with rainbow colors
                     for j in range(particle_count):
                         # Skip some particles randomly for better performance
@@ -1331,7 +1327,7 @@ class Boss(pygame.sprite.Sprite):
                         base_speed = 2.5 + (3.0 * intensity)  # Reduced base speed
                         speed = random.uniform(base_speed * 0.7, base_speed * 1.2)
                         velocity = (direction[0] * speed, direction[1] * speed)
-                        
+                    
                         # Get rainbow color
                         color_index = (i + j) % len(BOSS_BULLET_COLORS)
                         color = BOSS_BULLET_COLORS[color_index]
@@ -1351,14 +1347,14 @@ class Boss(pygame.sprite.Sprite):
                         color = (r, g, b)
                         
                         # Larger size for more visibility but maintain performance
-                        size = random.randint(5, 9)  # Increased from 3-7
+                        size = random.randint(5, 9)
                         
                         # Maintain optimized lifetime
                         lifetime = random.randint(int(30 * intensity), int(50 * intensity))
                         
                         # Maintain optimized trail length
                         trail_length = random.randint(3, 6)
-                        
+                    
                         # Create rainbow particle
                         if particles_group:
                             RainbowParticle(
@@ -1370,15 +1366,15 @@ class Boss(pygame.sprite.Sprite):
                                 trail_length=trail_length,
                                 particles_group=particles_group
                             )
-                
+            
                 # Add fewer radial burst particles for better performance - reduced probability
                 if intensity > 0.4 and random.random() < 0.4 and RainbowParticle.active_particles < RainbowParticle.max_particles * 0.7:
-                    burst_count = min(int(8 * intensity), 10)  # Was 15, now capped at 10
+                    burst_count = min(int(8 * intensity), 10)
                     for _ in range(burst_count):
                         # Skip some particles randomly for performance
                         if random.random() > 0.7:  # 30% chance to skip
                             continue
-                            
+                    
                         # Random angle (full 360 degrees)
                         angle = random.uniform(0, math.pi * 2)
                         
@@ -1420,7 +1416,7 @@ class Boss(pygame.sprite.Sprite):
                     return
                 
                 # Reduced number of emission centers for better performance
-                num_centers = random.randint(2, 4)  # Was 5-8
+                num_centers = random.randint(2, 4)
                 
                 # Create multiple emission centers around the screen
                 for _ in range(num_centers):
@@ -1454,7 +1450,7 @@ class Boss(pygame.sprite.Sprite):
                         angle = random.uniform(0, math.pi * 2)
                         
                         # Moderate speed for good performance
-                        speed = random.uniform(5.0, 9.0)  # Reduced from 7.0-12.0
+                        speed = random.uniform(5.0, 9.0)
                         velocity = (math.cos(angle) * speed, math.sin(angle) * speed)
                         
                         # Random rainbow color
@@ -1480,9 +1476,9 @@ class Boss(pygame.sprite.Sprite):
                             position=(pos_x, pos_y),
                             velocity=velocity,
                             color=color,
-                            size=random.randint(6, 12),  # Increased from 4-10
-                            lifetime=random.randint(40, 80),  # Reduced from 60-120
-                            trail_length=random.randint(4, 7),  # Keep trail length reasonable
+                            size=random.randint(6, 12),
+                            lifetime=random.randint(40, 80),
+                            trail_length=random.randint(4, 7),
                             particles_group=particles_group
                         )
         except Exception as e:
@@ -1696,7 +1692,7 @@ class Boss(pygame.sprite.Sprite):
         """Create a spectacular multi-part explosion when the boss is defeated."""
         # Create multiple explosion centers around the boss
         try:
-            num_explosions = 15  # Increased from 12 explosions
+            num_explosions = 15
             explosion_centers = []
             
             # Create random positions for explosions

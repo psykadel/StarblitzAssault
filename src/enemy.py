@@ -1,9 +1,8 @@
 """Defines enemy types and behaviors."""
 
 import math
-import os
 import random
-from typing import TYPE_CHECKING, List, Optional
+from typing import List
 
 import pygame
 
@@ -14,7 +13,6 @@ from config.config import (
     ENEMY_SCALE_FACTOR,
     ENEMY_SHOOTER_COOLDOWN_MS,
     ENEMY_SPEED_X,
-    ENEMY_TYPE_NAMES,
     ENEMY_TYPES,
     ENEMY_UNLOCK_THRESHOLDS,
     FREQUENCY_SCALING,
@@ -22,7 +20,6 @@ from config.config import (
     MIN_FREQUENCIES,
     PLAYFIELD_BOTTOM_Y,
     PLAYFIELD_TOP_Y,
-    SCREEN_HEIGHT,
     SCREEN_WIDTH,
     SPRITES_DIR,
 )
@@ -40,7 +37,7 @@ from src.logger import get_logger
 # Import the sprite loading utility
 from src.sprite_loader import load_sprite_sheet
 
-# Get a logger for this module
+# Initialize logger
 logger = get_logger(__name__)
 
 
@@ -133,8 +130,7 @@ class Enemy(AnimatedSprite):
             
         # Child classes should override this to reset specific properties
 
-
-# Renaming Grunt to represent enemy1 specifically
+# Enemy Type 1: Basic enemy that shoots bullets at the player
 class EnemyType1(Enemy):
     """Represents the basic enemy type."""
 
@@ -159,19 +155,18 @@ class EnemyType1(Enemy):
         self.frames = [pygame.transform.flip(frame, True, False) for frame in self.frames]
 
         # Set initial image and rect based on loaded frames
-        self.image = self.frames[self.frame_index]
+        self.image = self.frames[0]  # Start with the first frame
         self.rect = self.image.get_rect()
         self.mask = pygame.mask.from_surface(self.image)
 
-        # Make sure to synchronize the float position trackers with the rect position
+        # Synchronize the float position trackers with the rect position
         self._pos_x = float(self.rect.x)
         self._pos_y = float(self.rect.y)
 
-        # Set movement speed
-        self.set_speed(ENEMY_SPEED_X, 0)  # No vertical movement for now
+        self.set_speed(ENEMY_SPEED_X, 0)
 
 
-# New enemy class that shoots bullets towards the player
+# Enemy Type 2: Enemy that shoots bullets at the player
 class EnemyType2(Enemy):
     """Enemy that shoots bullets at the player."""
 
@@ -198,14 +193,12 @@ class EnemyType2(Enemy):
         self.frames = [pygame.transform.flip(frame, True, False) for frame in self.frames]
 
         self.image = self.frames[self.frame_index]
-        self.rect = self.image.get_rect()
+        self.rect = self.image.get_rect()  # Use the frame at the current index
         self.mask = pygame.mask.from_surface(self.image)
 
-        # Make sure to synchronize the float position trackers with the rect position
         self._pos_x = float(self.rect.x)
         self._pos_y = float(self.rect.y)
 
-        # Set movement speed
         self.set_speed(ENEMY_SPEED_X, 0)
 
     def update(self) -> None:
@@ -263,10 +256,9 @@ class EnemyType3(Enemy):
         self.frames = [pygame.transform.flip(frame, True, False) for frame in self.frames]
 
         self.image = self.frames[self.frame_index]
-        self.rect = self.image.get_rect()
+        self.rect = self.image.get_rect()  # Use the frame at the current index
         self.mask = pygame.mask.from_surface(self.image)
 
-        # Make sure to synchronize the float position trackers with the rect position
         self._pos_x = float(self.rect.x)
         self._pos_y = float(self.rect.y)
 
@@ -347,10 +339,9 @@ class EnemyType4(Enemy):
         self.frames = [pygame.transform.flip(frame, True, False) for frame in self.frames]
 
         self.image = self.frames[self.frame_index]
-        self.rect = self.image.get_rect()
+        self.rect = self.image.get_rect()  # Use the frame at the current index
         self.mask = pygame.mask.from_surface(self.image)
 
-        # Make sure to synchronize the float position trackers with the rect position
         self._pos_x = float(self.rect.x)
         self._pos_y = float(self.rect.y)
 
@@ -448,10 +439,9 @@ class EnemyType5(Enemy):
         self.frames = [pygame.transform.flip(frame, True, False) for frame in self.frames]
 
         self.image = self.frames[self.frame_index]
-        self.rect = self.image.get_rect()
+        self.rect = self.image.get_rect()  # Use the frame at the current index
         self.mask = pygame.mask.from_surface(self.image)
 
-        # Make sure to synchronize the float position trackers with the rect position
         self._pos_x = float(self.rect.x)
         self._pos_y = float(self.rect.y)
 
@@ -558,14 +548,12 @@ class EnemyType6(Enemy):
 
         self.image = self.frames[self.frame_index]
         self.original_image = self.image.copy()  # Store for teleport effect
-        self.rect = self.image.get_rect()
+        self.rect = self.image.get_rect()  # Use the frame at the current index
         self.mask = pygame.mask.from_surface(self.image)
 
-        # Make sure to synchronize the float position trackers with the rect position
         self._pos_x = float(self.rect.x)
         self._pos_y = float(self.rect.y)
 
-        # Set initial movement speed
         self.set_speed(
             ENEMY_SPEED_X * 0.6 * self.direction_x, ENEMY_SPEED_X * 0.4 * self.direction_y
         )
@@ -697,10 +685,9 @@ class EnemyType7(Enemy):
         self.frames = [pygame.transform.flip(frame, True, False) for frame in self.frames]
 
         self.image = self.frames[self.frame_index]
-        self.rect = self.image.get_rect()
+        self.rect = self.image.get_rect()  # Use the frame at the current index
         self.mask = pygame.mask.from_surface(self.image)
 
-        # Position tracking
         self._pos_x = float(self.rect.x)
         self._pos_y = float(self.rect.y)
 
@@ -757,7 +744,6 @@ class EnemyType7(Enemy):
             # Activate reflection
             self.reflection_active = True
             self.last_reflection_time = now
-            # Play shield activation sound (handled in game_loop)
         elif self.reflection_active and now - self.last_reflection_time > self.reflection_duration:
             # Deactivate reflection
             self.reflection_active = False
@@ -906,10 +892,9 @@ class EnemyType8(Enemy):
         self.frames = [pygame.transform.flip(frame, True, False) for frame in self.frames]
 
         self.image = self.frames[self.frame_index]
-        self.rect = self.image.get_rect()
+        self.rect = self.image.get_rect()  # Use the frame at the current index
         self.mask = pygame.mask.from_surface(self.image)
 
-        # Make sure to synchronize the float position trackers with the rect position
         self._pos_x = float(self.rect.x)
         self._pos_y = float(self.rect.y)
 
@@ -1035,6 +1020,3 @@ class EnemyType8(Enemy):
         
         # Draw the enemy sprite on top
         surface.blit(self.image, self.rect)
-
-
-# Add more enemy classes as needed (e.g., Charger, Shooter, Boss)

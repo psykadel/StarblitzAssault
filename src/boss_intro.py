@@ -3,7 +3,7 @@
 import math
 import os
 import random
-from typing import List, Optional, Tuple, Any
+from typing import List, Optional, Tuple
 
 import pygame
 import numpy as np
@@ -67,7 +67,7 @@ class RainbowStar:
             return
             
         # Calculate current size based on pulse
-        pulse_factor = 0.5 + math.sin(self.pulse_angle) * 0.5  # Range 0-1
+        pulse_factor = 0.5 + math.sin(self.pulse_angle) * 0.5
         current_size = max(1, int(self.size * pulse_factor))
         
         # Draw trail

@@ -13,6 +13,7 @@ from src.logger import get_logger
 # Get a logger for this module
 logger = get_logger(__name__)
 
+# Core bullet parameters
 ENEMY_BULLET_SPEED = 5
 BULLET_SIZE = (8, 8)
 

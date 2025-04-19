@@ -1,10 +1,8 @@
 """Manages background layers for parallax scrolling."""
 
 import math
-import os
 import random
-import sys
-from typing import List, Optional, Tuple
+from typing import List
 
 import pygame
 
@@ -114,6 +112,7 @@ class BackgroundDecorations:
         """
         self.decorations = []
         self.screen_width = screen_width
+        self.screen_height = screen_height
         self.scroll_speed = scroll_speed
 
         # Playable area boundaries
@@ -170,35 +169,24 @@ class BackgroundDecorations:
         Args:
             count: Number of decorations to create.
         """
-        # Clear any existing decorations
         self.decorations = []
 
-        # Playable area height
-        playable_height = self.playfield_bottom - self.playfield_top
-
-        # Start position for first decoration (slightly off-screen to the left)
         current_x = -100
 
-        # Track last used image to avoid repetition
         last_used_image = None
 
-        # Track last used y section to ensure vertical variation
         last_y_section = None
 
-        # Calculate usable vertical area with padding
         top_limit = self.playfield_top + DECORATION_TOP_PADDING
         bottom_limit = self.playfield_bottom - DECORATION_BOTTOM_PADDING
         usable_height = bottom_limit - top_limit
 
-        # Define number of vertical sections (for better distribution)
         num_sections = 4
         section_height = usable_height / num_sections
 
-        # Determine how many decorations to place on-screen initially
         on_screen_count = count // 2
 
         for i in range(count):
-            # Select an image that's different from the last one
             if last_used_image is not None and len(self.decoration_images) > 1:
                 available_images = [img for img in self.decoration_images if img != last_used_image]
                 img = random.choice(available_images)
@@ -208,12 +196,10 @@ class BackgroundDecorations:
             last_used_image = img
             img_width, img_height = img.get_size()
 
-            # Calculate X position with proper spacing
             if i > 0:
                 # Add minimum spacing plus some randomness
                 current_x += DECORATION_MIN_HORIZONTAL_SPACING + random.randint(0, 200)
 
-            # If we're transitioning to off-screen decorations and current_x is still on-screen
             if i == on_screen_count and current_x < self.screen_width:
                 # Ensure the first off-screen decoration is actually off-screen
                 # while respecting minimum spacing from the last on-screen decoration
@@ -221,7 +207,6 @@ class BackgroundDecorations:
                     current_x + DECORATION_MIN_HORIZONTAL_SPACING, self.screen_width + 100
                 )
 
-            # Select a vertical section different from last one
             if last_y_section is not None:
                 available_sections = [s for s in range(num_sections) if s != last_y_section]
                 section = random.choice(available_sections)
@@ -230,17 +215,14 @@ class BackgroundDecorations:
 
             last_y_section = section
 
-            # Calculate Y position within the selected section
             section_top = top_limit + section * section_height
             section_bottom = min(section_top + section_height, bottom_limit - img_height)
 
-            # Ensure valid range
             if section_bottom <= section_top:
                 section_bottom = section_top + 1
 
             y = random.randint(int(section_top), int(section_bottom))
 
-            # Add to decorations list
             self.decorations.append(
                 {
                     "image": img,
@@ -254,12 +236,9 @@ class BackgroundDecorations:
     def update(self) -> None:
         """Update the positions of all decorations."""
         for decoration in self.decorations:
-            # Move decoration based on scroll speed
             decoration["pos"][0] -= self.scroll_speed
 
-            # If decoration goes off-screen left, move it back to the right
             if decoration["pos"][0] < -decoration["width"]:
-                # Find the rightmost decoration
                 rightmost_x = self.screen_width
                 rightmost_decoration = None
 
@@ -268,47 +247,39 @@ class BackgroundDecorations:
                         rightmost_x = d["pos"][0]
                         rightmost_decoration = d
 
-                # Position after the rightmost decoration with spacing
                 new_x = max(
                     rightmost_x + DECORATION_MIN_HORIZONTAL_SPACING + random.randint(0, 200),
                     self.screen_width + 100,
                 )
                 decoration["pos"][0] = new_x
 
-                # Calculate usable vertical area with padding
                 top_limit = self.playfield_top + DECORATION_TOP_PADDING
                 bottom_limit = self.playfield_bottom - DECORATION_BOTTOM_PADDING
                 usable_height = bottom_limit - top_limit
 
-                # Define number of vertical sections
                 num_sections = 4
                 section_height = usable_height / num_sections
 
-                # Get current section and choose a different one
                 current_section = decoration["last_section"]
                 available_sections = [s for s in range(num_sections) if s != current_section]
                 new_section = random.choice(available_sections)
                 decoration["last_section"] = new_section
 
-                # Calculate Y position within the new section
                 section_top = top_limit + new_section * section_height
                 section_bottom = min(
                     section_top + section_height, bottom_limit - decoration["height"]
                 )
 
-                # Ensure valid range
                 if section_bottom <= section_top:
                     section_bottom = section_top + 1
 
                 y = random.randint(int(section_top), int(section_bottom))
                 decoration["pos"][1] = y
 
-                # Choose a new image different from current and the rightmost decoration
                 if len(self.decoration_images) > 1:
                     current_img = decoration["image"]
                     nearby_img = rightmost_decoration["image"] if rightmost_decoration else None
 
-                    # Filter out current image and the image of the rightmost decoration
                     available_images = [
                         img
                         for img in self.decoration_images
@@ -318,7 +289,6 @@ class BackgroundDecorations:
                     if available_images:
                         new_img = random.choice(available_images)
                     else:
-                        # Fall back to any image different from current
                         other_images = [img for img in self.decoration_images if img != current_img]
                         if other_images:
                             new_img = random.choice(other_images)
@@ -336,6 +306,5 @@ class BackgroundDecorations:
             surface: The pygame surface to draw on.
         """
         for decoration in self.decorations:
-            # Convert float position to integers for blitting
             pos = (int(decoration["pos"][0]), int(decoration["pos"][1]))
             surface.blit(decoration["image"], pos)

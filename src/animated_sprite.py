@@ -1,6 +1,6 @@
 """Base class for animated sprites in the game."""
 
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 import pygame
 
@@ -91,7 +91,6 @@ class AnimatedSprite(pygame.sprite.Sprite):
         """Get the current position as a tuple."""
         return (self._pos_x, self._pos_y)
 
-    # Override rect properties to ensure float position is updated
     @property
     def topleft(self) -> Tuple[int, int]:
         """Get the topleft position."""
