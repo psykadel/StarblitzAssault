@@ -20,7 +20,7 @@ DEBUG_ENEMY_TYPE_INDEX: int = 3  # Enemy type to use when DEBUG_FORCE_ENEMY_TYPE
 
 # Debug variables for powerups
 DEBUG_FORCE_POWERUP_TYPE: bool = False
-DEBUG_POWERUP_TYPE_INDEX: int = 8  # PowerupType index to use when DEBUG_FORCE_POWERUP_TYPE is True (DRONE=9)
+DEBUG_POWERUP_TYPE_INDEX: int = 9  # PowerupType index to use when DEBUG_FORCE_POWERUP_TYPE is True (DRONE=9)
 
 # ------------------------------------------------------------------------------
 # DIRECTORY PATHS
