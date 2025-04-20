@@ -10,6 +10,7 @@ __pycache__
 
 ### Application build files
 dist/StarblitzAssault.app
+dist/StarblitzAssault
 
 ### OS generated files
 ._*
