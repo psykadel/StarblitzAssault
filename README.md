@@ -91,4 +91,4 @@ Harris, C. R., Millman, K. J., van der Walt, S. J., et al. (2020). *Array progra
 Pygame Community. (2025). *Pygame (Version 2.6.1)* [Computer software]. [https://www.pygame.org/](https://www.pygame.org/)
 
 **Pydub**  
-Robertson, J. (2021). *Pydub (Version 0.25.1)* [Computer software]. [https://github.com/jiaaro/pydub/releases/tag/v0.25.1](https://github.com/jiaaro/pydub/releases/tag/v0.25.1)
+Robertson, J. (2021). *Pydub (Version 0.25.1)* [Computer software]. [https://github.com/jiaaro/pydub](https://github.com/jiaaro/pydub)
