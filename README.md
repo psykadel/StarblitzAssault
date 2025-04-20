@@ -1,6 +1,44 @@
 # Starblitz Assault
 
-Blast into a relentless, side-scrolling dogfight across galaxies teeming with hostile alien fleets. Pilot the advanced Starblitz fighter, upgrade devastating weapons, dodge bullet-storm chaos, and obliterate massive boss enemies. Your reflexes and courage stand between humanity and cosmic annihilation.
+<img src="starblitz-icon.png" alt="Starblitz Assault Logo" width="200"/>
+
+## Overview
+
+Starblitz Assault is a high-intensity side-scrolling survival wave shooter where players pilot the advanced Starblitz fighter through hostile alien-infested galaxies. As humanity's last defense against cosmic annihilation, you'll navigate bullet-storm chaos, upgrade devastating weapons, and face off against a massive boss in this adrenaline-fueled arcade experience.
+
+The game features:
+
+- Fast-paced side-scrolling shooter gameplay with smooth, responsive controls
+- Multiple enemy types with unique attack patterns and behaviors
+- A spectacular boss battle with multi-phase challenge
+- Dynamic backgrounds with parallax scrolling effects
+- Progressive difficulty scaling to maintain challenge
+- Extensive powerup system with 11 different upgrade types
+- A modern pixel art aesthetic with fluid animations
+
+## Feel The Vibes
+
+This entire game was vibe coded — stitched together by instinct, stubbornness, scotch, and a string of late-night hunches. No Gantt charts. No scrum boards.  Just vibes.
+
+### Third Parties
+
+Starblitz Assault comes to life thanks to Pygame, a Python game dev toolkit that vibes hard with retro energy and modern flexibility.
+
+## Contributors
+
+### Meat-Based Leadership
+[github.com/psykadel](https://github.com/psykadel)
+
+### Robot Servants
+This game was created with assistance from the following digital co-vibers:
+
+| Role | Robo-servant |
+|------|-------------|
+| **Creative Code Development** | Anthropic Claude Sonnet 3.7 |
+| **Bug Fixes & Optimization** | Google Gemini 2.5 Experimental |
+| **Sprite & Visual Design** | GPT-4o Native Image Generation |
+| **Soundtrack Generation** | Udio |
+| **Sound Effects Creation** | ElevenLabs |
 
 ## Installation
 
@@ -25,97 +63,20 @@ pip install -r requirements.txt
 python main.py
 ```
 
-## Features
+## Gameplay
 
-- Fast-paced side-scrolling space shooter gameplay
-- Multiple enemy formation patterns
-- Procedurally generated sound effects
-- Dynamic background music
-- Smooth player controls with responsive movement
+### Controls
 
-## Controls
-
-- **Arrow Keys**: Move the ship
+- **Arrow Keys**: Navigate your ship
 - **Space**: Fire weapons
+- **B**: Deploy Scatter Bomb (when available)
 - **M**: Toggle music pause/play
-- **+/-**: Increase/decrease music volume
+- **+/-**: Adjust music volume
 - **ESC**: Quit the game
 
-## Sound Effects & Music System
+## License & Attributions
 
-Starblitz Assault features a built-in procedural sound generator and a dynamic sound system:
+This project is licensed under the MIT License - see the LICENSE file for details.
 
-- Procedurally generated laser, explosion, and powerup sounds
-- Background music with fade-in/out and volume controls
-- Multi-channel audio for different game elements
-- Randomized laser sound variations during continuous fire
-
-### Sound Generation
-
-To regenerate the game's sound effects, run:
-
-```bash
-python assets/simple_sound_gen.py
-```
-
-This will create WAV files in the `assets/sounds` directory that are automatically loaded by the game.
-
-### Adding Music
-
-Place MP3 or OGG files in the `assets/music` directory. You can play them using:
-
-```python
-sound_manager.play_music("your-music-file.mp3")
-```
-
-## Development
-
-### Project Structure
-
-```
-StarblitzAssault/
-├─ .logs/          # Application logs
-├─ .tests/         # Temporary tests
-├─ .unused/        # Unused/deprecated files 
-├─ assets/         # Game assets
-│  ├─ backgrounds/ # Background images
-│  ├─ music/       # Music files
-│  ├─ sounds/      # Sound effects
-│  └─ sprites/     # Sprite sheets
-├─ config/         # Game configuration
-├─ src/            # Source code
-│  ├─ utils/       # Utility functions
-│  └─ ...          # Game component modules
-├─ static/         # Static files
-├─ tests/          # Permanent tests
-├─ format_script.py # Code formatting script
-├─ main.py         # Entry point
-└─ requirements.txt # Dependencies
-```
-
-### Code Formatting
-
-The project includes tools for maintaining consistent code style:
-
-```bash
-# Format all Python code using isort and black
-python format_script.py
-```
-
-This will:
-- Sort imports using isort
-- Format code using black with a line length of 88 characters
-- Skip certain directories (.venv, __pycache__, etc.)
-
-### Contributing
-
-1. Fork the repository
-2. Create a new branch (`git checkout -b feature/amazing-feature`)
-3. Make your changes
-4. Run the formatting script (`python format_script.py`)
-5. Commit your changes (`git commit -m 'Add some amazing feature'`)
-6. Push to the branch (`git push origin feature/amazing-feature`)
-7. Open a Pull Request
-
----
-*(Scaffolding based on provided rules)*
+Music: "Created with Udio" – generated on Udio (free tier) under its attribution policy.  
+Sound Effects: "Audio generated via elevenlabs.io / 11.ai" – created with ElevenLabs (free tier) under its attribution policy.
