@@ -36,7 +36,7 @@ This game was created with assistance from the following digital co-vibers:
 |------|-------------|
 | **Creative Code Development** | Anthropic Claude Sonnet 3.7 |
 | **Bug Fixes & Optimization** | Google Gemini 2.5 Experimental |
-| **Sprite & Visual Design** | GPT-4o Native Image Generation |
+| **Sprite & Visual Design** | OpenAI GPT-4o Native Image Generation |
 | **Soundtrack Generation** | Udio |
 | **Sound Effects Creation** | ElevenLabs |
 
