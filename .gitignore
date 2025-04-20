@@ -8,8 +8,12 @@
 .vscode
 __pycache__
 
-### Application build files
-dist/StarblitzAssault.app
+### Application build files - macOS
+dist/Starblitz Assault.app
+dist/Starblitz Assault
+dist/StarblitzAssault-macOS.dmg
+
+### Application build files - Windows
 dist/StarblitzAssault
 
 ### OS generated files
