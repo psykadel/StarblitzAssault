@@ -42,9 +42,19 @@ Starblitz Assault comes to life thanks to Pygame, a Python game dev toolkit that
 
 ## Installation
 
+### Pre-built Releases (Recommended)
+
+For Windows and macOS users, we provide pre-built releases that don't require Python installation:
+
+1. Visit the [Releases](https://github.com/psykadel/StarblitzAssault/releases) section of this repository
+2. Download the appropriate file for your system.
+3. Follow the simple instructions in the release notes.
+
+### From Source
+
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/StarblitzAssault.git
+git clone https://github.com/psykadel/StarblitzAssault.git
 cd StarblitzAssault
 
 # Create a virtual environment
@@ -87,8 +97,14 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 **NumPy**  
 Harris, C. R., Millman, K. J., van der Walt, S. J., et al. (2020). *Array programming with NumPy*. _Nature_, 585(7825), 357–362. [https://doi.org/10.1038/s41586-020-2649-2](https://doi.org/10.1038/s41586-020-2649-2)
 
-**Pygame**  
-Pygame Community. (2025). *Pygame (Version 2.6.1)* [Computer software]. [https://www.pygame.org/](https://www.pygame.org/)
+**Pillow**  
+Clark, A. (2024). *Pillow (Version 11.2.1)* [Computer software]. [https://github.com/python-pillow/Pillow](https://github.com/python-pillow/Pillow)
 
 **Pydub**  
 Robertson, J. (2021). *Pydub (Version 0.25.1)* [Computer software]. [https://github.com/jiaaro/pydub](https://github.com/jiaaro/pydub)
+
+**Pygame**  
+Pygame Community. (2025). *Pygame (Version 2.6.1)* [Computer software]. [https://www.pygame.org/](https://www.pygame.org/)
+
+**PyInstaller**  
+PyInstaller Development Team. (2025). *PyInstaller (Version 6.13.0)* [Computer software]. [https://pyinstaller.org/](https://pyinstaller.org/)
