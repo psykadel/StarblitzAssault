@@ -43,6 +43,9 @@ class AttackPattern:
     TARGETED = 3
     RAIN = 4
 
+# Add at the top, after imports
+TWOPI = math.pi * 2  # For performance in tight loops
+
 class RainbowParticle(pygame.sprite.Sprite):
     """A special particle with rainbow trail effect for boss death animation."""
     
@@ -261,7 +264,7 @@ class BossTentacle:
         self.index = index
         self.length = random.randint(150, 250)
         self.width = random.randint(12, 20)
-        self.angle = (2 * math.pi / BOSS_TENTACLE_COUNT) * index
+        self.angle = (TWOPI / BOSS_TENTACLE_COUNT) * index
         self.angular_speed = random.uniform(0.01, 0.05) * random.choice([-1, 1])
         self.extension_speed = random.uniform(0.2, 0.8)
         self.max_extension = random.randint(40, 70)
@@ -296,31 +299,28 @@ class BossTentacle:
         
         # Calculate segment positions along tentacle
         points = []
-        for i in range(self.segments + 1):
-            progress = i / self.segments
-            segment_length = self.length * progress
-            
-            # Calculate wave effect
+        angle = self.angle
+        length = self.length
+        width = self.width
+        base_color_index = self.base_color_index
+        segments = self.segments
+        for i in range(segments + 1):
+            progress = i / segments
+            segment_length = length * progress
             wave_intensity = 10 + self.extension * progress
-            wave_x = math.sin(self.angle + progress * 5) * wave_intensity * progress
-            wave_y = math.cos(self.angle + progress * 5) * wave_intensity * progress
-            
-            # Calculate base position based on angle and length
-            x = boss_center[0] - math.cos(self.angle) * segment_length + wave_x
-            y = boss_center[1] - math.sin(self.angle) * segment_length + wave_y
-            
+            wave_x = math.sin(angle + progress * 5) * wave_intensity * progress
+            wave_y = math.cos(angle + progress * 5) * wave_intensity * progress
+            x = boss_center[0] - math.cos(angle) * segment_length + wave_x
+            y = boss_center[1] - math.sin(angle) * segment_length + wave_y
             points.append((x, y))
         
         # Draw segments as lines with rainbow gradient
         if len(points) > 1:
             for i in range(len(points) - 1):
                 progress = i / (len(points) - 1)
-                # Calculate color index with smooth transition
-                color_index = int((self.base_color_index + progress * 3) % len(BOSS_BULLET_COLORS))
+                color_index = int((base_color_index + progress * 3) % len(BOSS_BULLET_COLORS))
                 next_color_index = (color_index + 1) % len(BOSS_BULLET_COLORS)
-                color_blend = (self.base_color_index + progress * 3) % 1.0
-                
-                # Interpolate between colors
+                color_blend = (base_color_index + progress * 3) % 1.0
                 color1 = BOSS_BULLET_COLORS[color_index]
                 color2 = BOSS_BULLET_COLORS[next_color_index]
                 color = (
@@ -328,18 +328,14 @@ class BossTentacle:
                     int(color1[1] * (1 - color_blend) + color2[1] * color_blend),
                     int(color1[2] * (1 - color_blend) + color2[2] * color_blend)
                 )
-                
-                # Calculate width with taper effect
-                width = max(1, int(self.width * (1 - progress * 0.8)))
-                
-                # Draw the segment
-                pygame.draw.line(surface, color, points[i], points[i+1], width)
+                seg_width = max(1, int(width * (1 - progress * 0.8)))
+                pygame.draw.line(surface, color, points[i], points[i+1], seg_width)
         
         # Draw a glowing point at the end
         if points:
-            glow_radius = max(3, int(self.width * 0.5))
+            glow_radius = max(3, int(width * 0.5))
             end_point = points[-1]
-            pygame.draw.circle(surface, BOSS_BULLET_COLORS[int(self.base_color_index) % len(BOSS_BULLET_COLORS)], 
+            pygame.draw.circle(surface, BOSS_BULLET_COLORS[int(base_color_index) % len(BOSS_BULLET_COLORS)], 
                               (int(end_point[0]), int(end_point[1])), glow_radius)
 
 class RainbowBullet(EnemyBullet):
@@ -545,21 +541,18 @@ class Boss(pygame.sprite.Sprite):
         
         # Update movement pattern - Float up and down menacingly
         # Choose a new target position when close to current target
-        if abs(self.pos_y - self.target_y) < 10:
+        pos_y = self.pos_y
+        target_y = self.target_y
+        movement_speed = self.movement_speed
+        if abs(pos_y - target_y) < 10:
             playfield_height = PLAYFIELD_BOTTOM_Y - PLAYFIELD_TOP_Y
             mid_y = PLAYFIELD_TOP_Y + playfield_height / 2
-            
-            # Choose a target position within the amplitude range
             self.target_y = mid_y + random.uniform(-self.movement_amplitude, self.movement_amplitude)
-            
-            # Ensure target is within playfield bounds
             self.target_y = max(PLAYFIELD_TOP_Y + 50, min(PLAYFIELD_BOTTOM_Y - 50, self.target_y))
-        
-        # Move toward target position
-        if self.pos_y < self.target_y:
-            self.pos_y += self.movement_speed
+        if pos_y < target_y:
+            self.pos_y += movement_speed
         else:
-             self.pos_y -= self.movement_speed
+            self.pos_y -= movement_speed
         
         # Apply small random horizontal movement
         if random.random() < 0.03:
@@ -610,7 +603,8 @@ class Boss(pygame.sprite.Sprite):
         
         # Divide the image into horizontal slices and apply distortion
         slice_height = 10
-        num_slices = self.image.get_height() // slice_height
+        img_height = self.image.get_height()
+        num_slices = img_height // slice_height
         
         for i in range(num_slices):
             # Random horizontal offset that increases with lower health
@@ -650,15 +644,16 @@ class Boss(pygame.sprite.Sprite):
         glitch_intensity_factor = distortion_intensity * 0.8
         if random.random() < 0.25 * glitch_intensity_factor: # Reduced base chance
             num_lines = max(1, int(2.5 * glitch_intensity_factor)) # Reduced max lines
+            img_width = self.image.get_width()
             for _ in range(num_lines):
                 # Find a row with non-transparent pixels
                 found_valid_line = False
                 line_y = 0  # Default value to avoid unbound error
                 attempts = 0
                 while not found_valid_line and attempts < 10:  # Limit attempts to avoid infinite loop
-                    line_y = random.randint(0, self.image.get_height() - 1)
+                    line_y = random.randint(0, img_height - 1)
                     # Check if this row has non-transparent pixels
-                    for x in range(self.image.get_width()):
+                    for x in range(img_width):
                         if mask.get_at((x, line_y)):  # Check if pixel is opaque
                             found_valid_line = True
                             break
@@ -965,7 +960,7 @@ class Boss(pygame.sprite.Sprite):
                 angle = math.atan2(dy, dx)
             else:
                 # Random direction
-                angle = random.uniform(0, 2 * math.pi)
+                angle = random.uniform(0, TWOPI)
                 
             # Calculate velocity - these are faster than normal bullets
             tentacle_bullet_speed = self.bullet_speed * 1.3  # Reduced from 1.5
@@ -999,7 +994,7 @@ class Boss(pygame.sprite.Sprite):
                     angle = base_angle + random.uniform(-0.7, 0.7)  # Add significant randomness
                 else:
                     # Random angle if no player
-                    angle = random.uniform(0, 2 * math.pi)
+                    angle = random.uniform(0, TWOPI)
             
                 # Higher speed for surprise shots
                 surprise_speed = self.bullet_speed * 1.1

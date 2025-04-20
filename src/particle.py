@@ -6,10 +6,8 @@ from typing import List, Optional, Tuple
 
 import pygame
 
-from src.logger import get_logger
 
-# Get a logger for this module
-logger = get_logger(__name__)
+# Particle system requires initialization and a running pygame instance
 
 
 class Particle(pygame.sprite.Sprite):

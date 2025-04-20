@@ -26,7 +26,7 @@ def main():
         # Create the game instance
         game = Game()
         
-        # Run intro sequence if not skipped - fix: ensure we're not reading from stored args
+        # Run intro sequence if not skipped
         skip_intro = False
         if hasattr(args, 'skip_intro'):
             skip_intro = args.skip_intro
@@ -49,7 +49,7 @@ def main():
         if not skip_objective:
             logger.info("Displaying objective screen")
             # Pass the game's sound manager to the objective screen for smoother transitions
-            objective_result = run_objective_screen(game.screen, game.sound_manager)
+            objective_result = run_objective_screen(game.screen)
             
             # Quit if user closed the game during objective screen
             if not objective_result:

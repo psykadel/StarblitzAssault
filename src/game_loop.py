@@ -5,14 +5,12 @@ from __future__ import annotations
 import logging
 import os
 import random
-import sys
 import math
-from enum import IntEnum  # Add IntEnum import
-from typing import Dict, List, Optional, Tuple, Set, Union, Any
+from collections import deque
+from enum import IntEnum
+from typing import Tuple
 
 import pygame
-import numpy as np
-from pygame.locals import KEYDOWN, MOUSEBUTTONDOWN, QUIT  # No longer need VIDEORESIZE
 
 # Import configuration constants
 from config.config import (
@@ -22,10 +20,8 @@ from config.config import (
     DEBUG_FORCE_ENEMY_TYPE,
     DECORATION_FILES,
     DEFAULT_FONT_SIZE,
-    DIFFICULTY_MAX_LEVEL,
     ENEMY_SHOOTER_COOLDOWN_MS,
     ENEMY_TYPE_NAMES,
-    ENEMY_TYPES,
     FPS,
     LOGO_ALPHA,
     PATTERN_TYPES,
@@ -33,21 +29,14 @@ from config.config import (
     PLAYER_SPEED,
     PLAYFIELD_BOTTOM_Y,
     PLAYFIELD_TOP_Y,
-    POWERUP_DIFFICULTY_SCALING,
-    POWERUP_MAX_SPAWN_INTERVAL_MS,
-    POWERUP_MIN_DIFFICULTY_INTERVAL_MS,
-    POWERUP_MIN_SPAWN_INTERVAL_MS,
     SCREEN_HEIGHT,
     SCREEN_WIDTH,
     WAVE_DELAY_MS,
     WAVE_TIMER_EVENT_ID,
     WHITE,
-    SOUNDS_DIR,
     DEBUG_FORCE_POWERUP_TYPE,
     DEBUG_POWERUP_TYPE_INDEX,
-    FLAME_PARTICLE_DAMAGE,
     BOSS_WAVE_NUMBER,
-    BOSS_BULLET_COLORS,
 )
 from src.background import BackgroundDecorations, BackgroundLayer
 from src.border import Border
@@ -68,26 +57,22 @@ from src.logger import get_logger, setup_logger
 # Import game components
 from src.player import MAX_POWER_LEVEL, Player
 from src.power_particles import PowerParticleSystem
-from src.powerup import ACTIVE_POWERUP_TYPES, PowerupParticle, PowerupType
-from src.projectile import Bullet, ScatterProjectile, LaserBeam
+from src.powerup import PowerupType
 from src.sound_manager import SoundManager
 from src.particle import FlameParticle
 
-# Near the top of the file, add the boss import
-from src.boss_battle import Boss, RainbowBullet, create_boss
-from src.boss_intro import run_boss_intro # Add this import
+# Import boss components
+from src.boss_battle import create_boss
+from src.boss_intro import run_boss_intro
 
 # Get logger for this module
 logger = get_logger(__name__)
 
 # Define background speeds
-BG_LAYER_SPEEDS = [0.5, 1.0, 1.5, 2.0]  # Slowest to fastest (added a fourth speed)
+BG_LAYER_SPEEDS = [0.5, 1.0, 1.5, 2.0]  # Slowest to fastest
 
 # Use the event ID from config
 WAVE_TIMER_EVENT = WAVE_TIMER_EVENT_ID
-
-# Add at the beginning of the file, near other imports:
-from collections import deque
 
 # Rainbow colors for boss blood explosions
 BOSS_BLOOD_COLORS = [
@@ -165,14 +150,12 @@ class RainbowBloodExplosion(Explosion):
         # Reset current frame
         self.image = self.frames[self.frame_index]
 
-
 # Define pattern types as IntEnum for better type checking and readability
 class PatternType(IntEnum):
     VERTICAL = PATTERN_TYPES["VERTICAL"]
     HORIZONTAL = PATTERN_TYPES["HORIZONTAL"]
     DIAGONAL = PATTERN_TYPES["DIAGONAL"]
     V_SHAPE = PATTERN_TYPES["V_SHAPE"]
-
 
 # Text notification for powerups
 class PowerupNotification(pygame.sprite.Sprite):
@@ -251,7 +234,6 @@ class PowerupNotification(pygame.sprite.Sprite):
             new_image.set_alpha(self.alpha)
             self.image = new_image
 
-
 class Game:
     """Main game class managing the game loop, state, and events."""
 
@@ -268,7 +250,7 @@ class Game:
         # Difficulty progression
         self.difficulty_level = 1.0  # Starting difficulty (will increase over time)
         self.max_difficulty = 10.0  # Maximum difficulty cap
-        self.difficulty_increase_rate = 0.2  # Significantly increased from 0.05 to 0.2
+        self.difficulty_increase_rate = 0.2
         self.game_start_time = pygame.time.get_ticks()  # Track game duration
 
         # Consider adding mixer init for sounds later: pygame.mixer.init()
@@ -442,10 +424,6 @@ class Game:
         # Initialize sound manager
         self.sound_manager = SoundManager()
 
-        # Start background music
-        # Removed duplicate music initialization - intro.py already starts the music
-        # self.sound_manager.play_music("background-music.mp3", loops=-1)
-
         # Laser sound timer - for continuous fire sound
         self.last_laser_sound_time = 0
 
@@ -592,13 +570,6 @@ class Game:
             self.clock.tick(FPS)  # Use FPS from config
 
         pygame.quit()
-
-    # Optional: Handle window resizing - REMOVED
-    # def handle_resize(self):
-    #     for event in pygame.event.get(pygame.VIDEORESIZE):
-    #         self.current_screen_width, self.current_screen_height = event.size
-    #         self.screen = pygame.display.set_mode((self.current_screen_width, self.current_screen_height), pygame.RESIZABLE)
-    #         # Optionally recreate/rescale background layers if needed
 
     def _handle_events(self):
         """Process all game events."""
@@ -760,8 +731,8 @@ class Game:
                 max_enemies = 7 + int(
                     (self.difficulty_level - 1) / 1
                 )  # Increases by 1 every difficulty level (faster)
-                min_enemies = min(min_enemies, 10)  # Higher cap (was 8)
-                max_enemies = min(max_enemies, 15)  # Higher cap (was 12)
+                min_enemies = min(min_enemies, 10)
+                max_enemies = min(max_enemies, 15)
 
                 count = random.randint(min_enemies, max_enemies)
 
@@ -778,7 +749,7 @@ class Game:
                     logger.info(f"DEBUG: Forcing enemy type {DEBUG_ENEMY_TYPE_INDEX}")
                 else:
                     enemy_type_index = random.choices(
-                        list(range(len(enemy_weights))),  # Options are 0-5 for all enemy types
+                        list(range(len(enemy_weights))),
                         weights=enemy_weights,
                         k=1,
                     )[0]
@@ -819,9 +790,9 @@ class Game:
         # Faster shooting at higher difficulty (up to 70% reduction)
         cooldown_reduction = min(
             0.7, (self.difficulty_level - 1) * 0.1
-        )  # Increased from 0.05 to 0.1 per level, max 70% (was 50%)
+        )
 
-        # Override global cooldown with difficulty-adjusted value (using monkey patching)
+        # Override global cooldown with difficulty-adjusted value
         import src.enemy
 
         src.enemy.ENEMY_SHOOTER_COOLDOWN_MS = int(
@@ -842,7 +813,7 @@ class Game:
         # Apply difficulty-based speed modifier
         speed_modifier = (
             1.0 + (self.difficulty_level - 1) * 0.15
-        )  # Increased from 0.1 to 0.15 (15% per level)
+        )
 
         # Define border margin to keep enemies away from borders
         border_margin = 50  # Pixels to keep away from top/bottom playfield borders
@@ -864,8 +835,7 @@ class Game:
 
         elif (
             pattern_type == PatternType.V_SHAPE
-        ):  # Changed from PATTERN_V_FORMATION to PATTERN_V_SHAPE
-            # V formation - enemies in a V shape
+        ):
             self._spawn_v_pattern(count, enemy_type_index, speed_modifier)
 
         else:
@@ -1006,7 +976,7 @@ class Game:
     ):
         """Creates a diagonal line of enemies entering from right."""
         # Apply larger border margin to prevent spawning outside visible area
-        border_margin = 70  # Increased from 50 to 70
+        border_margin = 70
         
         # Use even larger margin for EnemyType7 which has a taller sprite
         if enemy_type_index == 6:  # EnemyType7 index is 6
@@ -1341,7 +1311,6 @@ class Game:
                 if self.boss.is_defeated and not self.boss_defeat_handled and hasattr(self.boss, 'animation_complete') and self.boss.animation_complete:
                     logger.info("Boss animation complete flag detected. Handling boss defeat.")
                     self._handle_boss_defeated()
-                    # No need to set self.boss_defeat_handled = True here, _handle_boss_defeated does it.
 
                 # --- Boss Firing Logic (only if not defeated/animating) --- 
                 elif not self.boss.is_defeated and not self.boss.death_animation_active:
@@ -1760,13 +1729,6 @@ class Game:
                 )
                 logger.debug(f"Enemy destroyed by collision at {enemy.rect.center}")
 
-            # Play hit sound for player - REMOVED, now handled in Player.take_damage
-            # try:
-            #     # self.sound_manager.play("hit1", "player") # Removed hit1 sound
-            #     pass # No sound for player collision with enemy for now
-            # except Exception as e:
-            #     logger.warning(f"Failed to play hit sound: {e}")
-
             logger.warning("Player hit by enemy!")
             # Apply damage to player
             player_alive = self.player.take_damage()
@@ -1788,13 +1750,6 @@ class Game:
                 PowerParticleSystem.create_power_change_effect(
                     power_bar_pos, power_color, is_decrease=True, group=self.particles
                 )
-
-            # Play hit sound - REMOVED, now handled in Player.take_damage
-            # try:
-            #     # self.sound_manager.play("hit1", "player") # Removed hit1 sound
-            #     pass # No sound for player being hit by enemy bullet for now
-            # except Exception as e:
-            #     logger.warning(f"Failed to play hit sound: {e}")
 
             # Check for game over
             if not player_survived:
@@ -1831,11 +1786,6 @@ class Game:
                     
                     # Update score for the hits
                     self.score += len(boss_hits) * 50
-                    
-                    # REMOVED: Do NOT call _handle_boss_defeated here immediately.
-                    # The Game._update loop will handle calling it after the animation finishes.
-                    # if boss_was_defeated_this_frame:
-                    #    self._handle_boss_defeated() # <-- This was the bug!
 
             except Exception as e:
                 logger.error(f"Error in boss collision detection: {e}")
@@ -2249,30 +2199,27 @@ class Game:
         if not self.player.is_alive or self.game_over:
             return
 
-        help_font = pygame.font.SysFont(None, 20)  # Slightly larger font
+        help_font = pygame.font.SysFont(None, 20)
         controls = [
-            "ARROWS - Move",  # Changed : to -
+            "ARROWS - Move",
             "SPACE - Fire",
             "B - Scatter Bomb",
-            # Removed SHIFT mechanic
             "M - Toggle Music",
             "+/- - Volume",
-            # Removed "D - Debug Enemy Types" line
         ]
 
-        y_pos = SCREEN_HEIGHT - 10 - (len(controls) * 22)  # Increased spacing
+        y_pos = SCREEN_HEIGHT - 10 - (len(controls) * 22)
         for i, text in enumerate(controls):
             # Shadow
             shadow_surf = help_font.render(text, True, (0, 0, 0))
             self.screen.blit(shadow_surf, (11, y_pos + 1))
 
-            # Text
             # Brighter text colors for better readability
             color = (230, 230, 230)  # Almost white for commands
             text_surf = help_font.render(text, True, color)
 
             self.screen.blit(text_surf, (10, y_pos))
-            y_pos += 22  # Increased spacing
+            y_pos += 22
 
     def _start_boss_battle(self):
         """Initialize and start the boss battle."""
@@ -2283,7 +2230,6 @@ class Game:
             if not intro_completed:
                 logger.warning("Boss intro aborted, game might exit.")
                 # Handle intro abortion (e.g., quit game or skip boss battle)
-                # For now, we'll just log it and proceed, but might need specific handling.
                 # If the user quits during the intro, the main loop should catch it.
                 pass # Or handle differently if needed
             logger.info("Boss intro sequence finished.")

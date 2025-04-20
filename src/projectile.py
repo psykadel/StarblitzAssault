@@ -1,9 +1,8 @@
 """Projectile classes for the game."""
 
 import math
-import os  # For file path handling
 import random
-from typing import List, Optional, Tuple
+from typing import Optional, Tuple
 
 import pygame
 
@@ -56,15 +55,20 @@ class Bullet(pygame.sprite.Sprite):
         self.velocity_x = BULLET_SPEED
         self.velocity_y = 0
 
-        # For precise position tracking
+        # Position tracking using floats for precision
         self.pos_x = float(x)
         self.pos_y = float(y)
 
         # For homing missiles
         self.is_homing = False
         self.target = None
-        self.turn_rate = 0.25  # Increased from 0.1 for faster turning
-        self.homing_speed = BULLET_SPEED * 0.9  # Slightly faster than before (was 0.85)
+        self.turn_rate = 0.25
+        self.homing_speed = BULLET_SPEED * 0.9
+
+        # Homing-specific attributes (initialized)
+        self.pulse_time: float = 0.0
+        self.pulse_speed: float = 0.2 # Set default speed here
+        self.original_size: Optional[int] = None
 
     def update(self) -> None:
         """Update the bullet's position."""
@@ -89,6 +93,9 @@ class Bullet(pygame.sprite.Sprite):
         # Skip if target is gone
         if not self.target or not self.target.alive():
             self.is_homing = False
+            # Revert to standard bullet behavior if target is lost
+            self.pos_x += self.velocity_x
+            self.pos_y += self.velocity_y
             return
 
         # Calculate direction to target
@@ -127,104 +134,63 @@ class Bullet(pygame.sprite.Sprite):
         self.pos_x += self.velocity_x
         self.pos_y += self.velocity_y
 
-        # Create a trail effect (if pulse_time attribute exists)
-        if hasattr(self, "pulse_time"):
-            self.pulse_time += self.pulse_speed
+        # Create a trail effect if homing
+        self.pulse_time += self.pulse_speed
 
-            # Update the appearance of the missile to create a pulsing effect
-            if random.random() < 0.2:  # Occasionally update appearance
-                # Get current missile size
-                if hasattr(self, "original_size"):
-                    size = self.original_size
-                else:
-                    size = self.rect.width
-                    self.original_size = size
+        # Update the appearance of the missile to create a pulsing effect
+        if random.random() < 0.2:
+            # Ensure original_size is set before using it
+            if self.original_size is None:
+                self.original_size = self.rect.width # Default to current width if not set
 
-                # Create pulsing effect
-                pulse_factor = 1.0 + 0.1 * math.sin(self.pulse_time)
-                new_size = int(size * pulse_factor)
+            size = self.original_size # Now guaranteed to be an int
+            pulse_factor = 1.0 + 0.1 * math.sin(self.pulse_time)
+            new_size = max(1, int(size * pulse_factor))
 
-                # Re-create the image with the pulsed size
-                old_center = self.rect.center
+            # Re-create the image with the pulsed size
+            old_center = self.rect.center # Store center before resize
+            self.image = pygame.Surface((new_size, new_size), pygame.SRCALPHA)
 
-                # Change appearance for pulsing effect
-                self.image = pygame.Surface((new_size, new_size), pygame.SRCALPHA)
+            # Redraw the missile shape (should match make_homing visually)
+            points = [
+                (new_size - 2, new_size // 2),  # Tip
+                (0, new_size // 4),  # Bottom left
+                (0, 3 * new_size // 4),  # Top left
+            ]
+            pygame.draw.polygon(self.image, (255, 50, 50), points)  # Bright red
+            pygame.draw.circle(
+                self.image, (255, 255, 0), (new_size - 5, new_size // 2), new_size // 4
+            ) # Yellow tip
+            glow_points = [
+                (0, new_size // 3), (0, 2 * new_size // 3), (-new_size // 1.5, new_size // 2)
+            ]
+            pygame.draw.polygon(
+                self.image, (255, 200, 0, 230), glow_points
+            ) # Engine glow
 
-                # Draw the homing missile
-                points = [
-                    (new_size - 2, new_size // 2),  # Tip
-                    (0, new_size // 4),  # Bottom left
-                    (0, 3 * new_size // 4),  # Top left
-                ]
-                pygame.draw.polygon(self.image, (255, 50, 50), points)  # Bright red
+            # Update rect and mask
+            self.rect = self.image.get_rect(center=old_center)
+            self.mask = pygame.mask.from_surface(self.image)
 
-                # Add yellow tip
-                pygame.draw.circle(
-                    self.image,
-                    (255, 255, 0),  # Bright yellow
-                    (new_size - 5, new_size // 2),
-                    new_size // 4,
-                )
-
-                # Add engine glow
-                glow_points = [
-                    (0, new_size // 3),  # Top
-                    (0, 2 * new_size // 3),  # Bottom
-                    (-new_size // 1.5, new_size // 2),  # Left tip
-                ]
-                pygame.draw.polygon(
-                    self.image, (255, 200, 0, 230), glow_points  # More solid orange-yellow glow
-                )
-
-                # Update rect and mask
-                self.rect = self.image.get_rect(center=old_center)
-                self.mask = pygame.mask.from_surface(self.image)
-
-    def make_homing(self, target) -> None:
-        """Convert this bullet to a homing missile."""
-        self.is_homing = True
-        self.target = target
-
-        # Change appearance to indicate homing status - make larger and more obvious
-        size = max(BULLET_SIZE) * 2  # Double the size for better visibility
-        self.image = pygame.Surface((size, size), pygame.SRCALPHA)
-
-        # Draw the homing missile as a bright red triangle with yellow tip
-        points = [
-            (size - 2, size // 2),  # Tip
-            (0, size // 4),  # Bottom left
-            (0, 3 * size // 4),  # Top left
-        ]
-        pygame.draw.polygon(self.image, (255, 50, 50), points)  # Brighter red
-
-        # Add yellow tip to make it more visible
-        pygame.draw.circle(
-            self.image, (255, 255, 0), (size - 5, size // 2), size // 4  # Bright yellow
-        )
-
-        # Add larger, more obvious engine glow
-        glow_points = [
-            (0, size // 3),  # Top
-            (0, 2 * size // 3),  # Bottom
-            (-size // 1.5, size // 2),  # Left tip - extend further
-        ]
-        pygame.draw.polygon(
-            self.image, (255, 200, 0, 230), glow_points  # More solid orange-yellow glow
-        )
-
-        # Add pulsing effect variables
-        self.pulse_time = 0
-        self.pulse_speed = 0.2
-
-        # Update rect and mask
-        old_center = self.rect.center
-        self.rect = self.image.get_rect(center=old_center)
-        self.mask = pygame.mask.from_surface(self.image)
+        # Ensure original_size is set even if not pulsing this frame
+        elif self.original_size is None:
+            self.original_size = self.rect.width
 
         # Log that a homing missile was created
         logger.info(
-            f"Created homing missile targeting enemy at {target.rect.center if target else 'unknown'}"
+            f"Created homing missile targeting enemy at {self.target.rect.center if self.target else 'NO_TARGET'}"
         )
+
+    def make_homing(self, target) -> None:
+        """Convert this bullet to a homing missile."""
+        self.target = target
+        self.is_homing = True
+        self.pulse_time = 0.0
+        self.original_size = self.rect.width # Store the initial homing size
+
+        # Update rect and mask
+        self.rect = self.image.get_rect(center=self.rect.center)
+        self.mask = pygame.mask.from_surface(self.image)
 
 
 class ScatterProjectile(pygame.sprite.Sprite):
@@ -262,7 +228,7 @@ class ScatterProjectile(pygame.sprite.Sprite):
         self.velocity_x = math.cos(angle) * speed
         self.velocity_y = math.sin(angle) * speed
 
-        # For precise position tracking
+        # Position tracking using floats for precision
         self.pos_x = float(x)
         self.pos_y = float(y)
 
@@ -303,9 +269,6 @@ class LaserBeam(pygame.sprite.Sprite):
         """Initialize a laser beam."""
         super().__init__(*groups)
 
-        # Store sound manager reference - REMOVED SOUND LOGIC FROM HERE
-        # self.sound_manager = sound_manager
-        
         # Ensure charge level is non-negative before calculations
         charge_level = max(0.0, charge_level)
 
@@ -315,16 +278,15 @@ class LaserBeam(pygame.sprite.Sprite):
         screen_width = pygame.display.get_surface().get_width()
         beam_length = screen_width - beam_start_x
 
-        # --- Safety Check for beam_length ---
+        # Safety check for beam_length
         if beam_length <= 0:
             logger.warning(f"Laser beam started at or beyond screen edge ({beam_start_x=}). Setting length to 1.")
             beam_length = 1
-        # --- End Safety Check ---
 
         # Create a taller surface to accommodate particle effects
-        padding = 40  # Increased to allow for wider particle spread
+        padding = 40
         # Create a thin beam with particle effects
-        thin_beam_height = max(1, 4 + int(2 * charge_level))  # Much thinner core beam
+        thin_beam_height = max(1, 4 + int(2 * charge_level))
         surface_height = thin_beam_height + padding * 2
         
         # Ensure surface dimensions are valid before creating
@@ -347,7 +309,6 @@ class LaserBeam(pygame.sprite.Sprite):
 
         # Animation variables
         self.pulse_time = 0
-        self.flow_offset = 0
         self.flow_speed = 2.0 + charge_level * 2.0
         
         # Fade-in animation variables
@@ -384,27 +345,6 @@ class LaserBeam(pygame.sprite.Sprite):
         self.damage = 2 + int(charge_level * 4)
 
         logger.debug(f"Created particle laser beam with charge {charge_level:.2f}")
-        
-        # REMOVED SOUND START LOGIC FROM HERE
-        # Start looping sound if sound manager is available
-        # if self.sound_manager:
-        #     try:
-        #         self.sound_manager.play_loop("laserbeam", "player", volume=0.7)
-        #     except Exception as e:
-        #         logger.warning(f"Failed to play looping laser beam sound: {e}")
-
-    def _get_particle_color(self, distance_ratio, size_ratio):
-        """Get dynamic color for particles based on position and size."""
-        # This method is optimized out in favor of inline color calculations
-        # Keep it for compatibility but it's no longer used
-        cycle = 0.5 + 0.5 * math.sin(self.color_phase + self.color_shift)
-        
-        r = int(40 + 80 * cycle)
-        g = min(255, int(200 + 55 * (1 - distance_ratio * 0.5)))
-        b = int(50 + 80 * cycle * (1 - distance_ratio))
-        alpha = max(30, min(200, int(180 * (1 - distance_ratio * 0.3))))
-        
-        return (r, g, b, alpha)
 
     def _spawn_particles(self):
         """Create new particles across the entire beam."""
@@ -479,7 +419,6 @@ class LaserBeam(pygame.sprite.Sprite):
         """Draw the thin central beam and particle effects."""
         # Ensure beam_length is positive before proceeding with drawing calculations that depend on it
         if self.beam_length <= 0:
-            # Should not happen due to __init__ checks, but as a failsafe:
             logger.warning("Attempted to draw beam with non-positive length in _draw_beam.")
             return
 
@@ -507,6 +446,9 @@ class LaserBeam(pygame.sprite.Sprite):
             
             # Update existing particles
             self._update_particles()
+
+        # Calculate color cycle once per draw call for efficiency
+        cycle = 0.5 + 0.5 * math.sin(self.color_phase + self.color_shift)
 
         # Draw the thin central beam - only if we have visible length
         if visible_length > 0:
@@ -546,10 +488,6 @@ class LaserBeam(pygame.sprite.Sprite):
             size_ratio = (particle['size'] - self.particle_size_range[0]) / (self.particle_size_range[1] - self.particle_size_range[0])
             
             # Get dynamic color based on distance and size - simpler calculation
-            # Use cached color phase calculation rather than recalculating for each particle
-            cycle = 0.5 + 0.5 * math.sin(self.color_phase + self.color_shift)
-            
-            # Simplified color calculation - fewer branches and calculations
             r = int(40 + 80 * cycle)
             g = min(255, int(200 + 55 * (1 - distance_ratio * 0.5)))
             b = int(50 + 80 * cycle * (1 - distance_ratio))
@@ -569,7 +507,7 @@ class LaserBeam(pygame.sprite.Sprite):
             )
         
         # Add occasional energy bursts, but less frequently
-        if random.random() < 0.1:  # Reduced from 0.2 to 0.1 (50% reduction)
+        if random.random() < 0.1:
             # Only create bursts within visible beam
             burst_x = random.randint(0, min(int(visible_length * 0.9), 300)) if visible_length > 0 else 0
             burst_y = center_y + random.randint(-self.particle_spread // 2, self.particle_spread // 2)
@@ -617,11 +555,9 @@ class LaserBeam(pygame.sprite.Sprite):
 
         # Remove when expired
         if self.lifetime <= 0:
-            # REMOVED SOUND STOP LOGIC FROM HERE
-            # Stop looping sound when the beam is destroyed
-            # if self.sound_manager:
-            #     try:
-            #         self.sound_manager.stop_loop("laserbeam", "player")
-            #     except Exception as e:
-            #         logger.warning(f"Failed to stop looping laser beam sound: {e}")
             self.kill()
+
+# Static assertions to ensure all projectile classes inherit from pygame.sprite.Sprite
+assert issubclass(Bullet, pygame.sprite.Sprite)
+assert issubclass(ScatterProjectile, pygame.sprite.Sprite)
+assert issubclass(LaserBeam, pygame.sprite.Sprite)

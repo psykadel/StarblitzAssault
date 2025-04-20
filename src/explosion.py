@@ -46,7 +46,6 @@ class Explosion(AnimatedSprite):
         self.frame_index = 0
         self.image = self.frames[self.frame_index]
         self.rect = self.image.get_rect(center=position)
-        self.mask = pygame.mask.from_surface(self.image)
 
         # Keep track of whether the animation has completed
         self.animation_complete = False
@@ -76,13 +75,13 @@ class Explosion(AnimatedSprite):
         # Create a burst of particles - fewer but bigger
         self.particles = ParticleSystem.create_explosion(
             position=position,
-            count=15,  # Reduced particle count
-            size_range=(3, 8),  # Increased size range
-            color_ranges=color_ranges,  # Possible color ranges
-            speed_range=(2.0, 5.0),  # Faster speed
-            lifetime_range=(25, 45),  # Longer lifetime
-            gravity=0.03,  # Less gravity
-            group=self.particles_group,  # Add to particles group
+            count=15,
+            size_range=(3, 8),
+            color_ranges=color_ranges,
+            speed_range=(2.0, 5.0),
+            lifetime_range=(25, 45),
+            gravity=0.03,
+            group=self.particles_group,
         )
 
         logger.debug(f"Created {len(self.particles)} particles for enemy explosion")
@@ -100,13 +99,13 @@ class Explosion(AnimatedSprite):
         # Initial burst - fewer but bigger particles
         initial_burst = ParticleSystem.create_explosion(
             position=position,
-            count=25,  # Reduced particle count
-            size_range=(5, 14),  # Larger size
-            color_ranges=color_ranges,  # Vibrant colors
-            speed_range=(3.0, 7.0),  # Faster speed
-            lifetime_range=(35, 65),  # Longer lifetime
-            gravity=0.02,  # Less gravity for more spread
-            group=self.particles_group,  # Add to particles group
+            count=25,
+            size_range=(5, 14),
+            color_ranges=color_ranges,
+            speed_range=(3.0, 7.0),
+            lifetime_range=(35, 65),
+            gravity=0.02,
+            group=self.particles_group,
         )
 
         self.particles.extend(initial_burst)
@@ -125,7 +124,7 @@ class Explosion(AnimatedSprite):
             speed_range=(2.0, 5.0),
             lifetime_range=(25, 55),
             gravity=0.03,
-            group=self.particles_group,  # Add to particles group
+            group=self.particles_group,
         )
 
         self.particles.extend(secondary)

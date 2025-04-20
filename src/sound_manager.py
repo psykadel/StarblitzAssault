@@ -1,8 +1,7 @@
 """Sound manager for the game."""
 
-import logging
 import os
-from typing import Any, Dict, Optional, Tuple
+from typing import Dict, Optional
 
 import pygame
 
@@ -54,22 +53,22 @@ class SoundManager:
 
         self._create_silent_sound("laser", "enemy")
         self._create_silent_sound("explosion2", "enemy")
-        self._create_silent_sound("powerup", "enemy")  # Add enemy powerup sound
+        self._create_silent_sound("powerup", "enemy")  # Fallback sound for enemy powerup
 
-        # Try to load actual sound files - use .ogg files since that's what we have
+        # Try to load actual sound files - use .ogg files
         self._try_load_sound("laser", "laser1.ogg", "player")
         self._try_load_sound("explosion1", "explosion1.ogg", "player")
         self._try_load_sound("powerup", "powerup1.ogg", "player")
-        self._try_load_sound("flamethrower", "laser1.ogg", "player")  # Use laser1 for flamethrower until we have a proper sound
+        self._try_load_sound("flamethrower", "laser1.ogg", "player")
         self._try_load_sound("flamethrower1", "flamethrower1.ogg", "player")  # Dedicated flamethrower sound
         self._try_load_sound("laserbeam", "laserbeam1.ogg", "player")  # Load looping laser beam sound
-        self._try_load_sound("shiphit1", "shiphit1.ogg", "player") # Load player hit sound
+        self._try_load_sound("shiphit1", "shiphit1.ogg", "player")  # Load player hit sound
 
         # Use player powerup sound for enemy too
         self._try_load_sound("explosion2", "explosion2.ogg", "enemy")
-        self._try_load_sound("powerup1", "powerup1.ogg", "enemy")  # Load powerup1.ogg as enemy/powerup1
-        self._try_load_sound("bossexplode1", "bossexplode1.ogg", "enemy") # Load boss explosion sound
-        self._try_load_sound("siren1", "siren1.ogg", "enemy") # Load siren sound for boss intro
+        self._try_load_sound("powerup1", "powerup1.ogg", "enemy")
+        self._try_load_sound("bossexplode1", "bossexplode1.ogg", "enemy")  # Load boss explosion sound
+        self._try_load_sound("siren1", "siren1.ogg", "enemy")  # Load siren sound for boss intro
 
     def _create_silent_sound(self, name: str, category: str) -> None:
         """Create a silent sound as a fallback.
@@ -130,7 +129,7 @@ class SoundManager:
         try:
             sound = pygame.mixer.Sound(sound_path)
             # Set volume higher for sound effects to make them more audible
-            sound.set_volume(self.volume * 1.5)  # Increased volume for better audibility
+            sound.set_volume(self.volume * 1.5)
             self.sounds[category][name] = sound
             # Store duration in milliseconds
             duration_ms = int(sound.get_length() * 1000)
@@ -201,7 +200,7 @@ class SoundManager:
         fallbacks = {
             "beam": "laser", 
             "scatter": "explosion1",
-            "flamethrower": "laser",  # Add flamethrower -> laser fallback
+            "flamethrower": "laser",  # Fallback sound for flamethrower (uses laser)
             "flamethrower1": "flamethrower"  # Fallback to regular flamethrower sound
         }
 
@@ -332,7 +331,7 @@ class SoundManager:
                         sound.set_volume(loop_volume)
                         
                         # Start looping and store the channel for later reference
-                        channel.play(sound, loops=-1)  # -1 means infinite loop
+                        channel.play(sound, loops=-1)  # Loop indefinitely
                         
                         # Store the channel for later reference to stop it
                         if category not in self.looping_sounds:
@@ -383,7 +382,7 @@ class SoundManager:
                 else:
                     channel.stop()
                 
-                # Remove the reference instead of setting to None
+                # Remove the channel reference
                 del self.looping_sounds[category][name]
                 logger.debug(f"Stopped looping sound {category}/{name}")
             except Exception as e:

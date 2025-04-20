@@ -2,17 +2,15 @@
 
 import math
 import random
-from enum import IntEnum, auto
-from typing import Any, Dict, List, Optional, Tuple
+from enum import IntEnum
+from typing import Optional, Tuple
 
 import pygame
 
 # Import config variables
-from config.config import POWERUP_ALPHA, SCREEN_HEIGHT, SCREEN_WIDTH, SPRITES_DIR, POWERUP_GLOW_RATIO
+from config.config import POWERUP_GLOW_RATIO
 from src.animated_sprite import AnimatedSprite
 from src.logger import get_logger
-from src.particle import ParticleSystem
-from src.sprite_loader import load_sprite_sheet
 
 # Get a logger for this module
 logger = get_logger(__name__)
@@ -185,7 +183,6 @@ class Powerup(AnimatedSprite):
         y: float,
         *groups,
         particles_group: Optional[pygame.sprite.Group] = None,
-        game_ref=None,
     ) -> None:
         """Initialize a powerup.
 
@@ -195,17 +192,13 @@ class Powerup(AnimatedSprite):
             y: Initial y position
             groups: Sprite groups to add to
             particles_group: Optional group for particle effects
-            game_ref: Reference to the game instance
         """
         super().__init__(POWERUP_ANIMATION_SPEED_MS, *groups)
 
         # Store the type as Enum member
         self.powerup_type_enum = powerup_type
-        self.powerup_type = int(powerup_type)  # Keep integer for indexing colors/etc.
+        self.powerup_type = int(powerup_type)  # Keep integer version for indexing colors and effects
         self.type_name = powerup_type.name  # Get name from Enum
-
-        # Store game reference
-        self.game_ref = game_ref
 
         # Get color for this powerup type
         self.color = POWERUP_COLORS.get(powerup_type, (255, 255, 255))
@@ -221,23 +214,14 @@ class Powerup(AnimatedSprite):
 
         # Store a single frame for animation
         self.frames = [self.image]
-        self.frame_index = 0
 
         # Position tracking for smoother movement
         self.pos_x = float(x)
         self.pos_y = float(y)
 
-        # Create a position tuple for internal tracking
-        self._position_x = float(x)
-        self._position_y = float(y)
-
         # Movement parameters - straight movement like enemies
         self.speed_x = -POWERUP_FLOAT_SPEED * 0.75  # 75% of enemy speed
         self.speed_y = 0
-
-        # Additional movement parameters for compatibility with all update methods
-        self.move_speed = POWERUP_FLOAT_SPEED * 0.75
-        self.move_speed_mod = 0
 
         # Particle effect parameters
         self.particles_group = particles_group
@@ -246,12 +230,6 @@ class Powerup(AnimatedSprite):
 
         # Initialize last_particle_time to 0 to create particles immediately
         self.last_particle_time = 0
-
-        # Initialize elapsed time for animations
-        self.elapsed_time = 0
-
-        # Animation parameters
-        self.pulse_timer = 0
 
         # Pre-spawn some particles immediately
         if self.particles_group is not None:
@@ -454,17 +432,7 @@ class Powerup(AnimatedSprite):
 
         # Use a fixed seed based on angle and powerup type for consistency
         # This prevents random flickering while still looking random
-        # Avoid using pos_x/pos_y since they might not be set during initialization
-        try:
-            seed = int(
-                (getattr(self, "pos_x", 0) * 100)
-                + getattr(self, "pos_y", 0)
-                + self.powerup_type * 1000
-                + angle * 10
-            )
-        except:
-            # Fallback if anything goes wrong with the calculation
-            seed = int(angle * 100) + self.powerup_type * 1000 + 42
+        seed = hash((self.powerup_type, angle))
 
         local_random = random.Random(seed)
 
@@ -500,8 +468,7 @@ class Powerup(AnimatedSprite):
         pygame.draw.line(surface, (*color, 200), center, (end_x, end_y), width)
 
         # Use a fixed seed for consistent random effects
-        # Use a simple calculation that's safe even during initialization
-        seed = int(angle * 100 + self.powerup_type * 1000)
+        seed = hash((self.powerup_type, angle))
         local_random = random.Random(seed)
 
         # Add smaller rays at the end
@@ -538,11 +505,6 @@ class Powerup(AnimatedSprite):
         # Add glow at the tip
         pygame.draw.circle(surface, (*color, 180), (end_x, end_y), width * 1.5)
 
-    @property
-    def position(self) -> Tuple[float, float]:
-        """Return the powerup's current position."""
-        return (self.pos_x, self.pos_y)
-
     def update(self) -> None:
         """Update powerup position and appearance."""
         # Call parent update for animation
@@ -553,10 +515,6 @@ class Powerup(AnimatedSprite):
         self.pos_y += self.speed_y
         self.rect.centerx = int(self.pos_x)
         self.rect.centery = int(self.pos_y)
-
-        # Update internal position tracking
-        self._position_x = self.pos_x
-        self._position_y = self.pos_y
 
         # Get current time for consistent animation
         current_time = pygame.time.get_ticks()

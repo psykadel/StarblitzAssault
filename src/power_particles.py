@@ -7,7 +7,7 @@ from typing import Optional, Tuple
 import pygame
 
 from src.logger import get_logger
-from src.particle import Particle, ParticleSystem
+from src.particle import Particle
 
 # Get a logger for this module
 logger = get_logger(__name__)
@@ -24,11 +24,10 @@ class PowerParticle(Particle):
         size: int,
         lifetime: int,
         gravity: float = 0.0,
-        decay: float = 0.97,
         *groups,
     ) -> None:
         """Initialize a power particle with enhanced glow effect."""
-        super().__init__(position, velocity, color, size, lifetime, gravity, decay, *groups)
+        super().__init__(position, velocity, color, size, lifetime, gravity, *groups)
 
         # Create power particle surface with stronger glow
         self.size = size
@@ -134,7 +133,7 @@ class PowerParticleSystem:
 
             # Create particle with specialized PowerParticle
             particle = PowerParticle(
-                position, (vel_x, vel_y), particle_color, size, lifetime, gravity, 0.97, group
+                position, (vel_x, vel_y), particle_color, size, lifetime, gravity, group
             )
 
             particles.append(particle)

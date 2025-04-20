@@ -1,7 +1,6 @@
 """Utility functions for loading sprite sheets."""
 
 import logging
-import math
 import os
 import sys
 from typing import List, Optional, Tuple, Dict
@@ -16,9 +15,6 @@ logger = get_logger(__name__)
 
 # Cache for loaded sprite sheets - proper type annotation 
 _sprite_sheet_cache: Dict[str, List[pygame.Surface]] = {}
-
-# Default crop border is no longer needed with mask-based detection
-# DEFAULT_CROP_BORDER_PIXELS = 2
 
 
 def find_sprite_bounds_and_anchor(
@@ -282,17 +278,17 @@ def clear_sprite_cache():
 
 # Example usage (can be kept for testing or removed)
 if __name__ == "__main__":
-    # This example needs adjustment if run directly, as assets path might be relative
-    # It also doesn't demonstrate the right-alignment well without a specific sheet
     pygame.init()
-    print("Running sprite_loader example...")
+    # Use logger instead of print for consistency
+    logging.basicConfig(level=logging.INFO) # Basic config for logger if run standalone
+    logger.info("Running sprite_loader example...")
 
     # Example: Load player ship sheet (assuming it exists and needs alignment)
     try:
         # Adjust path relative to workspace root if necessary
         base_dir = os.path.dirname(os.path.dirname(__file__))  # Go up one level from src
         sprite_sheet_file = os.path.join(base_dir, "assets", "sprites", "main-character.png")
-        print(f"Attempting to load: {sprite_sheet_file}")
+        logger.info(f"Attempting to load: {sprite_sheet_file}")
 
         # Use a scale factor if desired
         scale = 0.5
@@ -306,7 +302,7 @@ if __name__ == "__main__":
         )
 
         if sprites:
-            print(f"Loaded {len(sprites)} aligned sprites.")
+            logger.info(f"Loaded {len(sprites)} aligned sprites.")
             # Get size from the first scaled sprite canvas
             sprite_size = sprites[0].get_size()
             screen_width = sprite_size[0] * 5  # Display a few side-by-side
@@ -337,22 +333,29 @@ if __name__ == "__main__":
                 screen.fill((30, 30, 30))
 
                 # Display current frame large
-                screen.blit(sprites[index], (sprite_size[0] * 2, sprite_size[1] // 2))
+                # Corrected blit position calculation - ensure it's within bounds if needed
+                blit_pos_x = max(0, sprite_size[0] * 2)
+                blit_pos_y = max(0, sprite_size[1] // 2)
+                screen.blit(sprites[index], (blit_pos_x, blit_pos_y))
+
                 # Draw box around it
                 pygame.draw.rect(
                     screen,
                     (255, 0, 0),
-                    (sprite_size[0] * 2, sprite_size[1] // 2, sprite_size[0], sprite_size[1]),
+                    (blit_pos_x, blit_pos_y, sprite_size[0], sprite_size[1]),
                     1,
                 )
 
                 # Draw reference line near right edge
-                ref_x = sprite_size[0] * 2 + sprite_size[0] - int(10 * scale)  # Aligned margin
+                ref_x = blit_pos_x + sprite_size[0] - max(1, int(10 * scale)) # Aligned margin, ensure positive
+                ref_y_start = blit_pos_y
+                ref_y_end = blit_pos_y + sprite_size[1]
+
                 pygame.draw.line(
                     screen,
                     (0, 255, 0),
-                    (ref_x, sprite_size[1] // 2),
-                    (ref_x, sprite_size[1] // 2 + sprite_size[1]),
+                    (ref_x, ref_y_start),
+                    (ref_x, ref_y_end),
                 )
 
                 pygame.display.flip()
@@ -364,14 +367,14 @@ if __name__ == "__main__":
 
                 clock.tick(60)
         else:
-            print("No sprites loaded.")
+            logger.info("No sprites loaded.") # Use logger
 
     except FileNotFoundError as e:
-        print(f"Error: {e}")
+        logger.error(f"Error: {e}") # Use logger
     except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+        logger.exception(f"An unexpected error occurred: {e}") # Use logger.exception for trace
         pygame.quit()
         sys.exit()
 
     pygame.quit()
-    print("Sprite_loader example finished.")
+    logger.info("Sprite_loader example finished.") # Use logger

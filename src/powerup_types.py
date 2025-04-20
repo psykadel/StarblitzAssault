@@ -1,18 +1,14 @@
 """Implementation of powerup type behaviors."""
 
-import math
-import random
-from enum import auto
-from typing import Any, Callable, Dict, List, Optional, Tuple, Type, ClassVar, Union
+from typing import cast, Callable, Dict, List, Optional, Type, ClassVar, Union
 
 import pygame
 
-from config.config import PLAYER_SHOOT_DELAY, DRONE_DURATION, FLAMETHROWER_DURATION, FLAME_PARTICLE_DAMAGE, FLAME_PARTICLE_LIFETIME, FLAME_SPRAY_ANGLE
+from config.config import PLAYER_SHOOT_DELAY, DRONE_DURATION
 from src.logger import get_logger
-from src.powerup import POWERUP_DURATION, Powerup, PowerupParticle, PowerupType
-from src.projectile import Bullet, LaserBeam, ScatterProjectile
+from src.powerup import POWERUP_DURATION, Powerup, PowerupType
 from src.drone import Drone
-from src.particle import FlameParticle
+from typing import cast
 
 # Get a logger for this module
 logger = get_logger(__name__)
@@ -256,9 +252,6 @@ class ScatterBombPowerup(PowerupBase):
         # Create collection effect
         self._create_collection_effect(player.rect.center)
 
-        # Log message handled by add_powerup
-        # logger.info(f"Scatter Bomb activated with {player.scatter_bomb_charges} charges")
-
         # Note: The actual scatter bombing would be handled in the player's update
         # or a new method triggered by a key press
 
@@ -327,17 +320,6 @@ class MegaBlastPowerup(PowerupBase):
 
         # Note: Mega Blast does not add itself to the active_powerups_state
         # as it's an instant effect with no duration or charges.
-        
-        # Explicitly remove MEGA_BLAST from player's active powerups state to prevent artifacts
-        # if hasattr(player, "active_powerups_state"):
-        #     # Check both string literal and enum name format
-        #     if "MEGA_BLAST" in player.active_powerups_state:
-        #         del player.active_powerups_state["MEGA_BLAST"]
-        #         logger.debug("Removed MEGA_BLAST from active powerups state after effect was applied")
-            
-        #     if PowerupType.MEGA_BLAST.name in player.active_powerups_state:
-        #         del player.active_powerups_state[PowerupType.MEGA_BLAST.name]
-        #         logger.debug("Removed PowerupType.MEGA_BLAST.name from active powerups state after effect was applied")
 
 @register_powerup(PowerupType.LASER_BEAM)
 class LaserBeamPowerup(PowerupBase):
@@ -431,10 +413,7 @@ class FlamethrowerPowerup(PowerupBase):
         # Create collection effect
         self._create_collection_effect(player.rect.center)
         
-        # ===== DIRECT FLAME PARTICLE CREATION =====
-        # Instead of relying on Player's _shoot_flamethrower, we'll create particles directly
-        
-        # 1. Reset flame timer to allow future particle creation
+        # Reset flame timer to allow future particle creation
         if hasattr(player, 'flame_timer'):
             player.flame_timer = 0
         
@@ -544,10 +523,9 @@ def create_powerup(
         powerup_class = POWERUP_REGISTRY[PowerupType.TRIPLE_SHOT]
 
     # Use a type cast to silence the linter error
-    from typing import cast
+
     
-    # Create powerup instance - the linter gets confused about parameter order
-    # pylint: disable=no-member
+    # Create powerup instance
     powerup = cast(Type[PowerupBase], powerup_class).create(
         x,
         y,

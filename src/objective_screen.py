@@ -4,7 +4,7 @@ import os
 import random
 import math
 import pygame
-from typing import Any, Optional, List, Tuple
+from typing import Any, Optional, List
 
 from config.config import SCREEN_WIDTH, SCREEN_HEIGHT
 
@@ -184,12 +184,11 @@ class LightningEffect:
 class ObjectiveScreen:
     """Displays the game objective screen with effects."""
     
-    def __init__(self, screen: pygame.Surface, sound_manager: Any = None):
+    def __init__(self, screen: pygame.Surface):
         """Initialize the objective screen."""
         self.screen = screen
         self.clock = pygame.time.Clock()
         self.running = True
-        self.sound_manager = sound_manager
         
         # Load objective image
         objective_path = os.path.join("assets", "images", "objective.png")
@@ -218,7 +217,6 @@ class ObjectiveScreen:
         
         # VHS effect properties
         self.static_intensity = 0.15  # Static noise intensity (0.0 to 1.0)
-        self.rgb_shift_amount = 1.5  # RGB channel shift in pixels
         self.scanline_intensity = 0.1  # Scanline darkness
         self.glitch_timer = 0
         self.glitch_interval = random.randint(30, 90)  # Frames between glitches
@@ -463,12 +461,11 @@ class ObjectiveScreen:
         return self.running
 
 
-def run_objective_screen(screen: Optional[pygame.Surface] = None, sound_manager: Any = None) -> bool:
+def run_objective_screen(screen: Optional[pygame.Surface] = None) -> bool:
     """Run the objective screen.
     
     Args:
         screen: Optional pygame display surface. If None, a new one will be created.
-        sound_manager: Optional sound manager to handle audio
         
     Returns:
         True if objective screen completed and game should start, False if user quit
@@ -485,7 +482,7 @@ def run_objective_screen(screen: Optional[pygame.Surface] = None, sound_manager:
         created_screen = True
         
     # Create and run the objective screen
-    objective = ObjectiveScreen(screen, sound_manager)
+    objective = ObjectiveScreen(screen)
     result = objective.run()
     
     # Clean up if we created the screen

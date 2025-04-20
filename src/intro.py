@@ -4,7 +4,7 @@ import os
 import random
 import math
 import pygame
-from typing import List, Tuple, Optional, Any, Union, Type
+from typing import Optional, Any
 
 from config.config import SCREEN_WIDTH, SCREEN_HEIGHT
 
@@ -126,16 +126,13 @@ class ShootingStar:
         """Reset shooting star to a new position."""
         # Start from either top or right edge
         if random.random() < 0.5:
-            # Start from top
             self.x = random.randint(0, SCREEN_WIDTH)
             self.y = -10
-            self.angle = random.uniform(math.pi * 0.2, math.pi * 0.8)  # Downward direction
+            self.angle = random.uniform(math.pi * 0.2, math.pi * 0.8)
         else:
-            # Start from right
             self.x = SCREEN_WIDTH + 10
             self.y = random.randint(0, SCREEN_HEIGHT // 2)
-            self.angle = random.uniform(math.pi * 0.6, math.pi * 1.4)  # Left direction
-            
+            self.angle = random.uniform(math.pi * 0.6, math.pi * 1.4)
         self.speed = random.uniform(5.0, 15.0)
         self.trail_length = random.randint(10, 30)
         self.brightness = random.randint(200, 255)
@@ -400,37 +397,28 @@ class IntroSequence:
             particle.draw(self.screen)
     
     def _draw_cosmic_rays(self) -> None:
-        """Draw random cosmic rays."""
-        # Occasionally draw cosmic rays
-        if random.random() < 0.05:  # 5% chance per frame
-            # Draw a light ray from edge of screen towards logo
-            start_edge = random.randint(0, 3)  # 0=top, 1=right, 2=bottom, 3=left
-            
-            if start_edge == 0:  # Top
+        """Draw random cosmic rays from the screen edge toward the logo."""
+        if random.random() < 0.05:
+            start_edge = random.randint(0, 3)
+            if start_edge == 0:
                 start_x = random.randint(0, SCREEN_WIDTH)
                 start_y = 0
-            elif start_edge == 1:  # Right
+            elif start_edge == 1:
                 start_x = SCREEN_WIDTH
                 start_y = random.randint(0, SCREEN_HEIGHT)
-            elif start_edge == 2:  # Bottom
+            elif start_edge == 2:
                 start_x = random.randint(0, SCREEN_WIDTH)
                 start_y = SCREEN_HEIGHT
-            else:  # Left
+            else:
                 start_x = 0
                 start_y = random.randint(0, SCREEN_HEIGHT)
-                
-            # End at or near logo
             end_x = SCREEN_WIDTH // 2 + random.randint(-40, 40)
             end_y = SCREEN_HEIGHT // 2 + random.randint(-20, 20)
-            
-            # Choose a color (blues or cyans mostly)
             color = (
                 random.randint(20, 150),
                 random.randint(100, 200),
                 random.randint(150, 255)
             )
-            
-            # Draw the ray
             pygame.draw.line(self.screen, color, (start_x, start_y), (end_x, end_y), 1)
             
     def _draw_fade(self) -> None:
@@ -591,4 +579,4 @@ if __name__ == "__main__":
                 if event.type == pygame.QUIT:
                     running = False
                     
-    pygame.quit() 
+    pygame.quit()

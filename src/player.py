@@ -3,14 +3,13 @@
 import math
 import os
 import random
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional
 
 import pygame
 
 # Import config variables
 from config.config import (
     BULLET_SPEED,
-    GREEN,
     PLAYER_ANIMATION_SPEED_MS,
     PLAYER_SCALE_FACTOR,
     PLAYER_SHOOT_DELAY,
@@ -21,12 +20,9 @@ from config.config import (
     POWERUP_ICON_SIZE,
     POWERUP_ICON_SPACING,
     POWERUP_SLOTS,
-    RED,
     SCREEN_HEIGHT,
     SCREEN_WIDTH,
     SPRITES_DIR,
-    WHITE,
-    YELLOW,
     FLAME_PARTICLE_DAMAGE,
     FLAME_PARTICLE_LIFETIME,
     FLAME_SPAWN_DELAY,
@@ -143,23 +139,19 @@ class Player(AnimatedSprite):
         # Shield meter (Visual only, logic driven by powerup state)
         self.shield_meter_width = 100
         self.shield_meter_height = 8
-        self.shield_meter_position = (20, 90)  # Moved down from 70 to 90
+        self.shield_meter_position = (20, 90)
         self.shield_max_value = POWERUP_DURATION
-        # self.shield_value = 0 # Shield value derived from state dict
 
         # Centralized Powerup State Management
         self.active_powerups_state: Dict[str, Dict[str, Any]] = {}
-        # Example entry: "SHIELD": {"expiry_time": 15000, "index": 2}
-        # Example entry: "SCATTER_BOMB": {"charges": 3, "index": 6}
 
         # Store original shoot method reference (used by some powerups)
         self.original_shoot_method = self.shoot
 
         # Active powerup visual indicators (using icons)
-        # self.active_powerups = [] # Replaced by active_powerups_state
         self.powerup_icon_size = 20
         self.powerup_icon_spacing = 5
-        self.powerup_icon_base_y = 55  # Increased from 45 to 55 for more space below power bar
+        self.powerup_icon_base_y = 55
 
         # Key state tracking
         self.key_states = {
@@ -173,41 +165,12 @@ class Player(AnimatedSprite):
         }
         self.prev_key_states = {}
 
-        # Remove individual powerup state flags and timers
-        # self.has_triple_shot = False
-        # self.triple_shot_expiry = 0
-        # self.normal_shoot_delay = PLAYER_SHOOT_DELAY
-        # self.has_rapid_fire = False
-        # self.rapid_fire_expiry = 0
-        # self.rapid_fire_delay = PLAYER_SHOOT_DELAY // 3
-        # self.has_shield = False
-        # self.shield_expiry = 0
-        # self.shield_color = (0, 100, 255, 128)  # Semi-transparent blue
-        # self.shield_radius = 35
-        # self.shield_pulse = 0
-        # self.has_homing_missiles = False
-        # self.homing_missiles_expiry = 0
-        # self.has_pulse_beam = False # Deprecated
-        # self.pulse_beam_expiry = 0 # Deprecated
-        # self.pulse_beam_charge = 0 # Deprecated
-        # self.max_pulse_beam_charge = 100 # Deprecated
-        # self.is_charging = False # Deprecated
-        # self.has_laser_beam = False
-        # self.laser_beam_expiry = 0
-        # self.laser_beam_charge = 0
-        # self.max_laser_beam_charge = 100
-        # self.is_charging_laser = False
-        # self.has_scatter_bomb = False
-        # self.scatter_bomb_charges = 0
-        # self.has_time_warp = False
-        # self.time_warp_expiry = 0
-
         # Flamethrower sound control
         self.flamethrower_sound_active = False
         self.flamethrower_sound_start_time = 0
-        self.flamethrower_sound_duration = 14000  # 5 seconds loop duration
-        self.flamethrower_sound_fadeout_start = 13000  # Start fadeout at 4 seconds (1 second before end)
-        self.flamethrower_next_sound_instance = None  # For smooth transition
+        self.flamethrower_sound_duration = 14000
+        self.flamethrower_sound_fadeout_start = 13000
+        self.flamethrower_next_sound_instance = None
 
         # Laser beam sound control - Using crossfade logic now
         self.laserbeam_sound_active = False
@@ -223,11 +186,9 @@ class Player(AnimatedSprite):
             filename="main-character.png",
             sprite_dir=SPRITES_DIR,
             scale_factor=PLAYER_SCALE_FACTOR,
-            # crop_border=5 # No longer used
             alignment="right",  # Explicitly state right alignment
             align_margin=5,  # Keep a small margin from the right edge
         )
-        # Error handling is done within load_sprite_sheet, which raises SystemExit
 
     def update(self) -> None:
         """Update the player's position and state."""
@@ -316,10 +277,6 @@ class Player(AnimatedSprite):
         # Check all powerup expirations
         self._check_powerup_expirations()
 
-        # Check charging laser beam if active - LASER_BEAM removed
-        # if PowerupType.LASER_BEAM.name in self.active_powerups_state and self.active_powerups_state[PowerupType.LASER_BEAM.name].get("is_charging", False):
-        #     self._charge_laser_beam()
-
         # Use playfield boundaries for horizontal movement
         if self.rect.left < 0:
             self.rect.left = 0
@@ -336,12 +293,10 @@ class Player(AnimatedSprite):
             self.rect.bottom = PLAYFIELD_BOTTOM_Y
             self._pos_y = float(self.rect.y)
 
-        # --- Manage Laser Beam Sound --- 
         # Check if the player is firing AND has the laser beam powerup
         laser_beam_powerup_active = PowerupType.LASER_BEAM.name in self.active_powerups_state
         should_laser_sound_be_active = self.is_firing and laser_beam_powerup_active
         self._manage_laserbeam_sound(should_laser_sound_be_active)
-        # --- End Laser Beam Sound --- 
 
         # Check for continuous shooting (handle weapon firing AFTER sound check)
         if self.is_firing:
@@ -353,16 +308,6 @@ class Player(AnimatedSprite):
             else:
                 self.shoot()  # shoot() already handles the cooldown based on powerup state
 
-        # Update shield meter if shield is active (derived from state)
-        # shield_value is calculated in draw method
-        # if "SHIELD" in self.active_powerups_state:
-        #     current_time = pygame.time.get_ticks()
-        #     expiry = self.active_powerups_state["SHIELD"].get("expiry_time", 0)
-        #     time_remaining = max(0, expiry - current_time)
-        #     self.shield_value = time_remaining
-        # else:
-        #     self.shield_value = 0
-
         # Handle continuous firing if key is held down
         if self.key_states["key_fire"]:
             self.shoot()
@@ -370,15 +315,10 @@ class Player(AnimatedSprite):
     def start_firing(self) -> None:
         """Begins continuous firing."""
         self.is_firing = True
-        # REMOVED: Start laser beam loop if powerup is active
-        # if PowerupType.LASER_BEAM.name in self.active_powerups_state:
-        #     self._manage_laserbeam_sound(True)
 
     def stop_firing(self) -> None:
         """Stops continuous firing."""
         self.is_firing = False
-        # REMOVED: Stop laser beam loop regardless of powerup status (only active when firing)
-        # self._manage_laserbeam_sound(False)
 
     def handle_input(self, event: pygame.event.Event) -> None:
         """Handles player input for movement (KEYDOWN/KEYUP). Shooting handled in update."""
@@ -391,7 +331,7 @@ class Player(AnimatedSprite):
                     self.speed_y = PLAYER_SPEED
                 # Optional: Allow limited horizontal movement
                 elif event.key == pygame.K_LEFT:
-                    self.speed_x = -PLAYER_SPEED / 2  # Slower horizontal?
+                    self.speed_x = -PLAYER_SPEED / 2
                 elif event.key == pygame.K_RIGHT:
                     self.speed_x = PLAYER_SPEED / 2
 
@@ -404,11 +344,6 @@ class Player(AnimatedSprite):
                     and scatter_state.get("charges", 0) > 0
                 ):
                     self._fire_scatter_bomb()
-                # Check state dict for laser beam and set charging flag in state dict
-                # LASER_BEAM removed
-                # elif event.key == pygame.K_LSHIFT and PowerupType.LASER_BEAM.name in self.active_powerups_state:
-                #     self.active_powerups_state[PowerupType.LASER_BEAM.name]["is_charging"] = True
-                #     self.active_powerups_state[PowerupType.LASER_BEAM.name]["charge_level"] = 0 # Reset charge level
 
             if event.type == pygame.KEYUP:
                 # Stop movement only if the released key matches the current direction
@@ -421,12 +356,6 @@ class Player(AnimatedSprite):
                 elif event.key == pygame.K_RIGHT and self.speed_x > 0:
                     self.speed_x = 0
 
-                # Release charged beam - check state dict
-                # LASER_BEAM removed
-                # laser_state = self.active_powerups_state.get(PowerupType.LASER_BEAM.name)
-                # if event.key == pygame.K_LSHIFT and laser_state and laser_state.get("is_charging", False):
-                #     self._fire_laser_beam()
-                #     laser_state["is_charging"] = False # Stop charging
         except Exception as e:
             logger.error(f"Error handling input: {e}")
             # Reset speeds to prevent getting stuck moving
@@ -910,61 +839,6 @@ class Player(AnimatedSprite):
 
                     # Update particles list
                     self.shield_particles = new_particles
-
-        # Draw laser beam charge meter if charging (check state dict)
-        # LASER_BEAM removed
-        # laser_state = self.active_powerups_state.get(PowerupType.LASER_BEAM.name)
-        # if laser_state and laser_state.get("is_charging", False):
-        #     charge_level = laser_state.get("charge_level", 0)
-        #     max_charge = laser_state.get("max_charge", 100)
-        #     if charge_level > 0:
-        #         charge_percent = charge_level / max_charge
-        #
-        #         # Meter dimensions
-        #         ...
-        #         (meter_x, meter_y, filled_width, meter_height)
-        #     )
-
-        # REMOVE: Shield meter display removed to simplify UI
-        # shield_state = self.active_powerups_state.get(PowerupType.SHIELD.name)
-        # if shield_state:
-        #     # Calculate shield percentage remaining from state
-        #     current_time = pygame.time.get_ticks()
-        #     expiry_time = shield_state.get("expiry_time", 0)
-        #     duration = shield_state.get("duration", POWERUP_DURATION)
-        #     time_remaining = max(0, expiry_time - current_time)
-        #     shield_percent = time_remaining / duration if duration > 0 else 0
-        #
-        #     # Draw shield meter background
-        #     pygame.draw.rect(
-        #         surface,
-        #         (50, 50, 80),  # Dark blue-gray background
-        #         (self.shield_meter_position[0],
-        #          self.shield_meter_position[1],
-        #          self.shield_meter_width,
-        #          self.shield_meter_height)
-        #     )
-        #
-        #     # Draw shield meter fill
-        #     filled_width = int(self.shield_meter_width * shield_percent)
-        #     pygame.draw.rect(
-        #         surface,
-        #         (0, 140, 255),  # Shield blue
-        #         (self.shield_meter_position[0],
-        #          self.shield_meter_position[1],
-        #          filled_width,
-        #          self.shield_meter_height)
-        #     )
-        #
-        #     # Draw shield icon
-        #     shield_icon_size = 12
-        #     pygame.draw.circle(
-        #         surface,
-        #         (0, 100, 255),  # Shield color
-        #         (self.shield_meter_position[0] - 10,
-        #          self.shield_meter_position[1] + self.shield_meter_height // 2),
-        #         2  # Line width
-        #     )
 
     def draw_powerup_icons(self, surface: pygame.Surface) -> None:
         """Draw icons for active powerups based on active_powerups_state."""
@@ -1690,11 +1564,6 @@ class Player(AnimatedSprite):
                 self.active_powerups_state[powerup_name] = state
                 logger.info(f"Activated passive powerup: {powerup_name}")
 
-    # Clean up old powerup tracking list method (no longer needed)
-    # def add_powerup_old(self, powerup_name: str, powerup_idx: int) -> None:
-    #     """Add a powerup to the active powerups list, preventing duplicates."""
-    # ... (old implementation removed)
-
     def _shoot_flamethrower(self, force=False) -> None:
         """Create flame particles when the flamethrower powerup is active.
         
@@ -1766,8 +1635,6 @@ class Player(AnimatedSprite):
                 all_sprites_group,
                 self.bullets  # Add to bullets group for collision detection
             )
-        
-        # Sound is now handled by _manage_flamethrower_sound method
 
     def _shoot_single_bullet(self) -> None:
         """Create a single bullet projectile."""
