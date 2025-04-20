@@ -5,6 +5,7 @@ alwaysApply: true
 ---
 ## MOST IMPORTANT
 IMPORTANT: try to fix things at the cause, not the symptom.  No workarounds, no duct tape.
+IMPORTANT: if a file becomes over 750 lines, it should be refactored into multiple files.
 
 ## DON'Ts
 - **Do not** install anything via terminal without explicit user instruction.
@@ -87,7 +88,7 @@ IMPORTANT: try to fix things at the cause, not the symptom.  No workarounds, no 
 your_project/
 ├─ .cursor/
 ├─ .logs/
-├─ .tests/                     - 
+├─ .tests/                     - any temporary tests you need to create go here
 ├─ .temp/                      - any temporary files you need go here
 ├─ .unused/                    - any unused files move here
 ├─ assets/
@@ -102,12 +103,13 @@ your_project/
 │  └─ sounds_generator.py      - runnable for generating sounds (if needed)
 ├─ config/
 │  └─ config.py                - all game constants, well organized for use
+├─ prompts/                    - user prompts      
 ├─ src/
 │  ├─ player.py
 │  ├─ enemy.py
 │  ├─ levels.py
 │  └─ game_loop.py
-├─ tests/
+├─ utilities/                  - utlities (file conversion, distribution, etc.)
 ├─ main.py
 ├─ README.md
 └─ requirements.txt
