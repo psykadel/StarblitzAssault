@@ -3,13 +3,6 @@
 echo "Building Starblitz Assault Installer for macOS"
 echo "=============================================="
 
-# Check for Python
-if ! command -v python3 &> /dev/null; then
-    echo "Python 3 is not found in your PATH."
-    echo "Please install Python from https://www.python.org/downloads/"
-    exit 1
-fi
-
 # Create necessary directories
 echo "Setting up build environment..."
 mkdir -p .temp/pyinstaller
