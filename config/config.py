@@ -38,6 +38,9 @@ DEBUG_ENEMY_TYPE_INDEX: int = 7  # Enemy type to use when DEBUG_FORCE_ENEMY_TYPE
 DEBUG_FORCE_POWERUP_TYPE: bool = False
 DEBUG_POWERUP_TYPE_INDEX: int = 9  # PowerupType index to use when DEBUG_FORCE_POWERUP_TYPE is True
 
+# Debug Flags
+DEBUG_MUTE_MUSIC: bool = False
+
 
 # ==============================================================================
 # DIRECTORY PATHS

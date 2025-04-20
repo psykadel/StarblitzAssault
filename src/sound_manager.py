@@ -5,7 +5,7 @@ from typing import Dict, Optional
 
 import pygame
 
-from config.config import DEFAULT_SOUND_VOLUME, MUSIC_DIR, SOUNDS_DIR
+from config.config import DEFAULT_SOUND_VOLUME, MUSIC_DIR, SOUNDS_DIR, DEBUG_MUTE_MUSIC
 from src.logger import get_logger
 
 # Get a logger for this module
@@ -247,6 +247,16 @@ class SoundManager:
         Returns:
             bool: True if music started successfully, False otherwise
         """
+        # Check the debug flag first
+        if DEBUG_MUTE_MUSIC:
+            logger.info("Music muted due to DEBUG_MUTE_MUSIC flag.")
+            # Stop any currently playing music if muted
+            if pygame.mixer.music.get_busy():
+                pygame.mixer.music.stop()
+                pygame.mixer.music.unload()  # Unload to be sure
+            self.current_music = None
+            return False
+
         if not music_name:
             return False
 
