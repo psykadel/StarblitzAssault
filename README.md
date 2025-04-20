@@ -78,5 +78,17 @@ python main.py
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
-Music: "Created with Udio" – generated on Udio (free tier) under its attribution policy.  
-Sound Effects: "Audio generated via elevenlabs.io / 11.ai" – created with ElevenLabs (free tier) under its attribution policy.
+**Music**   
+"Created with Udio" – generated on Udio (free tier) under its attribution policy. 
+ 
+**Sound Effects**   
+"Audio generated via elevenlabs.io / 11.ai" – created with ElevenLabs (free tier) under its attribution policy.
+
+**NumPy**  
+Harris, C. R., Millman, K. J., van der Walt, S. J., et al. (2020). *Array programming with NumPy*. _Nature_, 585(7825), 357–362. [https://doi.org/10.1038/s41586-020-2649-2](https://doi.org/10.1038/s41586-020-2649-2)
+
+**Pygame**  
+Pygame Community. (2025). *Pygame (Version 2.6.1)* [Computer software]. [https://www.pygame.org/](https://www.pygame.org/)
+
+**Pydub**  
+Robertson, J. (2021). *Pydub (Version 0.25.1)* [Computer software]. [https://github.com/jiaaro/pydub/releases/tag/v0.25.1](https://github.com/jiaaro/pydub/releases/tag/v0.25.1)
