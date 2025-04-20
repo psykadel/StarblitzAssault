@@ -143,9 +143,10 @@ class Bullet(pygame.sprite.Sprite):
             if self.original_size is None:
                 self.original_size = self.rect.width # Default to current width if not set
 
-            size = self.original_size # Now guaranteed to be an int
+            # Use a default value if original_size is still None (e.g., rect.width was invalid)
+            size = self.original_size if self.original_size is not None else 1
             pulse_factor = 1.0 + 0.1 * math.sin(self.pulse_time)
-            new_size = max(1, int(size * pulse_factor))
+            new_size = int(max(1.0, size * pulse_factor))
 
             # Re-create the image with the pulsed size
             old_center = self.rect.center # Store center before resize
