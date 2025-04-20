@@ -852,7 +852,7 @@ class EnemyType8(Enemy):
         super().__init__(*groups)
 
         self.player_ref = player_ref
-        
+
         # Special parameters for the lightboard enemy
         self.charge_cooldown = 2000  # ms between charges
         self.last_charge_time = pygame.time.get_ticks()
@@ -861,10 +861,10 @@ class EnemyType8(Enemy):
         self.normal_speed = -1.5  # Slower base speed (moves left)
         self.charge_duration = 1500  # ms
         self.charge_start_time = 0
-        
+
         # Particle effect parameters
         self.particle_timer = 0
-        self.particle_spawn_rate = 5  # frames between particle spawns
+        self.particle_spawn_rate = 5  # Frames between particle spawns
         self.light_trail = []  # Store light trail particles
         self.max_trail_length = 15
         self.trail_colors = [
@@ -900,16 +900,19 @@ class EnemyType8(Enemy):
 
         # Set initial movement speed
         self.set_speed(self.normal_speed, 0)
-        
+
         # Light effect surfaces
         self.glow_surface = None
         self._create_glow_surface()
+        
+        # Screen rect for visibility check
+        self.screen_rect = pygame.Rect(0, 0, SCREEN_WIDTH, PLAYFIELD_BOTTOM_Y) # Use PLAYFIELD_BOTTOM_Y for height
 
     def _create_glow_surface(self):
         """Create a glowing effect surface."""
         size = max(self.rect.width, self.rect.height) * 2
         self.glow_surface = pygame.Surface((size, size), pygame.SRCALPHA)
-        
+
         # Create a radial gradient
         center = size // 2
         max_radius = size // 2 - 5
@@ -920,11 +923,13 @@ class EnemyType8(Enemy):
 
     def update(self) -> None:
         """Update the enemy's behavior, movement and effects."""
-        # Call parent update for animation
+
+        # Update position and animation based on current speed *before* any other logic.
         super().update()
         
+        # === Existing Logic (Order Adjusted) ===
         now = pygame.time.get_ticks()
-        
+
         # Check if we are currently in a charge
         if self.is_charging:
             # If charge duration completed, go back to normal movement
@@ -934,89 +939,128 @@ class EnemyType8(Enemy):
                 logger.debug("Lightboard enemy ended charge")
         else:
             # If not charging, check if it's time to charge
+            # Use the updated position (from super().update()) to check if we should charge
             if now - self.last_charge_time > self.charge_cooldown and self.player_ref:
                 # Start a charge toward the player's current position
+                # This will set the speed for the *next* frame's super().update()
                 self._start_charge()
                 self.last_charge_time = now
                 self.charge_start_time = now
-        
-        # Update light trail particles
-        self.particle_timer += 1
-        if self.is_charging and self.particle_timer >= self.particle_spawn_rate:
-            self.particle_timer = 0
-            self._spawn_trail_particle()
-            
-        # Maintain trail length
+
+        # Check if the enemy's center is on screen using the updated rect
+        center_on_screen = self.screen_rect.collidepoint(self.rect.center)
+
+        if center_on_screen:
+            # Update particle timer and spawn if conditions met
+            self.particle_timer += 1
+            if self.is_charging and self.particle_timer >= self.particle_spawn_rate:
+                self.particle_timer = 0
+                # Pass the center_on_screen flag (based on updated pos) to the spawn function
+                self._spawn_trail_particle(center_on_screen)
+
+        # Always update existing trail particles so they fade out even if enemy goes off-screen
+        # Maintain trail length - Do this regardless of visibility
         while len(self.light_trail) > self.max_trail_length:
             self.light_trail.pop(0)
-            
-        # Update trail particles
+
+        # Update trail particles' alpha
+        particles_to_remove = []
         for particle in self.light_trail:
             particle["alpha"] -= 5
             if particle["alpha"] <= 0:
-                self.light_trail.remove(particle)
+                particles_to_remove.append(particle)
+
+        # Remove faded particles
+        for particle in particles_to_remove:
+            self.light_trail.remove(particle)
 
     def _start_charge(self) -> None:
         """Start a charge toward the player's current position."""
         if not self.player_ref:
             return
-            
+
         self.is_charging = True
-        
+
         # Calculate direction to player
         target_x, target_y = self.player_ref.rect.center
         current_x, current_y = self.rect.center
-        
+
         # Calculate the angle
         dx = target_x - current_x
         dy = target_y - current_y
-        
+
         # Normalize the direction
         distance = max(1, math.sqrt(dx * dx + dy * dy))
         dx /= distance
         dy /= distance
-        
+
         # Set velocity toward player
         self.set_speed(dx * self.charge_speed, dy * self.charge_speed)
         logger.debug(f"Lightboard enemy charging at player from {(current_x, current_y)} to {(target_x, target_y)}")
 
-    def _spawn_trail_particle(self) -> None:
-        """Spawn a light trail particle behind the enemy."""
+    def _spawn_trail_particle(self, center_on_screen: bool) -> None:
+        """Spawn a light trail particle behind the enemy only if its center is visible."""
+        # Only spawn if the center is on screen
+        if not center_on_screen:
+             return 
+
         color = random.choice(self.trail_colors)
-        
+
         offset_x = random.randint(-5, 5)
         offset_y = random.randint(-5, 5)
-        
+
         particle = {
             "pos": (self.rect.centerx + offset_x, self.rect.centery + offset_y),
             "color": color,
             "size": random.randint(5, 15),
             "alpha": 200
         }
-        
+
         self.light_trail.append(particle)
 
     def draw(self, surface):
         """Custom draw method to render the light trail and glow effects."""
-        # Draw light trail particles first
+        # Always draw the light trail particles so they fade naturally
         for particle in self.light_trail:
             pos = particle["pos"]
             color = particle["color"] + (particle["alpha"],)
             size = particle["size"]
-            glow_rect = pygame.Rect(0, 0, size * 2, size * 2)
-            glow_rect.center = pos
             
             # Create a small surface for this particle with alpha
-            particle_surf = pygame.Surface((size * 2, size * 2), pygame.SRCALPHA)
-            pygame.draw.circle(particle_surf, color, (size, size), size)
+            # Use max(1, size*2) to avoid zero-size surface error
+            particle_surf_size = max(1, size * 2)
+            particle_surf = pygame.Surface((particle_surf_size, particle_surf_size), pygame.SRCALPHA)
+            pygame.draw.circle(particle_surf, color, (particle_surf_size // 2, particle_surf_size // 2), size)
+
+            # Calculate rect for blitting
+            particle_rect = particle_surf.get_rect(center=pos)
             
             # Draw the particle
-            surface.blit(particle_surf, glow_rect)
-        
-        # Draw glow effect during charge
-        if self.is_charging and self.glow_surface:
-            glow_rect = self.glow_surface.get_rect(center=self.rect.center)
-            surface.blit(self.glow_surface, glow_rect)
-        
-        # Draw the enemy sprite on top
-        surface.blit(self.image, self.rect)
+            surface.blit(particle_surf, particle_rect)
+            
+        # Check if the enemy sprite itself is visible (colliding with screen)
+        is_sprite_visible = self.screen_rect.colliderect(self.rect)
+
+        # Only draw the glow and main sprite if the sprite is visible
+        if is_sprite_visible:
+            # Draw glow effect during charge
+            if self.is_charging and self.glow_surface:
+                glow_rect = self.glow_surface.get_rect(center=self.rect.center)
+                surface.blit(self.glow_surface, glow_rect)
+
+            # Draw the enemy sprite on top
+            surface.blit(self.image, self.rect)
+
+    def reset(self) -> None:
+        """Reset the enemy to its initial state for object pooling reuse."""
+        # Call parent reset first
+        super().reset()
+
+        # Reset EnemyType8 specific attributes
+        self.light_trail = []
+        self.is_charging = False
+        self.last_charge_time = pygame.time.get_ticks() # Reset charge timer
+        self.particle_timer = 0
+        self.charge_start_time = 0
+        # Reset speed to default non-charging speed
+        self.set_speed(self.normal_speed, 0)
