@@ -20,10 +20,6 @@ The game features:
 
 This entire game was vibe coded — stitched together by instinct, stubbornness, scotch, and a string of late-night hunches. No Gantt charts. No scrum boards.  Just vibes.
 
-### Third Parties
-
-Starblitz Assault comes to life thanks to Pygame, a Python game dev toolkit that vibes hard with retro energy and modern flexibility.
-
 ## Contributors
 
 ### Meat-Based Leadership
@@ -39,6 +35,10 @@ This game was created with assistance from the following digital co-vibers:
 | **Sprite & Visual Design** | OpenAI GPT-4o Native Image Generation |
 | **Soundtrack Generation** | Udio |
 | **Sound Effects Creation** | ElevenLabs |
+
+### Third Parties
+
+Starblitz Assault comes to life thanks to Pygame, a Python game dev toolkit that vibes hard with retro energy and modern flexibility.
 
 ## Installation
 
