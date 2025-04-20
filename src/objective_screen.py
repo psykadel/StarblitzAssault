@@ -1,12 +1,12 @@
 """Objective screen for Starblitz Assault game."""
 
-import os
 import random
 import math
 import pygame
-from typing import Any, Optional, List
+from typing import Optional, List
 
 from config.config import SCREEN_WIDTH, SCREEN_HEIGHT
+from utilities.asset_helper import get_asset_path
 
 class Star:
     """A star in the starfield background."""
@@ -191,7 +191,7 @@ class ObjectiveScreen:
         self.running = True
         
         # Load objective image
-        objective_path = os.path.join("assets", "images", "objective.png")
+        objective_path = get_asset_path("images", "objective.png")
         try:
             self.objective_img = pygame.image.load(objective_path).convert_alpha()
             # Scale image to fit screen (70% of screen width)

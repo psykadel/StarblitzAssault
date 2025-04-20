@@ -5,8 +5,10 @@ import random
 import math
 import pygame
 from typing import Optional, Any
+from pathlib import Path
 
 from config.config import SCREEN_WIDTH, SCREEN_HEIGHT
+from utilities.asset_helper import get_asset_path
 
 try:
     from src.sound_manager import SoundManager
@@ -27,6 +29,7 @@ PULSE_AMOUNT = 0.02  # Logo scale pulse range (1.0 ± this value)
 GRID_SIZE = 40  # Size of cosmic grid cells
 GRID_LINE_BRIGHTNESS = 15  # Very subtle
 SHOOTING_STAR_COUNT = 3  # Number of shooting stars
+
 
 class Star:
     """A star in the scrolling background."""
@@ -259,7 +262,7 @@ class IntroSequence:
         self.shooting_stars = [ShootingStar() for _ in range(SHOOTING_STAR_COUNT)]
         
         # Load the logo
-        logo_path = os.path.join("assets", "images", "logo.png")
+        logo_path = get_asset_path("images", "logo.png")
         try:
             self.original_logo = pygame.image.load(logo_path).convert_alpha()
             # Calculate appropriate size (50% of screen width max)
@@ -316,7 +319,7 @@ class IntroSequence:
                     pygame.mixer.init()
                     
                 # Play background music directly
-                music_path = os.path.join("assets", "music", "background-music.mp3")
+                music_path = get_asset_path("music", "background-music.mp3")
                 if os.path.exists(music_path):
                     pygame.mixer.music.load(music_path)
                     pygame.mixer.music.set_volume(0.7)
