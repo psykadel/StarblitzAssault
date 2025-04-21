@@ -55,7 +55,7 @@ Starblitz Assault comes to life thanks to Pygame, a Python game dev toolkit that
 
 For Windows and macOS users, we provide pre-built releases that don't require Python installation:
 
-1. Visit the [Releases](https://github.com/psykadel/StarblitzAssault/releases) section of this repository
+1. Visit the [Releases](https://github.com/psykadel/StarblitzAssault/releases) section of this repository.
 2. Download the appropriate file for your system.
 3. Follow the simple instructions in the release notes.
 
