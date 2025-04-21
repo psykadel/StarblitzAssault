@@ -1,6 +1,13 @@
-# Starblitz Assault
-
+<div align="center">
 <img src="starblitz-icon.png" alt="Starblitz Assault Logo" width="200"/>
+</div>
+<div align="center">
+<h1 style="border-bottom: none;">STARBLITZ ASSAULT</h1>
+</div>
+
+## Preview
+
+[![Starblitz Assault Gameplay](https://img.youtube.com/vi/YEJyiOIQ3wY/0.jpg)](https://youtu.be/YEJyiOIQ3wY)
 
 ## Overview
 
