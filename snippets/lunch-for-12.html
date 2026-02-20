@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lunch for $12 | Lunch + Drink</title>
+    <style>
+      :root {
+        --cream: #f8f5ef;
+        --ink: #1f1b17;
+        --accent: #8c5a44;
+        --muted: #5f5650;
+        --gold: #b38a5a;
+        --card: #ffffff;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Georgia", "Times New Roman", serif;
+        color: var(--ink);
+        background: linear-gradient(140deg, #f4f0e9 0%, #fdfcf9 55%, #efe7dd 100%);
+      }
+
+      .top-nav {
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        backdrop-filter: blur(6px);
+        background: rgba(31, 27, 23, 0.92);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+      }
+
+      .top-nav ul {
+        list-style: none;
+        margin: 0;
+        padding: 0.95rem 1.5rem;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.45rem 0.75rem;
+        justify-content: center;
+      }
+
+      .top-nav a {
+        color: #f8f0e7;
+        text-decoration: none;
+        font-family: "Arial", sans-serif;
+        font-size: 0.9rem;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        padding: 0.45rem 0.7rem;
+        border: 1px solid transparent;
+        border-radius: 999px;
+        transition: 0.2s ease;
+      }
+
+      .top-nav a:hover,
+      .top-nav a:focus-visible {
+        border-color: rgba(255, 255, 255, 0.45);
+        background: rgba(255, 255, 255, 0.12);
+      }
+
+      .container {
+        max-width: 1000px;
+        margin: 0 auto;
+        padding: 2rem 1.2rem 3rem;
+      }
+
+      .hero {
+        background: radial-gradient(circle at top right, rgba(179, 138, 90, 0.25), transparent 55%),
+          var(--card);
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        border-radius: 22px;
+        padding: 2rem 1.5rem;
+        box-shadow: 0 10px 30px rgba(15, 12, 10, 0.09);
+      }
+
+      .eyebrow {
+        margin: 0;
+        font-family: Arial, sans-serif;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--muted);
+        font-size: 0.78rem;
+      }
+
+      h1 {
+        font-size: clamp(2.3rem, 5.8vw, 4rem);
+        margin: 0.3rem 0 0;
+        line-height: 1.04;
+      }
+
+      .subtitle {
+        font-family: Arial, sans-serif;
+        font-size: 1rem;
+        color: var(--muted);
+        margin-top: 0.6rem;
+        letter-spacing: 0.03em;
+      }
+
+      .pillbar {
+        margin-top: 1rem;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+      }
+
+      .pill {
+        border-radius: 999px;
+        padding: 0.45rem 0.8rem;
+        font-family: Arial, sans-serif;
+        font-size: 0.8rem;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+        background: #f5ecdf;
+        color: #5a3f26;
+        border: 1px solid #e2d3be;
+      }
+
+      section {
+        margin-top: 1.4rem;
+      }
+
+      .card {
+        background: var(--card);
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        border-radius: 18px;
+        padding: 1.2rem;
+        box-shadow: 0 8px 24px rgba(20, 16, 12, 0.06);
+      }
+
+      h2 {
+        font-size: 1.6rem;
+        margin: 0;
+        color: var(--accent);
+      }
+
+      .section-note {
+        margin: 0.3rem 0 0.9rem;
+        color: var(--muted);
+        font-family: Arial, sans-serif;
+      }
+
+      .menu-item + .menu-item {
+        margin-top: 0.95rem;
+        padding-top: 0.95rem;
+        border-top: 1px dashed rgba(0, 0, 0, 0.2);
+      }
+
+      .menu-item h3 {
+        margin: 0;
+        font-size: 1.55rem;
+      }
+
+      .menu-item p {
+        margin: 0.35rem 0 0;
+        font-size: 1.08rem;
+      }
+
+      .columns {
+        display: grid;
+        gap: 1rem;
+      }
+
+      .side-list {
+        margin: 0.45rem 0 0;
+        padding-left: 1.1rem;
+        font-size: 1.06rem;
+      }
+
+      footer {
+        margin-top: 1.4rem;
+        text-align: center;
+        font-family: Arial, sans-serif;
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+
+      @media (min-width: 840px) {
+        .columns {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <nav class="top-nav" aria-label="Menu sections">
+      <ul>
+        <li><a href="#featured">Featured</a></li>
+        <li><a href="#sandwiches-burgers">Sandwiches & Burgers</a></li>
+        <li><a href="#wings">Wings</a></li>
+        <li><a href="#salad-soup">Salad + Soup</a></li>
+        <li><a href="#sides">Sides</a></li>
+      </ul>
+    </nav>
+
+    <main class="container">
+      <header class="hero" id="featured">
+        <p class="eyebrow">Lunch For $12</p>
+        <h1>Lunch + Drink</h1>
+        <p class="subtitle">Monday–Friday · 11AM–4PM · Soft Beverage Included</p>
+        <div class="pillbar" aria-label="highlights">
+          <span class="pill">Fast Midday Favorites</span>
+          <span class="pill">Chef Crafted Combos</span>
+          <span class="pill">One Price: $12</span>
+        </div>
+      </header>
+
+      <div class="columns">
+        <section id="sandwiches-burgers" class="card">
+          <h2>Entrées</h2>
+          <p class="section-note">Served as listed with your included soft beverage.</p>
+
+          <article class="menu-item">
+            <h3>Fish & Chips</h3>
+            <p>Fried North Atlantic cod + fries + coleslaw.</p>
+          </article>
+
+          <article class="menu-item">
+            <h3>Chicken Alfredo</h3>
+            <p>Housemade Alfredo + grilled chicken + ciabatta bread.</p>
+          </article>
+
+          <article class="menu-item">
+            <h3>Ranch Chicken Sandwich + Side</h3>
+            <p>Crispy chicken + bacon + Swiss cheese.</p>
+          </article>
+
+          <article class="menu-item">
+            <h3>Smokehouse BBQ Burger + Side</h3>
+            <p>1/4 lb burger + cheddar + bacon + BBQ ranch + onion strings.</p>
+          </article>
+
+          <article class="menu-item">
+            <h3>Foundry Bacon Burger + Side</h3>
+            <p>1/4 lb burger + cheddar cheese + double smoked bacon.</p>
+          </article>
+
+          <article class="menu-item">
+            <h3>Black Bean Avocado Burger + Side</h3>
+            <p>Veggie burger + avocado + pico + pepper jack + sriracha mayo.</p>
+          </article>
+
+          <article class="menu-item">
+            <h3>Hot’lanta Chicken Sandwich + Side</h3>
+            <p>Fried chicken + serrano chili sauce + ranch + pickle.</p>
+          </article>
+        </section>
+
+        <div>
+          <section id="wings" class="card">
+            <h2>Bone-In or Boneless Wings + Fries</h2>
+            <p class="section-note">Choose your flavor:</p>
+            <ul class="side-list">
+              <li>Serrano Chili</li>
+              <li>Sesame Orange</li>
+              <li>Honey BBQ</li>
+              <li>Sticky Asian</li>
+              <li>Chipotle Maple</li>
+              <li>Sriracha Dry Rub</li>
+              <li>Cajun Dry Rub</li>
+              <li>Jamaican Jerk Dry Rub</li>
+            </ul>
+          </section>
+
+          <section id="salad-soup" class="card">
+            <h2>Salad + Soup</h2>
+            <p class="section-note">Choose one of each:</p>
+            <p><strong>Salads:</strong> BLT + Avocado, Grilled Caesar with Chicken, Foundry Peach.</p>
+            <p><strong>Soups:</strong> White Bean Chicken Chili, Butternut Squash.</p>
+          </section>
+
+          <section id="sides" class="card">
+            <h2>Sides</h2>
+            <p>French fries, kettle chips, or coleslaw.</p>
+          </section>
+        </div>
+      </div>
+
+      <footer>
+        Lunch for $12 menu · Designed for a professional, easy-to-scan dining experience.
+      </footer>
+    </main>
+  </body>
+</html>
